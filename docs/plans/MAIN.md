@@ -6,30 +6,36 @@
 
 - [/] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members · release vNext — High · Tower Cab room attach (feat/towercab-room-attach)
 
+## Tower Cab room attach (feat/towercab-room-attach)
+
+- [ ] YAAT-610 Persist a room's kicked and invited CIDs across a planned restart · release vNext
+- [ ] YAAT-611 Bind a CRC connection to a room its CID is not kicked from · release vNext
+- [ ] YAAT-612 Tell a CRC user why their room bind was refused after a kick · release vNext
+
 ## Bug reports and feature requests
 
-- [ ] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext
+- [!] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext
 - [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release v0.16.0-beta reels
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release v0.16.0-beta reels
   - [ ] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release v0.16.0-beta reels
   - [ ] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release v0.16.0-beta reels
-- [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop · release vNext
-- [ ] YAAT-256 batch_drive: save a wait_until step's screenshot to a file · release vNext
-- [ ] YAAT-261 AutomationWaitUntilTests.Landed_HeldAfterAirborneThenGround times out in the full UI suite · release vNext
-- [ ] YAAT-270 Widen the timing bound in AutomationWaitForTests.WaitFor_ConditionNeverMet (flakes under a loaded full UI suite) · release vNext
+- [/] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop · release vNext
+- [/] YAAT-261 AutomationWaitUntilTests.Landed_HeldAfterAirborneThenGround times out in the full UI suite · release vNext
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2 · release vNext
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover) · release vNext
 - [ ] YAAT-403 Support for vTBFM · release vNext
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
+- [/] YAAT-609 Treat only registrations and listed bizjet operators as GA for exit sides · release vNext
+- [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 
 ## Context-menu quick commands (#471)
 
-- [ ] YAAT-312 Context menu: stale descriptions after the builder refactor · release vNext
+- [/] YAAT-312 Context menu: stale descriptions after the builder refactor · release vNext
 - [ ] YAAT-445 Seed the context menu's heading pickers and warp popup with magnetic heading, not true · release vNext
-- [ ] YAAT-446 Stop the Temporary altitude and Cruise popups throwing on FL or comma input · release vNext
+- [/] YAAT-446 Stop the Temporary altitude and Cruise popups throwing on FL or comma input · release vNext
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus · release vNext
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway · release vNext
-- [ ] YAAT-503 Context-menu For section is offered for a delayed-spawn selection · release vNext
+- [/] YAAT-503 Context-menu For section is offered for a delayed-spawn selection · release vNext
 - [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS · release vNext
 - [ ] YAAT-524 CTO 360 still parses as heading 360: remove or implement the CTO 360 overload · release vNext
 - [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip · release vNext
@@ -133,6 +139,7 @@
 - [ ] YAAT-578 Warn when a plain `PUSH {taxiway}` path fouls a parked neighbour · release vNext
 - [ ] YAAT-583 Restore the junction target when a hold short ahead is cleared mid-taxi
 - [ ] YAAT-606 Clear the runway hold line with margin when a widebody vacates (RunwayExitPhase stop point)
+- [ ] YAAT-615 Park SFO GA arrivals on the side of 28R they exit toward
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -249,6 +256,7 @@
 ## Wave 9 — Docs and repo hygiene
 
 - [ ] YAAT-110 Replace stale MainViewModel line numbers in docs/command-input-ux.md
+- [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
 - [ ] YAAT-111 Code hygiene from the ERAM session: long lines, sync-over-async, optional params
 - [ ] YAAT-112 Move developer docs from the repo root into docs/
 - [ ] YAAT-113 Make claude-guard-bash.sh check the gate/timeout wrappers per segment
@@ -461,7 +469,4 @@
 - [ ] YAAT-597 Add SPD FAS and SPN FAS as additions to RFAS
 - [ ] YAAT-602 Refuse an expired YAAT token at /vnas/auth/refresh instead of forwarding it to VATSIM
 - [ ] YAAT-607 Isolate the wake-table installers in yaat-server tests and document leftover-state leaks
-
-## No project
-
-- [ ] YAAT-608 Record the timing-test ruling (wait on state; critical slot as last resort) in docs/test-harness.md
+- [ ] YAAT-614 Turn a shots-folder write failure into a step or tool error in the client driver
