@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Automation;
 using Yaat.Client.Automation.Protocol;
@@ -14,14 +13,12 @@ using Yaat.Client.ViewModels;
 namespace Yaat.Client.UI.Tests.Automation;
 
 /// <summary>
-/// <c>wait_until</c> over a real named pipe, on a real <see cref="MainViewModel"/>: each condition met across a delayed state
-/// change, the any/all modes, a timeout answered as a result with the last values, and the coded errors.
+/// <c>wait_until</c> over a real named pipe, on a real <see cref="MainViewModel"/>: each condition met across a state change
+/// made between polls, the any/all modes, a timeout answered as a result with the last values, and the coded errors.
 /// </summary>
 public sealed class AutomationWaitUntilTests : AutomationHostFixture
 {
     private const string Callsign = "UAL123";
-
-    private static readonly TimeSpan ChangeDelay = TimeSpan.FromMilliseconds(300);
 
     private static (MainViewModel ViewModel, AircraftModel Aircraft) MainWith(bool onGround, string phase)
     {
@@ -46,26 +43,31 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
     }
 
     /// <summary>
-    /// Arms <paramref name="change"/> to run after <see cref="ChangeDelay"/>, sends <c>wait_until</c>, and checks the answer
-    /// came after it.
+    /// Sends <c>wait_until</c> and makes <paramref name="changes"/> one per poll from the second, each inside that poll's read
+    /// of the state, so the first poll always sees the state before any change; checks every change ran before the answer.
     /// </summary>
-    private async Task<JsonElement> WaitUntilAcross(Func<IAutomationState?> state, Action change, object parameters)
+    private async Task<JsonElement> WaitUntilAcross(Func<IAutomationState?> state, object parameters, Action first, params Action[] rest)
     {
-        using AutomationHost host = StartHost(() => Windows, state);
-        await using AutomationPipeTestClient client = await Connect();
-        bool changed = false;
-        DispatcherTimer.RunOnce(
-            () =>
+        Action[] changes = [first, .. rest];
+        int polls = 0;
+        int applied = 0;
+        IAutomationState? ChangingState()
+        {
+            polls++;
+            if ((polls >= 2) && (applied < changes.Length))
             {
-                change();
-                changed = true;
-            },
-            ChangeDelay
-        );
+                changes[applied]();
+                applied++;
+            }
 
+            return state();
+        }
+
+        using AutomationHost host = StartHost(() => Windows, ChangingState);
+        await using AutomationPipeTestClient client = await Connect();
         JsonElement response = await Send(client, ProtocolMethods.WaitUntil, parameters);
 
-        Assert.True(changed, $"wait_until answered before the change: {response}");
+        Assert.True(applied == changes.Length, $"wait_until answered before change {applied + 1} of {changes.Length}: {response}");
         return response;
     }
 
@@ -81,7 +83,7 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         (MainViewModel viewModel, AircraftModel aircraft) = MainWith(onGround: false, "Landing");
 
         JsonElement result = Result(
-            await WaitUntilAcross(StateOf(viewModel), () => aircraft.IsOnGround = true, Conditions(new { kind = "on_ground", callsign = Callsign }))
+            await WaitUntilAcross(StateOf(viewModel), Conditions(new { kind = "on_ground", callsign = Callsign }), () => aircraft.IsOnGround = true)
         );
 
         Assert.True(result.GetProperty("met").GetBoolean());
@@ -110,7 +112,7 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         (MainViewModel viewModel, AircraftModel aircraft) = MainWith(onGround: false, "Landing");
 
         JsonElement result = Result(
-            await WaitUntilAcross(StateOf(viewModel), () => aircraft.IsOnGround = true, Conditions(new { kind = "landed", callsign = Callsign }))
+            await WaitUntilAcross(StateOf(viewModel), Conditions(new { kind = "landed", callsign = Callsign }), () => aircraft.IsOnGround = true)
         );
 
         Assert.True(result.GetProperty("met").GetBoolean());
@@ -155,7 +157,6 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         JsonElement result = Result(
             await WaitUntilAcross(
                 StateOf(viewModel),
-                () => aircraft.CurrentPhase = "Landing",
                 Conditions(
                     new
                     {
@@ -163,7 +164,8 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
                         callsign = Callsign,
                         phase = "approach",
                     }
-                )
+                ),
+                () => aircraft.CurrentPhase = "Landing"
             )
         );
 
@@ -180,8 +182,8 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         JsonElement result = Result(
             await WaitUntilAcross(
                 StateOf(viewModel),
-                () => aircraft.PendingCommands = "",
-                Conditions(new { kind = "queue_empty", callsign = Callsign })
+                Conditions(new { kind = "queue_empty", callsign = Callsign }),
+                () => aircraft.PendingCommands = ""
             )
         );
 
@@ -198,8 +200,8 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         JsonElement result = Result(
             await WaitUntilAcross(
                 StateOf(viewModel),
-                () => viewModel.ScenarioElapsedSeconds = 12,
-                Conditions(new { kind = "sim_seconds", atLeast = 12 })
+                Conditions(new { kind = "sim_seconds", atLeast = 12 }),
+                () => viewModel.ScenarioElapsedSeconds = 12
             )
         );
 
@@ -216,7 +218,6 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         JsonElement result = Result(
             await WaitUntilAcross(
                 StateOf(viewModel),
-                () => aircraft.IsOnGround = true,
                 new
                 {
                     conditions = new object[]
@@ -230,7 +231,8 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
                         },
                     },
                     mode = "all",
-                }
+                },
+                () => aircraft.IsOnGround = true
             )
         );
 
@@ -320,8 +322,8 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         JsonElement result = Result(
             await WaitUntilAcross(
                 StateOf(viewModel),
-                () => viewModel.AddSystemEntry("new: cleared to land"),
-                Conditions(new { kind = "log_matches", pattern = "CLEARED TO LAND" })
+                Conditions(new { kind = "log_matches", pattern = "CLEARED TO LAND" }),
+                () => viewModel.AddSystemEntry("new: cleared to land")
             )
         );
 
@@ -341,6 +343,7 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         JsonElement result = Result(
             await WaitUntilAcross(
                 StateOf(viewModel),
+                Conditions(new { kind = "log_matches", pattern = "^go around$" }),
                 () =>
                 {
                     for (int line = 0; line < 5; line++)
@@ -349,8 +352,7 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
                     }
 
                     viewModel.AddSystemEntry("go around");
-                },
-                Conditions(new { kind = "log_matches", pattern = "^go around$" })
+                }
             )
         );
 
@@ -363,23 +365,10 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
     public async Task LogMatches_CallsignFilter()
     {
         (MainViewModel viewModel, _) = MainWith(onGround: false, "Approach");
-        using AutomationHost host = StartHost(() => Windows, StateOf(viewModel));
-        await using AutomationPipeTestClient client = await Connect();
-        bool ownLineAdded = false;
-        DispatcherTimer.RunOnce(() => viewModel.TerminalEntries.Add(Entry("DAL9", "contact tower")), ChangeDelay);
-        DispatcherTimer.RunOnce(
-            () =>
-            {
-                viewModel.TerminalEntries.Add(Entry(Callsign, "contact tower"));
-                ownLineAdded = true;
-            },
-            ChangeDelay * 2
-        );
 
         JsonElement result = Result(
-            await Send(
-                client,
-                ProtocolMethods.WaitUntil,
+            await WaitUntilAcross(
+                StateOf(viewModel),
                 Conditions(
                     new
                     {
@@ -387,11 +376,12 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
                         pattern = "contact",
                         callsign = "ual123",
                     }
-                )
+                ),
+                () => viewModel.TerminalEntries.Add(Entry("DAL9", "contact tower")),
+                () => viewModel.TerminalEntries.Add(Entry(Callsign, "contact tower"))
             )
         );
 
-        Assert.True(ownLineAdded, $"wait_until matched another aircraft's line: {result}");
         Assert.True(result.GetProperty("met").GetBoolean());
     }
 
@@ -426,17 +416,17 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         JsonElement result = Result(
             await WaitUntilAcross(
                 () => state,
-                () =>
-                {
-                    state.Aircraft[0].IsOnGround = true;
-                    pad.Width = 200;
-                    window.UpdateLayout();
-                },
                 new
                 {
                     conditions = new[] { new { kind = "on_ground", callsign = Callsign } },
                     screenshot = new { selector = "#ShotWindow #Pad" },
                     then = new[] { new { action = "pause" } },
+                },
+                () =>
+                {
+                    state.Aircraft[0].IsOnGround = true;
+                    pad.Width = 200;
+                    window.UpdateLayout();
                 }
             )
         );
@@ -452,30 +442,19 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
     public async Task LogMatches_IgnoresLinesRebuiltByARecordingLoad()
     {
         (MainViewModel viewModel, _) = MainWith(onGround: false, "Approach");
-        using AutomationHost host = StartHost(() => Windows, StateOf(viewModel));
-        await using AutomationPipeTestClient client = await Connect();
-        bool liveLineAdded = false;
-        DispatcherTimer.RunOnce(
-            () =>
-                viewModel.RepopulateTerminalFromRecording([
-                    new TerminalBroadcastDto("", "System", "", "history: cleared to land", DateTime.UtcNow, 10),
-                ]),
-            ChangeDelay
-        );
-        DispatcherTimer.RunOnce(
-            () =>
-            {
-                viewModel.AddSystemEntry("live: cleared to land");
-                liveLineAdded = true;
-            },
-            ChangeDelay * 2
-        );
 
         JsonElement result = Result(
-            await Send(client, ProtocolMethods.WaitUntil, Conditions(new { kind = "log_matches", pattern = "cleared to land" }))
+            await WaitUntilAcross(
+                StateOf(viewModel),
+                Conditions(new { kind = "log_matches", pattern = "cleared to land" }),
+                () =>
+                    viewModel.RepopulateTerminalFromRecording([
+                        new TerminalBroadcastDto("", "System", "", "history: cleared to land", DateTime.UtcNow, 10),
+                    ]),
+                () => viewModel.AddSystemEntry("live: cleared to land")
+            )
         );
 
-        Assert.True(liveLineAdded, $"wait_until matched a line rebuilt from the recording: {result}");
         Assert.Equal("matched: live: cleared to land", LastValue(result, 0));
     }
 
@@ -530,12 +509,12 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
         JsonElement result = Result(
             await WaitUntilAcross(
                 () => state,
-                () => state.Aircraft[0].IsOnGround = true,
                 new
                 {
                     conditions = new[] { new { kind = "on_ground", callsign = Callsign } },
                     then = new object[] { new { action = "pause" }, new { action = "set_rate", rate = 4 } },
-                }
+                },
+                () => state.Aircraft[0].IsOnGround = true
             )
         );
 

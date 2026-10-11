@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Client.Automation;
@@ -18,7 +17,24 @@ namespace Yaat.Client.UI.Tests.Automation;
 public sealed class AutomationClientErrorsTests : AutomationHostFixture
 {
     private const string ProbeCategory = "AutomationClientErrorsProbe";
-    private static readonly TimeSpan ChangeDelay = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>
+    /// A roots provider that serves <see cref="Windows"/> and runs <paramref name="change"/> once, on its second call: the
+    /// selector engine calls it per evaluation, so the second call is inside the wait, after the dispatcher read its start.
+    /// </summary>
+    private Func<IEnumerable<TopLevel>> RootsRunning(Action change)
+    {
+        int calls = 0;
+        return () =>
+        {
+            if (++calls == 2)
+            {
+                change();
+            }
+
+            return Windows;
+        };
+    }
 
     [AvaloniaFact]
     public async Task WaitFor_ErrorLoggedDuringTheCall_ComesBackInClientErrors_AndAQuietCallHasNone()
@@ -26,16 +42,16 @@ public sealed class AutomationClientErrorsTests : AutomationHostFixture
         ILogger probe = AppLog.CreateLogger(ProbeCategory);
         var status = new TextBlock { Name = "Status", Text = "loading" };
         ShowWindow("WaitWindow", status, null);
-        using AutomationHost host = StartHost(() => Windows);
-        await using AutomationPipeTestClient client = await Connect();
-        DispatcherTimer.RunOnce(
-            () =>
+        bool changed = false;
+        using AutomationHost host = StartHost(
+            RootsRunning(() =>
             {
                 probe.LogError(new InvalidOperationException("probe failure"), "Probe broke for {Callsign}", "AAL1");
                 status.Text = "ready";
-            },
-            ChangeDelay
+                changed = true;
+            })
         );
+        await using AutomationPipeTestClient client = await Connect();
 
         JsonElement noisy = await Send(
             client,
@@ -47,6 +63,7 @@ public sealed class AutomationClientErrorsTests : AutomationHostFixture
                 text = "ready",
             }
         );
+        Assert.True(changed, $"wait_for answered before the probe logged: {noisy}");
         JsonElement quiet = await Send(client, ProtocolMethods.WaitFor, new { selector = "#Status", condition = "exists" });
 
         Result(noisy);
@@ -89,10 +106,9 @@ public sealed class AutomationClientErrorsTests : AutomationHostFixture
         ILogger probe = AppLog.CreateLogger(ProbeCategory);
         var status = new TextBlock { Name = "Status", Text = "loading" };
         ShowWindow("WaitWindow", status, null);
-        using AutomationHost host = StartHost(() => Windows);
-        await using AutomationPipeTestClient client = await Connect();
-        DispatcherTimer.RunOnce(
-            () =>
+        bool changed = false;
+        using AutomationHost host = StartHost(
+            RootsRunning(() =>
             {
                 for (int i = 0; i < 25; i++)
                 {
@@ -100,9 +116,10 @@ public sealed class AutomationClientErrorsTests : AutomationHostFixture
                 }
 
                 status.Text = "ready";
-            },
-            ChangeDelay
+                changed = true;
+            })
         );
+        await using AutomationPipeTestClient client = await Connect();
 
         JsonElement response = await Send(
             client,
@@ -115,6 +132,7 @@ public sealed class AutomationClientErrorsTests : AutomationHostFixture
             }
         );
 
+        Assert.True(changed, $"wait_for answered before the probe logged: {response}");
         Result(response);
         List<string?> messages = [.. response.GetProperty("clientErrors").EnumerateArray().Select(e => e.GetProperty("message").GetString())];
         Assert.Equal(20, AutomationResponse.MaxClientErrors);

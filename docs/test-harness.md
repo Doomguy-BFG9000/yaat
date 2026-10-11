@@ -198,6 +198,10 @@ Every test project uses xunit.v3 on the Microsoft.Testing.Platform runner (`UseM
 row uses `dotnet run --project` (or the built `Yaat.Sim.Tests.exe` directly). `xunit.runner.json` is still honoured by v3 for
 parallelism settings; `showLiveOutput` there is the config-file equivalent of `--show-live-output on`.
 
+### Throwaway probes
+
+A probe compiles into a test project without touching tracked files via `-p:CustomAfterMicrosoftCommonTargets=<file>`: the MSBuild file adds the probe source to `Compile`, so nothing in the project or its sources is edited. Delete the file when done.
+
 ### Linux runs: CI investigation and cross-platform verification
 
 CI runs on `ubuntu-latest` (`.github/workflows/ci.yml`). A test can pass on Windows and fail there: floating-point results differ in the last bits between the platforms' runtimes, and a value that is zero on paper can land on either side of it (see the footgun below). Two ways to run the suite on Linux from this machine, both against the Windows Release build (the test assemblies are portable, so any .NET 10 runtime runs them):
@@ -262,6 +266,8 @@ order- and load-dependent flakes:
   prevent this (it only covers the already-completed-at-await fast path). Hop the continuation off the session thread with
   `.ContinueWith(t => t.GetAwaiter().GetResult(), TaskScheduler.Default)` — a `ContinueWith` without `ExecuteSynchronously` is always
   queued, never inlined. `tools/Yaat.GuideCapture/Program.cs` is the worked example.
+- **Never race a `DispatcherTimer`-armed change against a poll.** A due `DispatcherTimer` runs ahead of an `InvokeAsync` posted before it when the UI thread is busy, so a test that arms a timer to flip state "during" a `wait_until`/`wait_for` can have the change land before the first poll, so the wait never sees the pre-change state (a `landed` wait, which needs an airborne poll first, then never holds and runs to its timeout). Script the change inside the polled read instead: the state provider for `wait_until`, a wrapped roots provider for `wait_for`, so the first poll always sees the pre-change state and the test asserts the change ran before the answer (`WaitUntilAcross` in `Automation/AutomationWaitUntilTests.cs` is the pattern). The default isolation is `PerTest`: the dispatcher is recreated for each test.
+- **A pipe `TimeoutException` from an unmet wait is the client's reply timeout, not the wait's.** `AutomationPipeTestClient.ReplyTimeout` is 10 s, shorter than `wait_until`'s 30 s default `timeoutMs`, so a wait whose condition never holds surfaces as a bare pipe `TimeoutException` rather than a `not met` result. Pass a `timeoutMs` below the reply timeout in tests that expect an unmet wait.
 
 ## Logging in tests
 
