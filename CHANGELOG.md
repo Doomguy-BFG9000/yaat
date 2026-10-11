@@ -30,6 +30,7 @@
 - `CTO` signature help no longer lists a "360 overhead" departure; `CTO 360` is cleared for takeoff, fly heading 360.
 - Ground view: Taxi here to a taxiway node or intersection now stops at that node instead of the junction before it.
 - Ground view: right-clicking a runway centerline node opens the runway menu, with taxi to either end for departure.
+- In solo, a pilot told `FOLLOW` in the air now reads back "follow the traffic".
 - CRC's SAID shows an aircraft squawking a code other than its flight plan's, such as after `RANDSQ`, as unidentified: teal icon, callsign only.
 
 ## v0.16.1-beta [2026/10/10]

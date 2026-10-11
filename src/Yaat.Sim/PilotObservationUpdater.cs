@@ -1,3 +1,6 @@
+using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
+
 namespace Yaat.Sim;
 
 /// <summary>
@@ -10,6 +13,15 @@ namespace Yaat.Sim;
 /// </summary>
 public static class PilotObservationUpdater
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PilotObservationUpdater");
+
+    /// <summary>
+    /// The acquisition gates already logged for a given pending observation, so a rejection that holds tick after
+    /// tick is reported once rather than on every physics sub-tick. Keyed by reference: a fresh RTIS replaces the
+    /// observation and starts its own log, and an observation dropped by the run releases its entry.
+    /// </summary>
+    private static readonly ConditionalWeakTable<TrafficAcquisitionObservation, HashSet<VisualAcquisitionFailure>> LoggedRejections = [];
+
     public static void Update(
         AircraftState aircraft,
         Func<string, AircraftState?>? aircraftLookup,
@@ -77,18 +89,44 @@ public static class PilotObservationUpdater
         VisualAcquisitionResult result = VisualAcquisition.TryAcquireTraffic(aircraft, target, weather);
         if (!result.Acquired)
         {
+            LogRejectionOnce(aircraft, obs, result.Reason);
             return false;
         }
 
         aircraft.Approach.HasReportedTrafficInSight = true;
         aircraft.Approach.LastReportedTrafficCallsign = obs.TargetCallsign.ToUpperInvariant();
+        Log.LogDebug(
+            "Traffic observation acquired: {Follower} has {Target} in sight at {Distance:F1} nm",
+            aircraft.Callsign,
+            obs.TargetCallsign,
+            result.DistanceNm
+        );
         Pilot.PilotResponder.RouteRpoSayReadback(
             aircraft,
             soloTrainingMode,
             rpoShowPilotSpeech,
             Pilot.PilotResponder.BuildTrafficInSight(aircraft, obs.TargetCallsign)
         );
+        Log.LogDebug("Traffic in sight readback queued for {Follower}, reporting {Target}", aircraft.Callsign, obs.TargetCallsign);
         return true;
+    }
+
+    /// <summary>
+    /// Logs the gate holding an acquisition back the first time it rejects a given observation, so a persistent
+    /// rejection (a target behind the ownship, out of range, or under a deck) is visible in the log without
+    /// drowning it: the gate is named once per observation, not once per tick.
+    /// </summary>
+    private static void LogRejectionOnce(AircraftState aircraft, TrafficAcquisitionObservation obs, VisualAcquisitionFailure gate)
+    {
+        if (!Log.IsEnabled(LogLevel.Debug))
+        {
+            return;
+        }
+
+        if (LoggedRejections.GetOrCreateValue(obs).Add(gate))
+        {
+            Log.LogDebug("Traffic observation: {Follower} cannot yet acquire {Target} — {Gate}", aircraft.Callsign, obs.TargetCallsign, gate);
+        }
     }
 
     /// <summary>

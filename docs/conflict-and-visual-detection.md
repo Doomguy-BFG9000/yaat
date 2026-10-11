@@ -612,7 +612,7 @@ here and have `aviation-sim-expert` review against the local FAA references.
 | `SteepBankAltBuffer` | 1000 | ft | Occlusion altitude buffer for steep banks |
 | `ModerateBankAltBuffer` | 500 | ft | Occlusion altitude buffer for moderate banks |
 | `NoseConeDeg` | 10.0 | deg | Target within nose cone is always visible |
-| `TrafficForwardHemisphereDeg` | 90.0 | deg | Traffic scan gate (point target must be in the forward scan) |
+| `TrafficForwardHemisphereDeg` | 110.0 | deg | Traffic scan gate (point target must be in the forward scan) |
 | `AirportForwardHemisphereDeg` | 120.0 | deg | Airport field-of-view gate (AIM §8-1-6.c.2 arc + head turn) |
 | `SmToNm` | 0.869 | — | Statute-mile → nm for METAR visibility |
 | `MetarParser.UnrestrictedVisibilitySm` | 10.0 | SM | Reported vis at/above is right-censored ("10 or more") → no range cap |

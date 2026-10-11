@@ -339,8 +339,6 @@ public static class PhraseologyVerbalizer
             ExitTaxiwayCommand e => Map("taxiway", fmt.Taxiway(e.Taxiway)),
             ExitLeftCommand e when e.Taxiway is { } t => Map("taxiway", fmt.Taxiway(t)),
             ExitRightCommand e when e.Taxiway is { } t => Map("taxiway", fmt.Taxiway(t)),
-            FollowGroundCommand f => Map("name", fmt.Callsign(f.TargetCallsign)),
-            FollowCommand f when f.TargetCallsign is not null => Map("name", fmt.Callsign(f.TargetCallsign)),
 
             // Transponder
             SquawkCommand s => Map("code", fmt.Squawk((int)s.Code)),

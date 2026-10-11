@@ -413,6 +413,7 @@ public static class PilotResponder
                 armedHold.RunwayEndFacing(aircraft)
             ),
             FollowGroundCommand follow => BuildFollowGroundClause(follow),
+            FollowCommand follow => BuildFollowAirborneClause(follow),
             GiveWayCommand giveWay => BuildGiveWayClause(giveWay),
             _ => VerbalizeDual(cmd, personality, activityLevel),
         };
@@ -426,6 +427,20 @@ public static class PilotResponder
     /// </summary>
     private static PilotSpeechText BuildFollowGroundClause(FollowGroundCommand follow) =>
         new("follow the traffic", "follow the traffic") { RpoTerminal = $"follow {follow.TargetCallsign}" };
+
+    /// <summary>
+    /// An airborne FOLLOW drops or resumes the route to trail the named aircraft, so the readback is the bare
+    /// element "follow the traffic" (7110.65 §7-6-7.a "FOLLOW (description)"; also §3-8-1, tower sequencing; the
+    /// same wording the ground form uses). FOLLOWF (force) parses to this same command, so it reads back alike.
+    /// Like every follow call the pilot identifies the leader by position, never by callsign
+    /// (docs/pilot-phraseology.md), so the target survives only in the RPO form; a bare FOLLOW names no traffic
+    /// and keeps "the traffic" in every form.
+    /// </summary>
+    private static PilotSpeechText BuildFollowAirborneClause(FollowCommand follow) =>
+        new("follow the traffic", "follow the traffic")
+        {
+            RpoTerminal = follow.TargetCallsign is { } target ? $"follow {target}" : "follow the traffic",
+        };
 
     /// <summary>
     /// GIVEWAY is §3-7-2.a's "BEHIND (traffic)": yield to the traffic and trail it on the pilot's own

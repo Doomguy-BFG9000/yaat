@@ -188,6 +188,8 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   `FOLLOWG` reads back `follow the traffic` and `GIVEWAY` `behind the traffic` (7110.65 §3-7-2.a FOLLOW / BEHIND (traffic)), built directly in `VerbalizeForReadback` (`BuildFollowGroundClause`, `BuildGiveWayClause`); their `RpoTerminal` names the traffic (`follow N2468K`, `behind UAL456`), never by type and with no position.
 
+  An airborne `FOLLOW` reads back `follow the traffic` too (7110.65 §7-6-7.a "FOLLOW (description)"; also tower sequencing, §3-8-1), built directly as `BuildFollowAirborneClause`; its `RpoTerminal` is `follow N2468K`, or plain `follow the traffic` for a bare `FOLLOW` that names no traffic. An airborne FOLLOW is accepted only after the pilot has reported the traffic in sight, so the readback does not restate it.
+
   As a condition prefix (`GIVEWAY UAL456 TAXI …`) GIVEWAY leads the readback: `behind the traffic, taxi to runway 1R via A A1` (`FormatCondition` / `FormatConditionTerminal` / `FormatConditionForRpo`).
 
   `BuildReadback` assembles a third body beside Terminal and Tts from each clause's `TerminalForRpo`, with the same condition leads and joins, and sets `RpoTerminal` only when it differs from Terminal. `WithBravoClearance` (solo: appends `, cleared into/through the bravo` to a readback that implies a Class B clearance — see airspace-database.md).
