@@ -2101,8 +2101,8 @@ The room list shows only the rooms of your own ARTCC and of any ARTCC you have b
 
 Open **Room > Members...** for one window that shows everyone in the current training room and everyone available to pull into it. It has four sections:
 
-- **YAAT Members** — everyone connected to the room over YAAT: instructors, any RPOs you've pulled in, and any [vStrips](#flight-strips) or [vTDLS](#vtdls) browser tabs. Each row shows initials, a badge naming which app that connection is running (**YAAT Client**, **Flight Strips**, **vTDLS**), CID, ARTCC, and the time it joined. Click **Kick** to remove.
-- **CRC Students** — CRC clients bound to the room (display name, position, active status). Click **Kick** to remove (they return to the lobby).
+- **Members** — everyone connected to the room over YAAT: instructors, any RPOs you've pulled in, and any [vStrips](#flight-strips) or [vTDLS](#vtdls) browser tabs, plus any [Tower Cab 3D](#tower-cab-3d) viewer. Each row shows initials (the CID when Tower Cab 3D's user has no YAAT connection in the room), a badge naming which app that connection is running (**YAAT Client**, **Flight Strips**, **vTDLS**, **Tower Cab 3D**), CID, ARTCC, and the time it joined. Click **Kick** to remove. A kick on any row removes the whole person from the room: their desktop client, [vStrips](#flight-strips) and [vTDLS](#vtdls) tabs, CRC clients and Tower Cab 3D viewer all leave it, and that CID cannot rejoin until an instructor pulls it back in. Kicking yourself or the room's creator does nothing. The list reads "No members in room" when empty.
+- **CRC Students** — CRC clients bound to the room (display name, position, active status). Click **Kick** to remove (they return to the lobby). Like any kick it removes everything of that CID from the room and keeps it out until pulled back in; **Pull** from the **YAAT Lobby** or **CRC Lobby** lifts the ban. Only instructors and mentors can kick or pull.
 - **YAAT Lobby** — signed-in controllers connected as RPOs who are waiting for a room (name, CID, rating). Click **Pull** to bring one into your room; they immediately start working the position.
 - **CRC Lobby** — CRC clients not in any room (display name, ARTCC, position). Click **Pull** to bring one into your room.
 
@@ -2110,7 +2110,7 @@ Open **Room > Members...** for one window that shows everyone in the current tra
 - A CRC client whose CID matches a YAAT client already in a room is bound to that room automatically.
 - If all YAAT clients leave a room, its CRC clients return to the lobby.
 - The window updates in real time as people join, leave, or connect; use **Refresh** to re-fetch on demand.
-- One person can appear more than once. Opening vStrips or vTDLS in a browser joins the room as its own connection, so a controller running the desktop client alongside a strips tab shows as two members with the same initials — the badge is what tells them apart, and the room's member count on the room list counts both.
+- One person can appear more than once. Opening vStrips or vTDLS in a browser joins the room as its own connection, so a controller running the desktop client alongside a strips tab shows as two members with the same initials — the badge is what tells them apart, and the room's member count on the room list counts both. A Tower Cab 3D viewer is listed too, but it never counts as an attendee or opens a position. The terminal shows `<initials> joined the room (Tower Cab 3D)` and `<initials> left the room (Tower Cab 3D)` when one attaches or detaches; a kick is announced once, as `<initials> was kicked from the room`.
 - A room whose only remaining members are vStrips/vTDLS tabs, with no CRC student connected, **pauses automatically** — nobody left can work the traffic. It stays paused until someone resumes it, the same as a room everyone has left.
 
 ### Controllers
@@ -2185,13 +2185,15 @@ Once CRC is configured:
 
 If the student's VATSIM CID matches a YAAT client in the room, they're pulled in automatically.
 
-### TowerCab 3D
+### Tower Cab 3D
 
-TowerCab 3D, the 3D tower view, can join a student's CRC session on a YAAT server and show the Tower Cab traffic, as it does on vNAS. It needs a TowerCab 3D version that lists the YAAT environments.
+Tower Cab 3D, the 3D tower view, can join a student's CRC session on a YAAT server and show the Tower Cab traffic, as it does on vNAS. It needs a Tower Cab 3D version that lists the YAAT environments.
 
 1. The student connects CRC to the room first, as above
-2. In TowerCab 3D's vNAS environment picker, the student chooses **YAAT1** (or **YAAT Local**, offered when a YAAT server runs on the same computer)
-3. The student signs in with VATSIM; TowerCab 3D joins the CRC session open under the same CID and shows its Tower Cab traffic
+2. In Tower Cab 3D's vNAS environment picker, the student chooses **YAAT1** (or **YAAT Local**, offered when a YAAT server runs on the same computer)
+3. The student signs in with VATSIM; Tower Cab 3D joins the CRC session open under the same CID and shows its Tower Cab traffic
+
+Tower Cab 3D also works without CRC. Signed in under a CID that has joined a room (through YAAT, vStrips, vTDLS or CRC), it joins the room that CID joined most recently and shows up in **Room > Members...** (see [Room Members](#room-members)). It follows the CID if it joins another room, and is told when the CID leaves the room, the room closes, or you kick its CID, which also keeps it out of that room until you pull the CID back in.
 
 ---
 

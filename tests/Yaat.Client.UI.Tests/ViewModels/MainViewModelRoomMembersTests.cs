@@ -1,8 +1,12 @@
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -37,6 +41,32 @@ public class MainViewModelRoomMembersTests
 
     private static RoomMemberDto Member(string initials, string kind, string connectionId) =>
         new(Cid: "1234567", Initials: initials, ArtccId: "ZOA", Kind: kind, JoinedAtUtc: DateTime.UtcNow, ConnectionId: connectionId);
+
+    // Tower Cab 3D is listed under its user's CID, and a kick from any row removes that whole CID from the room, so the
+    // Tower Cab row's Kick sends the CID, as every other row's does.
+    [AvaloniaFact]
+    public void TowerCabRowsKickButton_SendsTheRowsCid()
+    {
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        try
+        {
+            vm.ApplyRoomState(
+                RoomStateWith(Member("CX", Yaat.Sim.ClientKind.Main, "conn-main"), Member("CX", Yaat.Sim.ClientKind.TowerCab, "a1b2c3d4e5f6"))
+            );
+            vm.ShowRoomMembersPanel = true;
+            MainWindowHost.Pump();
+
+            Button kick = main.GetVisualDescendants()
+                .OfType<Button>()
+                .Single(b => (b.Content is "Kick") && (b.DataContext is RoomMemberDto { Kind: Yaat.Sim.ClientKind.TowerCab }));
+            Assert.Equal("Tower Cab 3D", ((RoomMemberDto)kick.DataContext!).KindLabel);
+            Assert.Equal("1234567", kick.CommandParameter);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
 
     [AvaloniaFact]
     public void ApplyRoomState_SeedsRoomMembersFromJoinResponse()

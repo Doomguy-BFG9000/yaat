@@ -40,10 +40,12 @@ The reload is `ReloadKind.CheckpointRestore`, started on the manifest's `Initial
 Without it the tick loop could advance a half-restored room between the awaits. `TrainingRoomManager.RoomRegistered` (raised outside the manager's lock) is how `SessionPersistenceTests` takes the gate at registration and asserts the restore cannot finish while it is held.
 
 Restored rooms report **zero members** until someone reconnects. A room member is a SignalR connection, and
-`TrainingRoomManager.CreateRestoredRoom` deliberately does not repopulate `TrainingRoom.Members` — only `RestoredMemberCids`
-(the rejoin whitelist) and the CID→room mappings. It also arms **no** abandoned-room cleanup timer; a restored room nobody
+`TrainingRoomManager.CreateRestoredRoom` deliberately does not repopulate `TrainingRoom.Members` — only the restored-member CIDs
+(the rejoin whitelist, `TrainingRoom.AddRestoredMember`) and the CID→room mappings. A room's invited and kicked CIDs are not saved, so a restored room forgets who was pulled in as an RPO and who was kicked. It also arms **no** abandoned-room cleanup timer; a restored room nobody
 reclaims is retired by the paused-retirement sweep instead. `GET /admin/status` cannot tell the two cases apart, so do not
 assert that an occupied-looking room is "held open by its cleanup timer".
+
+A Tower Cab 3D viewer listed in a room's members is not persisted (`RoomStateSnapshotMapper.Capture` skips it, and it never enters the restored-member set): its connection drops with the restart and reattaches on its own once its CID rejoins the restored room.
 
 ## Checkpoint lifetime
 

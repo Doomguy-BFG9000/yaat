@@ -1039,8 +1039,8 @@
         <StackPanel Spacing="12">
           <TextBlock Text="Room Members" FontSize="16" FontWeight="Bold" Foreground="White" />
 
-          <!-- YAAT members section (instructors + pulled RPOs) -->
-          <TextBlock Text="YAAT Members" Foreground="LightGray" FontWeight="SemiBold" FontSize="13" />
+          <!-- Members: each member with its kind badge (YAAT, vStrips, vTDLS, Tower Cab 3D); Kick on any row removes and bans its whole CID -->
+          <TextBlock Text="Members" Foreground="LightGray" FontWeight="SemiBold" FontSize="13" />
           <ItemsControl ItemsSource="{Binding RoomMembers}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="svc:RoomMemberDto">
@@ -1075,7 +1075,7 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
           <TextBlock
-            Text="No YAAT members in room"
+            Text="No members in room"
             Foreground="{DynamicResource SubtleTextBrush}"
             FontSize="11"
             IsVisible="{Binding !RoomMembers.Count}"

@@ -129,7 +129,7 @@ The build reads room state the tick thread writes, so it always runs under the r
 
 The gate is not re-entrant, so `TryBindToRoom` must never be called from inside `GuardAsync`, and `HandleSubscribe` must never take it.
 
-A client unbound or rebound while its replay waits for the gate replays nothing more (pins: `CrcBindTickGateTests`). **Accepted race:** a client (a joiner or a primary) that subscribes between `TryBindToRoom`'s engine swap (`CrcClientState.cs` ~:207) and the start of its replay loop (~:220-239) gets that topic's initial data twice, once from its own `Subscribe` and once from the replay.
+A client unbound or rebound while its replay waits for the gate replays nothing more (pins: `CrcBindTickGateTests`). **Accepted race:** a client (a joiner or a primary) that subscribes between `TryBindToRoom`'s engine swap (`CrcClientState.cs` ~:207) and the start of its replay loop (~:230-243) gets that topic's initial data twice, once from its own `Subscribe` and once from the replay.
 
 It is left as is: the window is a few synchronous lines needing a second thread inside it, the duplicate is the same set sent twice, and closing it needs a per-topic sent marker (a snapshot taken before the swap would instead lose a subscribe made between snapshot and swap).
 
@@ -201,7 +201,7 @@ vEDST attaches to a CRC controller's session rather than starting its own: it op
 
 A **joined session** (`CrcClientState.Join.cs`) links the connection to that session, its **primary**, and reads the primary's room, ARTCC, position, display name and ERAM sector through it, so its `Subscribe` gets the primary's FlightPlans, EramTracks and OpenPositions and its ERAM entries act as the primary's position.
 
-It registers no position of its own (attendance and OpenPositions are not double-counted), stays out of the lobby and room-member lists, and — like every direct connection — may call only `Subscribe`, `Unsubscribe`, `GetSessions`, `JoinSession`, `LeaveSession`, `GenerateFrd`, `AmendFlightPlan`, `SetHoldAnnotations`, `DeleteHoldAnnotations`, `SendPrivateMessage` and `ProcessEramMessage` (anything else gets an error completion).
+It registers no position of its own (attendance and OpenPositions are not double-counted), stays out of the lobby and the room-member lists (except Tower Cab 3D, which is listed as a viewer, never counted — see [vatsim-auth.md](./vatsim-auth.md)), and — like every direct connection — may call only `Subscribe`, `Unsubscribe`, `GetSessions`, `JoinSession`, `LeaveSession`, `GenerateFrd`, `AmendFlightPlan`, `SetHoldAnnotations`, `DeleteHoldAnnotations`, `SendPrivateMessage` and `ProcessEramMessage` (anything else gets an error completion).
 
 `JoinSession` answers with `HandleFsdConnectionStateChanged(true)` and `SetSessionActive`, never `HandleSessionStarted` (vEDST's handler would join again); a repeat join is a plain ack, and `LeaveSession` detaches and clears the joiner's subscriptions. A join starts with no subscriptions, so a rejoin never holds a topic twice.
 

@@ -16,6 +16,12 @@ public static class ClientKind
     public const string VTdls = "vtdls";
 
     /// <summary>
+    /// Tower Cab 3D, a viewer attached to a room through the CRC hub rather than <c>/hubs/training</c>: listed in Room
+    /// Members, never counted toward attendance and never holding a position.
+    /// </summary>
+    public const string TowerCab = "towercab";
+
+    /// <summary>
     /// Suffix to append to terminal-broadcast verbs (e.g. "joined the room")
     /// for the given client kind. Returns an empty string for the default
     /// main-client case so existing messages stay unchanged.
@@ -25,6 +31,7 @@ public static class ClientKind
         {
             VStrips => " (Flight Strips)",
             VTdls => " (vTDLS)",
+            TowerCab => " (Tower Cab 3D)",
             _ => "",
         };
 
@@ -39,6 +46,7 @@ public static class ClientKind
         {
             VStrips => "Flight Strips",
             VTdls => "vTDLS",
+            TowerCab => "Tower Cab 3D",
             Main => "YAAT Client",
             _ => kind,
         };

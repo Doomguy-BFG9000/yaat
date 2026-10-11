@@ -195,7 +195,8 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 - [x] `DeleteTowerCabAircrafts(Topic, List<string>)` — aircraft removal
 - [x] UDP `EntityUpdate` for `TowerCabAircraft` (union tag 24, topic `[10, airport, nil, nil]`, integer `VoiceType`) — a UDP-registered subscriber gets an aircraft's position changes over UDP, as vNAS sends them; new aircraft, the 10 s resend, deletes and the subscribe snapshot stay on the hub, and an unregistered subscriber or a failed send falls back to the hub.
 
-  TowerCab 3D registers as a negotiated joiner (negotiate, then `?id=` plus `?access_token=`; [vatsim-auth.md](./vatsim-auth.md)), keyed by its own negotiate id
+  Tower Cab 3D registers as a negotiated joiner (negotiate, then `?id=` plus `?access_token=`; [vatsim-auth.md](./vatsim-auth.md)), keyed by its own negotiate id
+  With no CRC session of its CID to join, `GetSessions` offers it a synthetic `room:<roomId>` session for the room its CID joined most recently and `JoinSession` on it attaches the connection to that room (and lists it in Room Members); `HandleSessionStarted` is pushed when the CID joins a room, and `HandleSessionEnded` with "Session left the room" (leave, disconnect, switch; `isForcible` false), "Room closed" (false) or "Removed from the room" (true, a kick of its CID, which bans the CID from the room, so it is not offered or attached to it until an instructor pull clears the ban; it is then offered the CID's next room, if any). See [vatsim-auth.md](./vatsim-auth.md).
 
 ### Ground Targets
 

@@ -63,7 +63,7 @@ filled automatically and not prompted for.
 - **Mentors/instructors** (`isMentor` from VATUSA, OR rating instructor-or-above I1/I2/I3/SUP/ADM via
   `ScenarioRatingClassifier.IsInstructorOrAbove`) run sessions: create rooms, load/unload scenarios, kick.
 - **Non-mentors get limited access.** They wait in the lobby until a mentor pulls them into a room:
-  `PullRpo(connectionId)` records an invite on the room (`TrainingRoom.InvitedCids`) and pushes
+  `PullRpo(connectionId)` records an invite on the room (`TrainingRoom.Invite`) and pushes
   `RoomAvailableForCid`, which the client auto-joins. `JoinRoom` rejects an uninvited non-mentor "main"
   client (`CanJoinRoomCore`); `CreateRoom`, `LoadScenario`, `UnloadScenarioAircraft`/`ConfirmUnloadScenario`,
   and `KickMember` throw `HubException` for non-mentors (`RequireMentorOrInstructor`). The vStrips/vTDLS
@@ -192,7 +192,7 @@ Each VATSIM client's registered redirect must equal the server URL that receives
 |---|---|---|---|
 | 1883 | yaat1 | `https://yaat1.leftos.dev/auth/vatsim/callback` | `Yaat:Vatsim:ClientId` on the yaat1 target |
 | 1985 | yaat1 vedst | `https://yaat1.leftos.dev/vnas/login` | `Yaat:Vnas:ClientId` on the yaat1 target (confidential, with a secret: [vedst-sign-in.md](vedst-sign-in.md)) |
-| 1728 | towercab-3d | `tc3d://oauth/callback` | not YAAT (the owner's TowerCab 3D app) |
+| 1728 | towercab-3d | `tc3d://oauth/callback` | not YAAT (the owner's Tower Cab 3D app) |
 
 How vEDST uses its client, and the `VNAS_*` keys that enable it: [vedst-sign-in.md](vedst-sign-in.md).
 
@@ -223,13 +223,25 @@ vEDST's sign-in (the `/vnas` endpoints, its VATSIM client, setup on a deployed o
 | none | valid | **direct** (vEDST): the token's CID, no connection token |
 | none | missing or invalid | 401 |
 | issued, live, unused | none (or blank) | **negotiated** (CRC): the store's CID, possibly none; may be dev-auto-bound |
-| issued, live, unused | valid | **negotiated joiner** (TowerCab 3D): direct, the access token's CID (the store's is ignored), the `?id=` as its connection token, so it can register for UDP |
+| issued, live, unused | valid | **negotiated joiner** (Tower Cab 3D): direct, the access token's CID (the store's is ignored), the `?id=` as its connection token, so it can register for UDP |
 | issued, live, unused | invalid | 401 (the id is spent) |
 | not issued, lapsed or already used | any | 401 |
 
 Every refusal is a bare 401 before the upgrade, logged as a warning that names the reason and the remote address and never a token. A direct connection or a joiner may call only the hub methods in `CrcClientState.DirectConnectionTargets` (`GetServerConfiguration` among them); `JoinSession` needs a CRC primary session with the same CID. An access token is checked once, at connect: its 60-minute expiry does not close an open socket, as on the training hub.
 
-TowerCab 3D (a third-party vNAS client) connects as a negotiated joiner over the JSON hub protocol: it lists its CID's CRC sessions with `GetSessions`, joins one with `JoinSession`, and subscribes to `TowerCabAircraft`. It signs in like a real vNAS client: its own VATSIM Connect client yields a VATSIM access token, which it sends as `/vnas/auth/refresh?vatsimToken=`.
+Tower Cab 3D (a third-party vNAS client) connects as a negotiated joiner over the JSON hub protocol: it lists its CID's CRC sessions with `GetSessions`, joins one with `JoinSession`, and subscribes to `TowerCabAircraft`. A CID with no CRC session is instead offered a synthetic `room:<roomId>` session for the room it joined most recently (YAAT main, vStrips, vTDLS or a CRC bind), so a Tower Cab 3D with no CRC joins the room directly and is listed in Room Members (`TowerCabRooms`); it hears `HandleSessionStarted` when its CID joins a room and `HandleSessionEnded` when the CID leaves, switches room, is kicked or the room closes.
+
+A kick removes the whole CID from the room, this viewer included, and bans the CID from the room until an instructor pulls it back in (`PullRpo`/`PullCrcClient`); a banned CID is neither offered nor attached to the room.
+
+Tower Cab 3D signs in like a real vNAS client: its own VATSIM Connect client yields a VATSIM access token, which it sends as `/vnas/auth/refresh?vatsimToken=`.
+
+The room session's rules (`TowerCabRooms`, `CrcClientState.TowerCab.cs`):
+
+- **Offer.** The session is an observer session in the room's ARTCC (the scenario's, else the room's own `CreatorArtccId` with a logged warning; when neither names one, a warning and no offer) whose one position names the scenario's primary airport when it is a Tower Cab airport of that ARTCC, else the ARTCC's first Tower Cab airport (warned).
+- **Following.** While it has joined no CRC session and is attached to, or was offered, a room session, it keeps following its CID's rooms (`FollowsRoomSessions`): a CRC session of the CID binding into a lobby leaves it alone, one binding into another room D moves it to D's room session (`HandleSessionEnded`, then `HandleSessionStarted`), and one started in its own room leaves it where it is.
+- **Leaving.** `LeaveSession` on the room session is a quiet detach: the viewer is unlisted without `HandleSessionEnded`, forgets the offer, and records the room as declined, so the room is not offered again until its CID next joins a room.
+- **No position.** With no CRC session joined it holds no position, so it may call only `GetServerConfiguration`, `Subscribe`, `Unsubscribe`, `GetSessions`, `JoinSession` and `LeaveSession`; any other method gets `RefuseDirectInvocation`'s error completion.
+- **Acks.** A repeat `JoinSession` to the session it is already in is a plain acknowledgement; for Tower Cab 3D that ack, like an accepted join's answer, is queued behind its earlier session pushes rather than written directly.
 
 The refresh endpoint therefore accepts two kinds of token: a YAAT refresh token (vEDST) is validated as before and never forwarded anywhere, revoked or not; any other token that is not a YAAT access token is looked up at VATSIM's userinfo endpoint (`VatsimAuthService.FetchUserByAccessTokenAsync`), and a user with the `vatsim_details` scope gets a YAAT access token. A VATSIM outage during that lookup answers 503, not 500 (see "VATSIM outage").
 

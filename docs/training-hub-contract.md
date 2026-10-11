@@ -170,9 +170,9 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `AdminGetRoomsAsync()` | **`AdminGetScenarios`** | `AdminGetScenarios()` `:1125` |
 | `AdminSetRoomFilterAsync(roomId)` | **`AdminSetScenarioFilter`** | `AdminSetScenarioFilter(roomId)` `:1135` |
 | `GetCrcLobbyClientsAsync()` | `GetCrcLobbyClients` | `GetCrcLobbyClients()` `:1166` |
-| `PullCrcClientAsync(id)` | `PullCrcClient` | `PullCrcClient(id)` `:1183` |
-| `KickCrcClientAsync(id)` | `KickCrcClient` | `KickCrcClient(id)` `:1218` |
-| `KickMemberAsync(cid)` | `KickMember` | `KickMember(cid)` `:1243` (records a per-room kick block; refuses the creator) |
+| `PullCrcClientAsync(id)` | `PullCrcClient` | `PullCrcClient(id)` `:1183` (clears a kick of the client's CID once bound; false when a kick unbinds it again during the pull) |
+| `KickCrcClientAsync(id)` | `KickCrcClient` | `KickCrcClient(id)` `:1218` (mentor/instructor only; a client with a CID is kicked as `KickMember` kicks its CID, one with no CID is only unbound) |
+| `KickMemberAsync(cid)` | `KickMember` | `KickMember(cid)` `:1243` (kicks the whole CID: every training-hub, CRC and Tower Cab 3D connection of it leaves the room and the CID is banned from it until a `PullRpo`/`PullCrcClient` clears the ban; refuses the caller's own CID and the creator; returns false for a CID with nothing in the room; serialized with pulls per room) |
 | `GetCrcRoomMembersAsync()` | `GetCrcRoomMembers` | `GetCrcRoomMembers()` `:1288` |
 | `GetRpoLobbyClientsAsync()` | `GetRpoLobbyClients` | `GetRpoLobbyClients()` (mentor-only) |
 | `PullRpoAsync(connectionId)` | `PullRpo` | `PullRpo(connectionId)` (mentor-only; invites/re-admits + auto-joins; clears the kick block) |
@@ -377,6 +377,8 @@ fix is to update the signature **and** the sibling repo, never to edit one expec
 count interpretable. Any surface that renders a member count without the kind will report a forgotten browser
 tab as an occupied room — that was the pre-provenance behavior, and it made `/admin/status` unusable for
 deciding whether a deploy would interrupt anyone.
+
+**`Kind` `towercab` is a viewer on the CRC hub, not a training-hub connection.** Tower Cab 3D (a negotiated joiner attached to the room through a `room:<roomId>` CRC session, or through a joined CRC session) is listed with `Kind = ClientKind.TowerCab`, its user's CID and initials (the CID when the user has no member of their own), the room's ARTCC, and `ConnectionId` = its CRC client id; the DTO signature is unchanged. It is never counted toward attendance or `OpenPositions`, never assignable, never persisted (it reattaches on its own after a planned restart), and does not make its CID a member of the room. Its Kick button sends `KickMember` the row's CID, as every row's does: the kick removes the whole CID from the room (this viewer with it) and bans it.
 
 Two consequences worth knowing before touching this area:
 

@@ -313,7 +313,7 @@ as aircraft leave / the room resets; every caller runs under the room's tick gat
 
 ## `TrainingBroadcastService` — the fan-out (`Simulation/TrainingBroadcastService.cs`)
 
-Implements `ITrainingBroadcast` (`Simulation/ITrainingBroadcast.cs`). Two parallel audiences:
+Implements `ITrainingBroadcast` (`Simulation/ITrainingBroadcast.cs`). `BroadcastMembershipChange(room, who, action)` announces a member change made outside a training-hub call (a Tower Cab 3D viewer listed or unlisted by `TowerCabRooms`): `RoomMemberChanged` with the members as they stand, then a system `TerminalBroadcast` line `<who> <action>`, fire-and-forget. Two parallel audiences:
 
 - **Room SignalR group** — `room.GroupName` (`"room:{RoomId}"`). `BroadcastTrainingUpdates` (`:165`) iterates each room's
   snapshot and sends `AircraftUpdated` only when `room.TickChanges[callsign]` has the `TrainingDto` flag (`:184`); then
@@ -355,7 +355,7 @@ A load, restart, or rewind builds a **new** `SimScenarioState`, and `ScenarioLif
 **The load flag and the resource pin are room state.** `LoadingBy` (claimed by `TryBeginLoad`, released by `EndLoad`) and `ResourcePin` live on the room rather than the scenario, since a load holds the flag before any new scenario exists and every reload reads the pin; see **Scenario load: prepare, commit and the load flag** above.
 
 **Members are connections, not people.** `Members` is keyed by SignalR connection id and each `RoomMember` carries
-`Kind` (`ClientKind.Main` / `VStrips` / `VTdls`) and `JoinedAtUtc`. vStrips and vTDLS browser tabs join over the same
+`Kind` (`ClientKind.Main` / `VStrips` / `VTdls`) and `JoinedAtUtc`. The one exception is a Tower Cab 3D viewer (`ClientKind.TowerCab`, `RoomMember.IsTowerCab`): it is keyed by its CRC client id, listed through `TowerCabRooms` / `TrainingRoomManager.ListTowerCab` for Room Members only, and ignored by attendance, assignment, persistence and `HasUserMemberWithCid`; a kick of its CID (`KickMember`) ends it with the CID's other connections. vStrips and vTDLS browser tabs join over the same
 hub, so one controller can hold several members at once — `HasYaatClientMember` is the predicate that asks whether
 any of them can actually work traffic. Between that and `CrcClientManager.GetClientsForRoom`,
 `ScenarioLifecycleService.PauseIfUnattended` pauses a room the moment its last YAAT client and CRC client are gone
@@ -374,14 +374,20 @@ When the client's own `JoinRoom` right after a successful create throws, it call
 
 **Join gate & kick block.** Two per-room CID sets govern who may `JoinRoom`, both consulted by the pure
 `TrainingHub.CanJoinRoomCore(isMentorOrInstructor, kind, kicked, invited, restored, alreadyMember, crcBound)`:
-`InvitedCids` — CIDs a mentor pulled in as RPOs, the allow-list that lets a limited (non-mentor "main") client join;
-and `KickedCids` — CIDs kicked from this room, a block-list. `KickedCids` is checked **first** and returns `false`
+the invited set (`TrainingRoom.Invite` / `IsInvited`) — CIDs a mentor pulled in as RPOs, the allow-list that lets a limited (non-mentor "main") client join;
+and the kicked set (`TrainingRoom.RecordKick` / `IsKicked`) — CIDs kicked from this room, a block-list. The kicked set is checked **first** and returns `false`
 for **everyone**, including mentors/instructors (who otherwise bypass the gate) — so a kicked user can't self-rejoin
-from the room list; `JoinRoom` throws a kicked-specific `HubException`. `KickMember` calls `room.RecordKick(cid)`
-(adds to `KickedCids`, drops any stale `InvitedCids`/`RestoredMemberCids` entry) and refuses to kick the room's
-`CreatorCid`. A kicked user re-enters only when an instructor pulls them: `PullRpo` calls `room.ClearKick(cid)` for
-the puller's room. A kicked user (mentor or RPO) surfaces in the global RPO lobby (`BuildRpoLobby` +
+from the room list; `JoinRoom` throws a kicked-specific `HubException` ("You were kicked from this room. Wait for an instructor to pull you back in.").
+A kick is of the whole CID: `KickMember(cid)` (also what `KickCrcClient` calls for a CRC client that has a CID, and what a Room Members **Kick** on any row sends) records the ban (dropping any stale invite or restored-member entry), removes every training-hub connection of the CID from the room (each hears `KickedFromRoom`), unbinds every CRC client of the CID and ends every Tower Cab 3D connection of the CID in the room (`HandleSessionEnded` "Removed from the room"). It refuses the caller's own CID and the room's `CreatorCid`.
+
+`KickCrcClient` for a CRC client with no CID only unbinds that client (mentor or instructor only, like the other kick and pull methods).
+The ban lasts the room's lifetime and is not persisted across a planned restart. A kicked user re-enters only when an instructor pulls them: `PullRpo` and `PullCrcClient` clear the ban (`room.ClearKick(cid)`) for the puller's room, `PullRpo` for a CID the lobby lists, `PullCrcClient` for a lobby CRC client once it is bound.
+A kicked user (mentor or RPO) surfaces in the global RPO lobby (`BuildRpoLobby` +
 `TrainingRoomManager.IsCidKickedFromAnyRoom`) so the instructor who kicked them can pull them back.
+
+Kicks and pulls of a room are serialized by `TrainingRoom.KickPullAsync`, which runs only the decision (the kick's check, ban, snapshots and unbinds; a pull's bind and lift of the ban); the replays, `KickedFromRoom` sends and announcements run after it. So a pull's lift never lands between a kick's ban and its unbinds.
+
+A kick that lands during a join refuses that join (same message) and leaves the room's other CRC clients bound. A `PullCrcClient` cut short by a kick returns false without the "Pulled" terminal line. A CRC unbind from a kick uses a compare-and-swap (`CrcClientState.TryUnbindFrom`), so a client rebound to another room meanwhile is never unbound.
 
 ## `TrainingRoomManager` — registry (`Simulation/TrainingRoomManager.cs`)
 

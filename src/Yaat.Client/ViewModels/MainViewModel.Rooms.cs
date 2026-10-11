@@ -544,6 +544,10 @@ public partial class MainViewModel
         await RefreshRpoLobbyAsync();
     }
 
+    /// <summary>
+    /// Kicks the CID a Room Members row names, whatever kind the row is: the server removes every connection of that CID
+    /// from the room and bans it until an instructor pulls it back in.
+    /// </summary>
     [RelayCommand]
     private async Task KickMemberAsync(string cid)
     {

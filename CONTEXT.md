@@ -573,13 +573,19 @@ One other aircraft as a menu's traffic list shows it, seen from the aircraft the
 ## CRC hub connections
 
 **Direct connection**:
-A CRC hub socket identified by its own YAAT `access_token` (vEDST, TowerCab 3D) rather than by a CRC negotiate: it never joins a room, the lobby or attendance, and reaches a session only through `JoinSession` with a primary of the same CID (docs/vatsim-auth.md).
+A CRC hub socket identified by its own YAAT `access_token` (vEDST, Tower Cab 3D) rather than by a CRC negotiate: it never joins the lobby or attendance, and reaches a session only through `JoinSession`, with a primary of the same CID or, for Tower Cab 3D, a room session (docs/vatsim-auth.md).
 
 **Primary**:
 The CRC connection whose session a direct connection joins; the joiner reads the primary's room.
 
 **Negotiated joiner**:
-A direct connection that also negotiated first (TowerCab 3D): it keeps its negotiate id as its connection token, so it can register for UDP entity updates, while its CID comes from its access token.
+A direct connection that also negotiated first (Tower Cab 3D): it keeps its negotiate id as its connection token, so it can register for UDP entity updates, while its CID comes from its access token.
+
+**Room session**:
+The synthetic `room:<roomId>` session `GetSessions` offers a Tower Cab 3D connection whose CID has no CRC primary: joining it attaches the connection to the room its CID joined most recently (`TowerCabRooms`, docs/vatsim-auth.md).
+
+**Tower Cab member**:
+A Tower Cab 3D connection listed in Room Members (`ClientKind.TowerCab`, keyed by its CRC client id): it never counts toward attendance or OpenPositions, is never persisted, and a kick of its CID removes it with the CID's other connections.
 
 ## Client settings
 
