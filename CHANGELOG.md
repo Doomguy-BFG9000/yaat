@@ -25,6 +25,8 @@
 - A taxi from the ramp no longer routes through a neighbour's occupied stand and waits behind it forever; a blocked start is named in the reply.
 - A pattern altitude pre-issued with a TG, SG, LA or COPT now applies before a wrong-side pattern join, so the aircraft no longer flies an unneeded teardrop.
 - An option clearance naming another runway with an altitude (`COPT MLT 28L 20`) keeps this circuit's altitude and applies the new one from the 28L circuit on.
+- The context menu's Temporary altitude, Cruise, Squawk and Speed popups refuse unreadable input with a message and stay open, instead of crashing on `FL230` or `23,000`.
+- The context menu no longer offers the For section while a delayed spawn is selected.
 
 ## v0.16.1-beta [2026/10/10]
 

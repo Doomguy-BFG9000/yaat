@@ -83,7 +83,7 @@ internal sealed class PointMenuHostCache(IMenuHost inner) : IMenuHost
 
     public Task SendGatedAsync(string callsign, string command, string initials) => inner.SendGatedAsync(callsign, command, initials);
 
-    public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task> onSubmit) =>
+    public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task<string?>> onSubmit) =>
         inner.ShowInputPopup(placeholder, blank, initialText, caretIndex, onSubmit);
 
     public string? DescribePoint(LatLon position) => inner.DescribePoint(position);

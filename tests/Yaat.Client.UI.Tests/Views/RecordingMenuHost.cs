@@ -73,7 +73,7 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     /// <summary>The initial text and caret each input popup was opened with, in order.</summary>
     public List<(string Text, int Caret)> InputSeeds { get; } = [];
 
-    public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task> onSubmit)
+    public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task<string?>> onSubmit)
     {
         InputPlaceholders.Add(placeholder);
         InputSeeds.Add((initialText, caretIndex));

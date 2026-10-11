@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
@@ -92,7 +93,14 @@ public static class MenuCatalog
             (_, context, host) => BuildInput("Point out…", "Position ID", BlankInput.Closes, input => $"PO {input}", context, host)
         ),
         Leaf(MenuIds.TrackAcknowledgePointout, "Acknowledge pointout", "OK", (ac, _) => AircraftCommandApplicability.HasPendingPointout(ac)),
-        InputLeaf(MenuIds.SquawkCode, "Squawk…", "Code (0000-7777)", BlankInput.Closes, input => $"SQ {int.Parse(input)}"),
+        CheckedInputLeaf(
+            MenuIds.SquawkCode,
+            "Squawk…",
+            "Code (0000-7777)",
+            BlankInput.Closes,
+            FormatSquawkCode,
+            "Not a valid squawk code (0000-7777)"
+        ),
         Leaf(MenuIds.SquawkRandom, "Squawk random", "RANDSQ", Always),
         Leaf(MenuIds.SquawkVfr, "Squawk VFR", "SQVFR", Always),
         Leaf(MenuIds.SquawkNormal, "Squawk normal", "SQNORM", Always),
@@ -129,8 +137,15 @@ public static class MenuCatalog
             (ac, _) => AircraftCommandApplicability.CanCheckReleaseWindow(ac)
         ),
         InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad…", "Text", BlankInput.Closes, input => $"SP {input}"),
-        InputLeaf(MenuIds.DataBlockTempAltitude, "Temporary altitude…", "Altitude", BlankInput.Closes, input => $"TEMPALT {int.Parse(input)}"),
-        InputLeaf(MenuIds.DataBlockCruise, "Cruise…", "Altitude", BlankInput.Closes, input => $"CRUISE {int.Parse(input)}"),
+        CheckedInputLeaf(
+            MenuIds.DataBlockTempAltitude,
+            "Temporary altitude…",
+            "Altitude",
+            BlankInput.Closes,
+            FormatTemporaryAltitude,
+            "Not a valid altitude"
+        ),
+        CheckedInputLeaf(MenuIds.DataBlockCruise, "Cruise…", "Altitude", BlankInput.Closes, FormatCruiseAltitude, "Not a valid altitude"),
         Leaf(MenuIds.DataBlockAnnotate, "Annotate", "ANNOTATE", Always),
         HostLeaf(MenuIds.SimControlWarp, "Warp…", Always, BuildWarp),
         Leaf(MenuIds.SimControlDelete, "Delete", "DEL", Always),
@@ -145,7 +160,7 @@ public static class MenuCatalog
         RelativeTurnList(MenuIds.HeadingTurnRightDegrees, "Turn right (degrees)", "RT"),
         Picker(MenuIds.AltitudeMaintain, "Maintain altitude", BuildMaintainAltitude),
         Picker(MenuIds.SpeedAssign, "Assign speed", BuildAssignSpeed),
-        InputLeaf(MenuIds.SpeedCustom, "Speed…", "Speed (knots)", BlankInput.Closes, input => $"SPD {int.Parse(input)}"),
+        CheckedInputLeaf(MenuIds.SpeedCustom, "Speed…", "Speed (knots)", BlankInput.Closes, FormatAssignedSpeed, "Not a valid speed"),
         Leaf(MenuIds.SpeedNormal, "Resume normal speed", "RNS", Always),
         Picker(MenuIds.SpeedFinalApproach, "Reduce to final approach speed", BuildFinalApproachSpeed),
         FixPicker(MenuIds.NavigationDirectTo, "Direct to…", "DCT", Always, DirectToFixes),
@@ -325,8 +340,8 @@ public static class MenuCatalog
             Always,
             (_, _, _, _) =>
                 throw new InvalidOperationException(
-                    $"The '{MenuIds.LiveTrafficAssumeSelected}' entry builds no item; SharedMenuGroups.AddAssumeSelected builds it for "
-                        + "the aircraft list through MenuCatalog.BuildAssumeSelected, which takes the shadows the list has selected."
+                    $"The '{MenuIds.LiveTrafficAssumeSelected}' entry builds no item; SharedMenuGroups.AddAssumeSelected builds it on every view "
+                        + "through MenuCatalog.BuildAssumeSelected, which takes the live-traffic shadows the click's selection holds."
                 )
         ),
         PointEntry(MenuIds.PointFlyHeading, "Fly heading", AtPointAirborne, BuildPointFlyHeading),
@@ -461,7 +476,7 @@ public static class MenuCatalog
     /// <summary>The Change spawn delay submenu's label, which the delayed-spawn group heads it with.</summary>
     private const string SpawnDelayLabel = "Change spawn delay";
 
-    /// <summary>The aircraft list's multi-selection assume item's label, which the number of selected shadows follows.</summary>
+    /// <summary>The assume-selected live-traffic item's label, which the number of the click's selected shadows follows.</summary>
     private const string AssumeSelectedLabel = "Assume selected live traffic";
 
     /// <summary>The Release (HFR) entry's label, which the header shows under the title on every view.</summary>
@@ -669,10 +684,9 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The aircraft list's multi-selection assume item: it assumes every shadow named in
-    /// <paramref name="selectedShadows"/>, in the order given, and its label carries how many there are. The selection
-    /// belongs to the list rather than to the menu context, so this companion builder takes that list instead of the
-    /// entry's own builder shape.
+    /// The assume-selected live-traffic item: it assumes every shadow named in <paramref name="selectedShadows"/>, in the
+    /// order given, and its label carries how many there are. The selection belongs to the click rather than to the menu
+    /// context, so this companion builder takes that list instead of the entry's own builder shape.
     /// </summary>
     internal static MenuItem BuildAssumeSelected(IReadOnlyList<string> selectedShadows, IMenuHost host)
     {
@@ -1326,6 +1340,26 @@ public static class MenuCatalog
         new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, blank, format, context, host));
 
     /// <summary>
+    /// An input picker whose text must read as a command: <paramref name="format"/> returns null when it does not, and
+    /// the popup then shows <paramref name="invalidMessage"/> under its box, sending nothing, staying open.
+    /// </summary>
+    private static MenuCatalogEntry CheckedInputLeaf(
+        string id,
+        string label,
+        string placeholder,
+        BlankInput blank,
+        Func<string, string?> format,
+        string invalidMessage
+    ) =>
+        new(
+            id,
+            label,
+            MenuFlightRules.Both,
+            Always,
+            (_, context, host) => BuildCheckedInput(label, placeholder, blank, format, invalidMessage, context, host)
+        );
+
+    /// <summary>
     /// An entry whose item the host builds for a surface of its own rather than from a command text: the warp popup,
     /// the flight-plan editor, the display toggles and measure item that read and drive the surface's own state, and
     /// the ground submenus whose choices the host answers (hold short, follow, give way, push back to, preset taxi, taxi to
@@ -1359,9 +1393,142 @@ public static class MenuCatalog
     {
         var item = new MenuItem { Header = label, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
         item.Click += (_, _) =>
-            host.ShowInputPopup(placeholder, blank, "", 0, input => host.SendAsync(context.Callsign, format(input), context.Initials));
+            host.ShowInputPopup(placeholder, blank, "", 0, input => Accept(host.SendAsync(context.Callsign, format(input), context.Initials)));
         return item;
     }
+
+    /// <summary>
+    /// A checked input picker's item: <paramref name="format"/> reads the typed text, and text it cannot read (null)
+    /// leaves the popup open showing <paramref name="invalidMessage"/>, sending nothing.
+    /// </summary>
+    private static MenuItem BuildCheckedInput(
+        string label,
+        string placeholder,
+        BlankInput blank,
+        Func<string, string?> format,
+        string invalidMessage,
+        MenuContext context,
+        IMenuHost host
+    )
+    {
+        var item = new MenuItem { Header = label, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
+        item.Click += (_, _) =>
+            host.ShowInputPopup(
+                placeholder,
+                blank,
+                "",
+                0,
+                input =>
+                {
+                    if (format(input) is not { } command)
+                    {
+                        return Task.FromResult<string?>(invalidMessage);
+                    }
+
+                    return Accept(host.SendAsync(context.Callsign, command, context.Initials));
+                }
+            );
+        return item;
+    }
+
+    /// <summary>Awaits <paramref name="send"/> and takes the text, so the input popup closes.</summary>
+    private static async Task<string?> Accept(Task send)
+    {
+        await send;
+        return null;
+    }
+
+    /// <summary>The <c>TEMPALT</c> command for the altitude the controller typed, or null when it is not one.</summary>
+    private static string? FormatTemporaryAltitude(string input) => AltitudeCommand("TEMPALT", input);
+
+    /// <summary>The <c>CRUISE</c> command for the altitude the controller typed, or null when it is not one.</summary>
+    private static string? FormatCruiseAltitude(string input) => AltitudeCommand("CRUISE", input);
+
+    /// <summary>The highest the sim's altitude commands take: one hundred above it would wrap the argument into feet.</summary>
+    private const int MaxAltitudeHundreds = 999;
+
+    /// <summary>
+    /// The <paramref name="verb"/> command for a typed altitude: <see cref="AltitudeResolver.Resolve"/> reads the
+    /// shorthand hundreds ("230", "050"), the full feet ("23000", "23,000") and the AGL notation ("KOAK+010") alike, and
+    /// the argument goes out in the hundreds the sim's altitude commands take (<c>AltitudeHundreds</c>). Null for text
+    /// that is not an altitude, one over 99,900 ft (whose hundreds the sim would read back as feet), a flight level of
+    /// more than three digits, a comma that does not group a whole thousand, or an AGL altitude while the navigation data
+    /// is not loaded.
+    /// </summary>
+    private static string? AltitudeCommand(string verb, string input)
+    {
+        string trimmed = input.Trim();
+        if (StripFlightLevel(trimmed) is not { } text)
+        {
+            return null;
+        }
+
+        if (!IsThousandsGrouped(text))
+        {
+            return null;
+        }
+
+        int? feet = ResolveAltitude(text.Replace(",", "", StringComparison.Ordinal));
+        if ((feet is null) || (feet.Value / 100 > MaxAltitudeHundreds))
+        {
+            return null;
+        }
+
+        return $"{verb} {feet.Value / 100}";
+    }
+
+    /// <summary>
+    /// The text without a flight-level <c>FL</c> prefix, or null for an <c>FL</c> that is not one: the prefix comes off
+    /// only when one to three digits follow (FL180 to FL600), a longer number being no flight level, and an airport code
+    /// that merely starts with those letters (<c>FLL+010</c>) keeps its prefix for the AGL path.
+    /// </summary>
+    private static string? StripFlightLevel(string trimmed)
+    {
+        if (!trimmed.StartsWith("FL", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+
+        string rest = trimmed[2..].Trim();
+        if (!rest.All(char.IsAsciiDigit))
+        {
+            return trimmed;
+        }
+
+        return (rest.Length is >= 1 and <= 3) ? rest : null;
+    }
+
+    /// <summary>
+    /// The altitude's feet, or null when the text names an AGL altitude and the navigation data is not loaded:
+    /// <see cref="AltitudeResolver.Resolve"/> reads the airport's elevation from it and throws without it.
+    /// </summary>
+    private static int? ResolveAltitude(string text) =>
+        (text.Contains('+') && (NavigationDatabase.InstanceOrNull is null)) ? null : AltitudeResolver.Resolve(text);
+
+    /// <summary>
+    /// Whether every comma in <paramref name="text"/> groups digits three at a time (<c>5,000</c>, <c>23,000</c>); false
+    /// for one that does not (<c>2,30</c>), which is not an altitude. Text with no comma is grouped.
+    /// </summary>
+    private static bool IsThousandsGrouped(string text)
+    {
+        string[] groups = text.Split(',');
+        if (groups.Length == 1)
+        {
+            return true;
+        }
+
+        return (groups[0].Length is >= 1 and <= 3)
+            && groups[0].All(char.IsAsciiDigit)
+            && groups.Skip(1).All(group => (group.Length == 3) && group.All(char.IsAsciiDigit));
+    }
+
+    /// <summary>The <c>SQ</c> command for a four-digit octal code, or null for anything else.</summary>
+    private static string? FormatSquawkCode(string input) =>
+        ((input.Length == 4) && input.All(digit => digit is >= '0' and <= '7')) ? $"SQ {int.Parse(input)}" : null;
+
+    /// <summary>The <c>SPD</c> command for a positive whole number of knots, or null for anything else.</summary>
+    private static string? FormatAssignedSpeed(string input) =>
+        (input.All(char.IsAsciiDigit) && int.TryParse(input, out int knots) && (knots > 0)) ? $"SPD {knots}" : null;
 
     /// <summary>
     /// Warp is offered only for a controllable aircraft: the warp goes through the command path, which auto-assumes an
@@ -1567,7 +1734,7 @@ public static class MenuCatalog
                 BlankInput.Closes,
                 seed.Text,
                 seed.Caret,
-                text => host.SendAsync(context.Callsign, text.Trim(), context.Initials)
+                text => Accept(host.SendAsync(context.Callsign, text.Trim(), context.Initials))
             );
         return item;
     }
@@ -1858,7 +2025,13 @@ public static class MenuCatalog
     {
         if (row.Kind == MenuRichRowKind.Prompt)
         {
-            host.ShowInputPopup(TrafficInSightPlaceholder, BlankInput.Submits, "", 0, input => Send(FormatTrafficInSight(input), context, host));
+            host.ShowInputPopup(
+                TrafficInSightPlaceholder,
+                BlankInput.Submits,
+                "",
+                0,
+                input => Accept(Send(FormatTrafficInSight(input), context, host))
+            );
         }
         else if (row.Command is { } command)
         {
@@ -2725,7 +2898,13 @@ public static class MenuCatalog
                 null,
                 fix =>
                 {
-                    host.ShowInputPopup(bearingPrompt(fix), BlankInput.Closes, "", 0, bearing => Send($"{command} {fix} {bearing}", context, host));
+                    host.ShowInputPopup(
+                        bearingPrompt(fix),
+                        BlankInput.Closes,
+                        "",
+                        0,
+                        bearing => Accept(Send($"{command} {fix} {bearing}", context, host))
+                    );
                     return Task.CompletedTask;
                 },
                 host

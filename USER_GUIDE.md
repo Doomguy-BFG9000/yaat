@@ -14,13 +14,13 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Views](#views)
   - [Aircraft Right-Click Menu](#aircraft-right-click-menu)
-  - [Aircraft List](#aircraft-list)
-  - [Ground View](#ground-view)
-  - [Radar View](#radar-view)
+  - [Aircraft List](#aircraft-list-1)
+  - [Ground View](#ground-view-1)
+  - [Radar View](#radar-view-1)
   - [Flight Strips](#flight-strips)
   - [vTDLS](#vtdls)
   - [Flight Plan Editor](#flight-plan-editor)
-  - [Copying View Settings](#copying-view-settings)
+  - [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)
 - [Scenarios and Weather](#scenarios-and-weather)
   - [Loading a Scenario](#loading-a-scenario)
   - [Unloading a Scenario](#unloading-a-scenario)
@@ -351,6 +351,10 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 - **Enter left / right downwind, Enter left / right base and Make straight-in** open a runway list when the aircraft has no assigned runway (and the "(other)" item beside an assigned one opens it too). Each row is the runway with an arrow turned to point the way an aircraft lands on it, then the command it sends (`ELD 28R`). Runways in use for arrivals come first, then a separator and the rest; in each group the runways the aircraft's type can land on come before the short ones.
 
   A runway is short for the type when its landing distance available is under 1.15 times the type's landing distance. Such a row reads "Runway 28R · short" and is dimmed, but you can still click it. The icon on the strip turns to the aircraft's assigned runway the same way.
+
+**Typing into a menu popup.** The menu's Squawk…, Temporary altitude…, Cruise… and Speed… popups check what you typed before sending it. A value that cannot be read or is out of range — an altitude above FL999, `FL` with four or more digits, a malformed thousands group such as `2,30`, a squawk with a digit outside 0–7 — is refused with a one-line message under the box, and the popup stays open with your text so you can correct it. In every menu text popup, Enter or OK sends once: a second press while the send is still under way does nothing.
+
+The altitude popups take `050`, `230`, `23000`, `FL230`, `fl 230`, `5,000` and above-ground altitudes such as `KOAK+010`; an above-ground altitude is refused while the navigation data is not loaded.
 
 **Changing the quick commands.** Open **Settings › Quick commands** (in the Input group) to change any situation's list. Pick a situation on the left: a blue ● marks one you changed from its default, an amber ⚠ one with a custom command to fix. **Menu preview** shows the selected list as the menu lays it out, the first ten commands with an icon as the strip and the rest as text, every command included whether or not it applies to a given aircraft.
 
@@ -832,7 +836,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
   Squawk gains a "Squawk random" one-click. "Ask pilot to say…" submenu issues SAY-class commands (altitude, heading, speed, mach, position, expected approach, custom).
 - **On a *different* aircraft (with one already selected)**: a **For** section opens the menu, with traffic actions issued to the **selected** aircraft, on the radar and the ground view alike. Its first line reads **For {selected} (selected)**, and the clicked aircraft's own items follow under **For {clicked}**.
 
-  When both are airborne: a dimmed line says where the clicked aircraft is from the selected one ("AAL601 is at its 2 o'clock, 4 nm, 1,500 ft below"; the clock is read from the selected aircraft's heading, and "same altitude" shows within 100 ft), then "Report in sight" (RTIS), and once it has reported that traffic in sight, "Follow". When both are on the ground: "Follow {clicked}" (FOLLOWG) and "Give way to {clicked}" (GW). One airborne and one on the ground gets neither, and a live-traffic shadow you have not assumed cannot be the selected aircraft. Right-clicking a different aircraft keeps your current selection.
+  When both are airborne: a dimmed line says where the clicked aircraft is from the selected one ("AAL601 is at its 2 o'clock, 4 nm, 1,500 ft below"; the clock is read from the selected aircraft's heading, and "same altitude" shows within 100 ft), then "Report in sight" (RTIS), and once it has reported that traffic in sight, "Follow". When both are on the ground: "Follow {clicked}" (FOLLOWG) and "Give way to {clicked}" (GW). One airborne and one on the ground gets neither, and a live-traffic shadow you have not assumed or a delayed spawn that has not appeared yet cannot be the selected aircraft. Right-clicking a different aircraft keeps your current selection.
 - **Report traffic in sight…** (on an airborne aircraft) opens a **Nearest traffic** list of the 5 closest other airborne aircraft, each row `CALLSIGN · TYPE | N o'clock | D nm | altitude` as seen from that aircraft ("same altitude" within 100 ft). Picking a row sends `RTIS {callsign}`; **Any traffic (no target)** sends a bare `RTIS` and **Other callsign…** opens a text box. With no traffic nearby it is the text box alone.
 - **On the map**: shows the point's [FRD](COMMANDS.md#fix-radial-distance-frd) (nearest fix + radial + distance) and "Copy FRD"; **Pin marker here** (drops a scope marker at that FRD — see *Scope markers* below), plus **Remove marker** when the cursor is near an existing pin and **Clear pinned markers** when any exist; and a dimmed **MVA** line giving the charted Minimum Vectoring Altitude floor and sector at the clicked point (`MVA 2,000 ft (sector 9)`). Outside charted MVA coverage there is no MVA line.
 
@@ -937,7 +941,7 @@ Once an alert starts it holds until the pair reaches **3.3 nm or 1100 ft** apart
 
 When an aircraft is squawking a transponder code that differs from the code assigned to it, the datablock surfaces the discrepancy the way CRC STARS does: a line showing the **reported code solid** followed by the **assigned code pulsing** next to it (for example `1200 0301`, where `0301` — the assigned code — dims on and off).
 
-It catches, for instance, a VFR aircraft still on `1200` after you assigned it a discrete code, or an aircraft that dialed in the wrong code. The indicator appears on the STARS datablock, the EuroScope tag, and the [Ground View](#ground-view) datablock; on the EuroScope tag, clicking it opens the squawk picker.
+It catches, for instance, a VFR aircraft still on `1200` after you assigned it a discrete code, or an aircraft that dialed in the wrong code. The indicator appears on the STARS datablock, the EuroScope tag, and the [Ground View](#ground-view-1) datablock; on the EuroScope tag, clicking it opens the squawk picker.
 
 It shows only while the aircraft is actively squawking Mode C (not standby/off), an assigned code exists, and the reported code is not an emergency/special code (`7500`/`7600`/`7700`, etc.) — those keep their own indication. Once the pilot squawks the assigned code (`SQ`), the line clears.
 

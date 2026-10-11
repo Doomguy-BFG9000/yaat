@@ -92,6 +92,15 @@ public class RelativeTrafficTests
         Assert.False(RelativeTraffic.OffersAirborneRelative(Ac("N172SP", false, null, false), Context(null)));
 
     [Fact]
+    public void AirbornePair_SelectedDelayedSpawn_OffersNothing()
+    {
+        AircraftModel delayed = Ac("N436MS", false, null, false);
+        delayed.Status = "Delayed (5:00)";
+
+        Assert.False(RelativeTraffic.OffersAirborneRelative(Ac("N172SP", false, null, false), Context(delayed)));
+    }
+
+    [Fact]
     public void AirborneFollow_OnlyAfterTrafficReportedInSight()
     {
         AircraftModel selected = Ac("N436MS", false, "N172SP", false);
@@ -109,6 +118,15 @@ public class RelativeTrafficTests
     [Fact]
     public void GroundPair_NoPreviousSelection_False() =>
         Assert.False(RelativeTraffic.OffersGroundRelative(Ac("N172SP", true, null, false), Context(null)));
+
+    [Fact]
+    public void GroundPair_SelectedDelayedSpawn_OffersNothing()
+    {
+        AircraftModel delayed = Ac("N436MS", true, null, false);
+        delayed.Status = "Delayed (0:30)";
+
+        Assert.False(RelativeTraffic.OffersGroundRelative(Ac("N172SP", true, null, false), Context(delayed)));
+    }
 
     // --- Live traffic -----------------------------------------------------------
 

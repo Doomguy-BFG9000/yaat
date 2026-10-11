@@ -33,6 +33,7 @@ internal static class MenuPopups
 
     private static readonly IBrush InputBackground = new SolidColorBrush(Color.FromArgb(240, 24, 24, 24));
     private static readonly IBrush InputBorderBrush = new SolidColorBrush(Color.FromArgb(255, 80, 80, 80));
+    private static readonly IBrush InputRefusalForeground = new SolidColorBrush(Color.Parse("#e08a8a"));
     private static readonly IBrush PickerBackground = new SolidColorBrush(Color.Parse("#222"));
     private static readonly IBrush PickerBorderBrush = new SolidColorBrush(Color.Parse("#555"));
     private static readonly IBrush PickerForeground = new SolidColorBrush(Color.Parse("#CCC"));
@@ -64,9 +65,11 @@ internal static class MenuPopups
     /// <summary>
     /// Opens a focused free-text box showing <paramref name="placeholder"/> as its prompt, holding
     /// <paramref name="initialText"/> with the caret at <paramref name="caretIndex"/> (clamped to the text). Enter or OK
-    /// closes it and hands the trimmed text to <paramref name="onSubmit"/>; a blank submit follows
+    /// hands the trimmed text to <paramref name="onSubmit"/>: a null return closes the popup, and a returned reason
+    /// keeps it open and shows that one line under the box, the typed text left as it was. A blank submit follows
     /// <paramref name="blank"/> — <see cref="BlankInput.Submits"/> calls it with <c>""</c>, <see cref="BlankInput.Closes"/>
-    /// does not call it. Clear and Escape close it without calling it.
+    /// does not call it and closes. Clear and Escape close it without calling it. While a submit is in flight, another
+    /// Enter or OK does nothing, so a slow send is never fired twice.
     /// </summary>
     public static void ShowInput(
         Control anchor,
@@ -74,7 +77,7 @@ internal static class MenuPopups
         string initialText,
         int caretIndex,
         BlankInput blank,
-        Func<string, Task> onSubmit
+        Func<string, Task<string?>> onSubmit
     )
     {
         Popup popup = NewPopup(anchor);
@@ -85,19 +88,47 @@ internal static class MenuPopups
             Width = 160,
             VerticalAlignment = VerticalAlignment.Center,
         };
+        var refusal = new TextBlock
+        {
+            Foreground = InputRefusalForeground,
+            FontSize = 11,
+            MaxWidth = 240,
+            TextWrapping = TextWrapping.Wrap,
+            IsVisible = false,
+        };
+
+        bool submitting = false;
 
         async Task Submit()
         {
+            if (submitting)
+            {
+                return;
+            }
+
             string text = textBox.Text?.Trim() ?? "";
+            if ((text.Length == 0) && (blank == BlankInput.Closes))
+            {
+                popup.Close();
+                return;
+            }
+
+            submitting = true;
+            try
+            {
+                if (await onSubmit(text) is { } reason)
+                {
+                    refusal.Text = reason;
+                    refusal.IsVisible = true;
+                    return;
+                }
+            }
+            finally
+            {
+                submitting = false;
+            }
+
             popup.Close();
-            if (text.Length > 0)
-            {
-                await onSubmit(text);
-            }
-            else if (blank == BlankInput.Submits)
-            {
-                await onSubmit("");
-            }
         }
 
         textBox.KeyDown += async (_, e) =>
@@ -127,9 +158,17 @@ internal static class MenuPopups
             Padding = new Thickness(8),
             Child = new StackPanel
             {
-                Orientation = Orientation.Horizontal,
                 Spacing = 4,
-                Children = { textBox, okButton, clearButton },
+                Children =
+                {
+                    new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        Spacing = 4,
+                        Children = { textBox, okButton, clearButton },
+                    },
+                    refusal,
+                },
             },
         };
 

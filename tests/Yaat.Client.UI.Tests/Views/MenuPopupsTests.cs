@@ -36,7 +36,7 @@ public class MenuPopupsTests
     {
         (Window _, Control anchor) = ShowAnchorWindow();
 
-        MenuPopups.ShowInput(anchor, Placeholder, "", 0, BlankInput.Closes, _ => Task.CompletedTask);
+        MenuPopups.ShowInput(anchor, Placeholder, "", 0, BlankInput.Closes, _ => Task.FromResult<string?>(null));
         HeadlessWindowExtensions.PumpDispatcher();
 
         Popup popup = FindPopup(anchor);
@@ -51,7 +51,7 @@ public class MenuPopupsTests
     {
         (Window _, Control anchor) = ShowAnchorWindow();
 
-        MenuPopups.ShowInput(anchor, Placeholder, "TAXI A B", 5, BlankInput.Closes, _ => Task.CompletedTask);
+        MenuPopups.ShowInput(anchor, Placeholder, "TAXI A B", 5, BlankInput.Closes, _ => Task.FromResult<string?>(null));
         HeadlessWindowExtensions.PumpDispatcher();
 
         TextBox textBox = FindTextBox(anchor);
@@ -75,7 +75,7 @@ public class MenuPopupsTests
             value =>
             {
                 submitted.TrySetResult(value);
-                return Task.CompletedTask;
+                return Task.FromResult<string?>(null);
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();
@@ -88,6 +88,40 @@ public class MenuPopupsTests
         Assert.Equal("RH 3000", await submitted.Task.WaitAsync(TimeSpan.FromSeconds(2)));
         HeadlessWindowExtensions.PumpDispatcher();
         Assert.False(popup.IsOpen, "Submitting should close the popup.");
+    }
+
+    /// <summary>While a submit is still in flight, a second Enter does nothing: the send fires once.</summary>
+    [AvaloniaFact]
+    public void Enter_TwiceWhileTheSendIsInFlight_SendsOnce()
+    {
+        (Window _, Control anchor) = ShowAnchorWindow();
+        var inFlight = new TaskCompletionSource<string?>();
+        int sent = 0;
+        MenuPopups.ShowInput(
+            anchor,
+            Placeholder,
+            "",
+            0,
+            BlankInput.Closes,
+            _ =>
+            {
+                sent++;
+                return inFlight.Task;
+            }
+        );
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Popup popup = FindPopup(anchor);
+        TextBox textBox = FindTextBox(anchor);
+        textBox.Text = "RH 3000";
+        RaiseKey(textBox, Key.Enter);
+        RaiseKey(textBox, Key.Enter);
+
+        Assert.Equal(1, sent);
+
+        inFlight.SetResult(null);
+        HeadlessWindowExtensions.PumpDispatcher();
+        Assert.False(popup.IsOpen, "A completed submit should close the popup.");
     }
 
     [AvaloniaFact]
@@ -104,7 +138,7 @@ public class MenuPopupsTests
             _ =>
             {
                 submitted = true;
-                return Task.CompletedTask;
+                return Task.FromResult<string?>(null);
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();
@@ -133,7 +167,7 @@ public class MenuPopupsTests
             _ =>
             {
                 submitted = true;
-                return Task.CompletedTask;
+                return Task.FromResult<string?>(null);
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();
@@ -160,7 +194,7 @@ public class MenuPopupsTests
             _ =>
             {
                 submitted = true;
-                return Task.CompletedTask;
+                return Task.FromResult<string?>(null);
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();
@@ -192,7 +226,7 @@ public class MenuPopupsTests
             value =>
             {
                 submitted.TrySetResult(value);
-                return Task.CompletedTask;
+                return Task.FromResult<string?>(null);
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();
@@ -223,7 +257,7 @@ public class MenuPopupsTests
             _ =>
             {
                 submitted = true;
-                return Task.CompletedTask;
+                return Task.FromResult<string?>(null);
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();
@@ -783,7 +817,7 @@ public class MenuPopupsTests
             v =>
             {
                 got = v;
-                return Task.CompletedTask;
+                return Task.FromResult<string?>(null);
             }
         );
         HeadlessWindowExtensions.PumpDispatcher();

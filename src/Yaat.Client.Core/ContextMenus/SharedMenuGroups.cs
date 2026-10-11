@@ -13,9 +13,8 @@ namespace Yaat.Client.ContextMenus;
 /// heading, altitude, speed, navigation, hold, approach, procedures, tower and pattern — assembled from
 /// <see cref="MenuCatalog"/> entries. Every surface offers the input pickers — handoff, point out, squawk code, custom
 /// say. The For section (<see cref="AddForSection"/>) is a group of its own. Whether a group is offered at all stays with the
-/// caller. A group whose items are canvas-only in nature — the Display submenu — takes the surface's prebuilt items
-/// instead of the entries: the surface builds them with <see cref="CanvasMenuItems"/> from its own canvas state and only
-/// the placing stays here.
+/// caller. A canvas-only group such as the Display submenu is not built here: its surface builds it with
+/// <see cref="CanvasMenuItems"/> and hands it to <see cref="AircraftMenuBuilder"/> as the view section.
 /// </summary>
 public static class SharedMenuGroups
 {
@@ -887,7 +886,7 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The aircraft list's multi-selection live-traffic item, placed after the Delete item: a separator and
+    /// The assume-selected live-traffic item, placed after the Delete item: a separator and
     /// "Assume selected live traffic (N)" when the click's selection (<see cref="MenuClick.Selection"/>) holds two or
     /// more assumable shadows (<see cref="AircraftCommandApplicability.CanAssume"/>) to assume at once and the entry's
     /// own gate allows it, otherwise nothing. The item itself comes from <see cref="MenuCatalog.BuildAssumeSelected"/>

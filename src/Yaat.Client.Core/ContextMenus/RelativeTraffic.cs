@@ -21,7 +21,8 @@ public static class RelativeTraffic
 
     /// <summary>
     /// True when the airborne relative items ("report in sight" and "follow") should be offered: the context's
-    /// previous selection is another, controllable aircraft and both it and the right-clicked one are airborne.
+    /// previous selection is another, controllable aircraft that has spawned, and both it and the right-clicked one are
+    /// airborne.
     /// </summary>
     public static bool OffersAirborneRelative(IMenuAircraft? rightClicked, MenuContext context)
     {
@@ -31,6 +32,7 @@ public static class RelativeTraffic
         }
 
         return HasRelativeContext(selected, context.Callsign)
+            && (!selected.IsDelayed)
             && AircraftCommandApplicability.IsControllable(selected)
             && ShouldOfferAirborne(selected, rightClicked);
     }
@@ -71,7 +73,7 @@ public static class RelativeTraffic
 
     /// <summary>
     /// True when the ground relative items should be offered: the context's previous selection is another, controllable
-    /// aircraft and both it and the right-clicked one are on the ground.
+    /// aircraft that has spawned, and both it and the right-clicked one are on the ground.
     /// </summary>
     public static bool OffersGroundRelative(IMenuAircraft? rightClicked, MenuContext context)
     {
@@ -81,6 +83,7 @@ public static class RelativeTraffic
         }
 
         return HasRelativeContext(selected, context.Callsign)
+            && (!selected.IsDelayed)
             && AircraftCommandApplicability.IsControllable(selected)
             && ShouldOfferGroundActions(selected, rightClicked);
     }
