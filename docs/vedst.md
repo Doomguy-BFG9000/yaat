@@ -85,6 +85,7 @@ Built on System.Text.Json with camelCase names, a `JsonStringEnumConverter` that
   - Return `{nasToken: access, vatsimToken: refresh}` as YAAT-signed tokens. vEDST keeps only `vatsimToken` and decodes its `exp`; the YAAT refresh JWT has one.
   - Errors come back as a JSON body, because vEDST calls `.json()` even on a non-OK response.
   - vEDST does not use PKCE (`Login.tsx`), so its exchange passes `codeVerifier: null` and depends on `client_secret`.
+  - When VATSIM cannot be asked (a 5xx, 429 or 404 from userinfo, a 5xx or 429 from the token endpoint, a network failure or a timeout) the login and refresh answer 503 with `Retry-After: 30` and the same JSON error body (`vatsim_unavailable`), not a 500; see [vatsim-auth.md](vatsim-auth.md) ("VATSIM outage").
 - `GET /vnas/auth/refresh?vatsimToken` validates the refresh token with the revocation check and returns a fresh access token as **plain text**, which vEDST reads with `r.text()`. It does not rotate, following the reasoning in `IssueAccessFromCookieAsync`.
 - **CORS.** Add a named policy from `Yaat:Cors:AllowedOrigins`, set to `http://localhost:3000` in dev config. List the exact origins (no wildcard) and allow credentials, because `/auth/login` is fetched with `credentials: "include"`. Apply it to the `/vnas/*` endpoints only. The hub is a WebSocket, so CORS does not apply to it.
 - **Manual steps.**

@@ -873,7 +873,7 @@ public partial class MainViewModel
 
         ActiveRoomId = state.RoomId;
         _preferences.LastActiveRoomId = state.RoomId;
-        ActiveRoomName = $"({state.CreatorArtccId}) {state.CreatorInitials}'s Room";
+        ActiveRoomName = $"({state.ArtccId}) {state.CreatorInitials}'s Room";
 
         // Seed from the join response rather than waiting for a RoomMemberChanged push: the server
         // broadcasts that to the room group from inside JoinRoom, so it can land before ActiveRoomId

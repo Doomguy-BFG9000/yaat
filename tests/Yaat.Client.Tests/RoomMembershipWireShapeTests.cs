@@ -24,8 +24,15 @@ public class RoomMembershipWireShapeTests
     private const string RoomMemberShape = "Cid:String, Initials:String, ArtccId:String, Kind:String, JoinedAtUtc:DateTime, ConnectionId:String";
 
     private const string RoomInfoShape =
-        "RoomId:String, CreatorInitials:String, CreatorArtccId:String, ScenarioName:String, Members:List<RoomMemberDto>, "
+        "RoomId:String, CreatorInitials:String, CreatorArtccId:String, ArtccId:String, ScenarioName:String, Members:List<RoomMemberDto>, "
         + "IsPaused:Boolean, SimRate:Double, ElapsedSeconds:Double, AircraftCount:Int32";
+
+    // RoomStateDto's two copies differ beyond these (the aircraft DTO types, the server-only LoadingBy parameter, the
+    // client's optional tail), so only the fields that name the room and its members are pinned, looked up by name.
+    private const string RoomStateRoomShape =
+        "RoomId:String, CreatorInitials:String, CreatorArtccId:String, ArtccId:String, Members:List<RoomMemberDto>";
+
+    private static readonly string[] RoomStateRoomFields = ["RoomId", "CreatorInitials", "CreatorArtccId", "ArtccId", "Members"];
 
     [Fact]
     public void RoomMemberDto_MatchesTheAgreedWireShape() => Assert.Equal(RoomMemberShape, DescribePrimaryConstructor(typeof(RoomMemberDto)));
@@ -34,17 +41,28 @@ public class RoomMembershipWireShapeTests
     public void TrainingRoomInfoDto_MatchesTheAgreedWireShape() =>
         Assert.Equal(RoomInfoShape, DescribePrimaryConstructor(typeof(TrainingRoomInfoDto)));
 
+    [Fact]
+    public void RoomStateDto_RoomFields_MatchTheAgreedWireShape() =>
+        Assert.Equal(RoomStateRoomShape, DescribeConstructorParameters(typeof(RoomStateDto), RoomStateRoomFields));
+
     // Constructor parameters, not properties: the client copy adds display-only members
     // (KindLabel, JoinedAtText) that the server has no business carrying, and those must not
     // register as drift.
-    private static string DescribePrimaryConstructor(Type type)
-    {
-        ConstructorInfo ctor = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance)
-            .OrderByDescending(c => c.GetParameters().Length)
-            .First();
+    private static string DescribePrimaryConstructor(Type type) =>
+        string.Join(", ", PrimaryConstructor(type).GetParameters().Select(p => $"{p.Name}:{Describe(p.ParameterType)}"));
 
-        return string.Join(", ", ctor.GetParameters().Select(p => $"{p.Name}:{Describe(p.ParameterType)}"));
+    /// <summary>The named constructor parameters, in the order given; a name the constructor lacks reads as missing.</summary>
+    private static string DescribeConstructorParameters(Type type, string[] names)
+    {
+        ParameterInfo[] parameters = PrimaryConstructor(type).GetParameters();
+        return string.Join(
+            ", ",
+            names.Select(name => parameters.SingleOrDefault(p => p.Name == name) is { } p ? $"{name}:{Describe(p.ParameterType)}" : $"{name}:missing")
+        );
     }
+
+    private static ConstructorInfo PrimaryConstructor(Type type) =>
+        type.GetConstructors(BindingFlags.Public | BindingFlags.Instance).OrderByDescending(c => c.GetParameters().Length).First();
 
     private static string Describe(Type type)
     {

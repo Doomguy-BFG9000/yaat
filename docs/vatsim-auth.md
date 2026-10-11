@@ -16,7 +16,7 @@ sub-mentor ratings (OBS/S1 and non-instructor non-mentors) off deployed servers.
 
 `yaat-server` is the only registered VATSIM OAuth client (holds `client_secret`), performs the code
 exchange + userinfo call, and issues short-lived **YAAT session tokens** (HS256 JWTs). All clients
-present a YAAT token to `/hubs/training` — never a VATSIM token.
+present a YAAT token to `/hubs/training` — never a VATSIM token. Two other endpoints take a VATSIM access token: `/vnas/auth/refresh` (TowerCab 3D, see below) and `GET /feed/rooms` (see "Feed room list").
 
 **Desktop (system browser + loopback handoff):**
 ```
@@ -109,7 +109,21 @@ any ARTCC still load); and rooms restored from a checkpoint (validated when they
 controller's transfer or mentor-role change takes effect within the access-token lifetime (~1h). Access token ~1h (hub Bearer / `yaat_session`
 cookie); refresh token ~30d (`yaat_refresh` cookie / desktop `auth-sessions.json`) re-mints access via
 `/auth/refresh` (desktop) and `/auth/token` (web). JwtBearer reads the token from the `access_token`
-query (desktop) or the `yaat_session` cookie (web) for `/hubs/training`.
+query (desktop) or the `yaat_session` cookie (web) for `/hubs/training` only; no other path has its token lifted from the query or cookie.
+
+## Feed room list
+
+`GET /feed/rooms` lets a feed consumer (a tool that reads a room's traffic feed) list the rooms its user may watch. It is not a hub, takes no YAAT token and has no authorization policy; it reads its own `Authorization: Bearer <VATSIM Connect access token>`, which the consumer forwards from its user's sign-in.
+
+- **Verification.** The token is looked up at VATSIM's userinfo endpoint (`VatsimAuthService.FetchUserByAccessTokenAsync`), as at `/vnas/auth/refresh`, and the ARTCC is resolved through VATUSA as at sign-in. A bearer that names this server's issuer is refused 401 without being forwarded to VATSIM (`YaatTokenService.CarriesThisIssuer`, which reads the issuer without validating, so an expired token or one signed with a since-rotated key is refused too, as are a YAAT access and a refresh token). The verified CID and ARTCC are cached 5 minutes under a SHA-256 of the token (at most 1024 entries); failed verifications are not cached, and a token is never logged.
+- **VATSIM call limits.** Only a cache miss reaches VATSIM. Each client IP (an IPv6 client per /64) may make 5 misses per 5 minutes (`VatsimCallLimiter.PerClientLimit`, 429 with `Retry-After`), checked first so one client cannot spend the shared budget; then every miss draws on one bucket of 60 calls per minute across all clients (`VatsimCallLimiter.TokenLimit`, 503 with `Retry-After` when empty). A client refused by the empty bucket has still spent its own permit; one refused its own limit takes nothing from the bucket. `VatsimCallLimiter` covers room-list traffic only: sign-in and `/vnas` calls to VATSIM do not draw on it.
+- **Refusals.** 401 with `WWW-Authenticate: Bearer` and a JSON `reason` for a missing or non-Bearer header, a token VATSIM rejects (userinfo 400, 401 or 403), or a token naming this server's issuer; 429 after 30 requests per client IP per fixed one-minute window, or when the client's own VATSIM-call limit above is spent; 503 with `Retry-After` when the shared bucket is empty or VATSIM could not be asked (see "VATSIM outage"). Every response is `Cache-Control: no-store`.
+- **Listing.** 200 `{"rooms":[{"roomId","artccId","creatorInitials","scenarioName","hasScenario","feedUrl"}]}` sorted by `artccId` then `roomId`. `artccId` is the room's loaded scenario's ARTCC, else its creator's, upper-cased (`TrainingRoomManager.ListingArtccOf`). A room is listed when its creator's or its loaded scenario's ARTCC is in the caller's permitted set (`ArtccAccessPolicy.PermitsRoomArtcc`), the same home-plus-grant set as the ARTCC gate above, or when the caller's CID is a member of the room; a room with no known ARTCC is not listed on that basis, and a caller with no home, no grant and no room gets `{"rooms":[]}`. With `RequireVatsimAuth=false` every room is listed (the token is still verified). `TrainingRoomManager.GetListedRooms` applies the rule under the registry lock. Entries carry no member CIDs or connection ids.
+- **Same rule on the desktop.** The training hub's `GetActiveRooms` applies the same rule (`TrainingRoomManager.GetListedRoomInfos`), so the desktop room list shows only rooms of the caller's home or granted ARTCCs and rooms the caller is already a member of (every room with VATSIM auth off). Each `TrainingRoomInfoDto` carries `ArtccId`, the scenario-else-creator label above, which the Join Room list shows; `RoomStateDto.ArtccId` (from `TrainingHub.BuildRoomState`) carries the same label, which the joined room's title shows. Joining by id, by invite or by a mentor's pull is not filtered.
+
+## VATSIM outage
+
+Where an endpoint asks VATSIM Connect who a user is, a VATSIM failure is told from a bad token. `VatsimAuthService.FetchUserByAccessTokenAsync` returns null only when userinfo answers 400, 401 or 403 (or its body lacks the details); any other non-success status (a 5xx, a 429, a 404) or a network, TLS, timeout or non-JSON failure throws, and `VatsimOutage.IsOutage` classifies the throw as an outage. The token endpoint counts too: `VatsimAuthService.ExchangeCodeAsync` throws on a status of 500 or above or a 429, while any other token 4xx is a refused code and stays `login_failed`. `/vnas/auth/refresh`, the vEDST login (`/vnas/auth/login`) and `GET /feed/rooms` then answer 503 with `Retry-After: 30` (`VatsimOutage.RetryAfterSeconds`) instead of a 500: the vNAS endpoints with the usual `{error, message}` body and code `vatsim_unavailable`, the room list with a JSON `reason`. The browser sign-in callback (`GET /auth/vatsim/callback`, `AuthEndpoints.CallbackAsync`) answers no 503 and no `Retry-After`: it redirects 302 to the return URL with `?error=vatsim_unavailable` (desktop loopback) or `?auth_error=vatsim_unavailable` (web apps), and the pages show their generic failure text for it. A token VATSIM rejects stays 401 (or `login_failed`).
 
 ## Security model
 
@@ -131,7 +145,7 @@ that:
   DPAPI-encrypted (Windows, per-user) at `auth-sessions.json`.
 - **Secure cookies behind the proxy.** Caddy terminates TLS and proxies plain HTTP, so `UseForwardedHeaders`
   honors `X-Forwarded-Proto` — otherwise `Request.IsHttps` is false and `yaat_session`/`yaat_refresh`
-  never get their `Secure` flag.
+  never get their `Secure` flag. It also honors `X-Forwarded-For` (one hop), so logs and `RemoteIpAddress` (the feed room list's rate limits) carry the real client IP. The headers are trusted only from a peer in loopback or a private range (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`, where Caddy's docker-network address lies), so a client reaching the port directly cannot choose its own address.
 - **Dev endpoint double-gated.** `/auth/dev` (which mints an arbitrary identity from query input) is
   mounted only when `RequireVatsimAuth=false` **and** the host is in the Development environment, so a
   single misconfigured knob in a real deployment can't expose it.
@@ -217,7 +231,7 @@ Every refusal is a bare 401 before the upgrade, logged as a warning that names t
 
 TowerCab 3D (a third-party vNAS client) connects as a negotiated joiner over the JSON hub protocol: it lists its CID's CRC sessions with `GetSessions`, joins one with `JoinSession`, and subscribes to `TowerCabAircraft`. It signs in like a real vNAS client: its own VATSIM Connect client yields a VATSIM access token, which it sends as `/vnas/auth/refresh?vatsimToken=`.
 
-The refresh endpoint therefore accepts two kinds of token: a YAAT refresh token (vEDST) is validated as before and never forwarded anywhere, revoked or not; any other token that is not a YAAT access token is looked up at VATSIM's userinfo endpoint (`VatsimAuthService.FetchUserByAccessTokenAsync`), and a user with the `vatsim_details` scope gets a YAAT access token.
+The refresh endpoint therefore accepts two kinds of token: a YAAT refresh token (vEDST) is validated as before and never forwarded anywhere, revoked or not; any other token that is not a YAAT access token is looked up at VATSIM's userinfo endpoint (`VatsimAuthService.FetchUserByAccessTokenAsync`), and a user with the `vatsim_details` scope gets a YAAT access token. A VATSIM outage during that lookup answers 503, not 500 (see "VATSIM outage").
 
 Against a Development server with `RequireVatsimAuth` off, TowerCab signs in through `/vnas/auth/dev-login?cid=` instead. After `GetServerConfiguration` (`{"udpPort":6809}`) it registers its negotiate id on the UDP entity socket and receives Tower Cab positions there, as on vNAS; new aircraft, removals and the periodic full set still arrive over the hub. A TowerCab build that skips negotiate connects as a plain direct client and gets every position over the hub.
 
@@ -228,7 +242,8 @@ Against a Development server with `RequireVatsimAuth` off, TowerCab signs in thr
   `TrainingHubAccessRequirement`, `VatsimUser`, `ArtccGrantList`, `ArtccAccessPolicy`), `ServerApp.cs` (JwtBearer +
   `token_use` gate + forwarded headers + policy wiring + grants load), `Hubs/TrainingHub.cs` (gate + claim reading +
   ARTCC gate), `Simulation/ScenarioLifecycleService.cs` (ARTCC + rating scenario gate), `YaatOptions.cs`,
-  `Data/artcc-grants.json`.
+  `Data/artcc-grants.json`; `Feeds/VatsimRoomListEndpoints.cs` (`GET /feed/rooms`, `VatsimIdentityCache`, `VatsimCallLimiter`),
+  `Simulation/TrainingRoomManager.cs` (`ListingArtccOf`, `GetListedRooms`, `GetListedRoomInfos`), `Auth/VatsimAuthService.cs` (`VatsimOutage`).
 - Shared: `src/Yaat.Sim/Scenarios/ScenarioRatingClassifier.cs`.
 - Desktop: `src/Yaat.Client.Core/Services/VatsimAuthClient.cs`, `ServerConnection.cs`.
 - Web: `tools/Yaat.VStrips.Web/wwwroot/index.html`, `tools/Yaat.VTdls.Web/wwwroot/index.html`,

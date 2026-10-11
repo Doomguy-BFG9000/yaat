@@ -1469,10 +1469,17 @@ public sealed record ScenarioExportFlagDto(string Callsign, string Reason);
 
 public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
 
+/// <summary>One room in a room list.</summary>
+/// <param name="CreatorArtccId">The ARTCC the room was created under.</param>
+/// <param name="ArtccId">
+/// The ARTCC the room is labelled with: its loaded scenario's ARTCC, else the creator's (the label the server's
+/// <c>GET /feed/rooms</c> gives it too).
+/// </param>
 public record TrainingRoomInfoDto(
     string RoomId,
     string CreatorInitials,
     string CreatorArtccId,
+    string? ArtccId,
     string? ScenarioName,
     List<RoomMemberDto> Members,
     bool IsPaused,
@@ -1543,7 +1550,10 @@ public record RoomStateDto(
     int LiveTrafficCeilingFt = 0,
     string LiveTrafficFilter = "",
     LiveTrafficStatusDto? LiveTrafficStatus = null,
-    bool IsLiveSession = false
+    bool IsLiveSession = false,
+    // The ARTCC the room is labelled with, as in the room list (TrainingRoomInfoDto.ArtccId): its loaded scenario's,
+    // else the creator's.
+    string? ArtccId = null
 )
 {
     /// <summary>The initials of the member whose scenario load is running in the room; null when none is.</summary>

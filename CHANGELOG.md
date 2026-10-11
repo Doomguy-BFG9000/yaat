@@ -7,11 +7,13 @@
 - On request, the YAAT1 operator can delete one user's uploaded speech recordings and saved restart rooms in a single step.
 - `RES` to a taxiing aircraft clears its next taxiway or spot hold short, read back as "continue taxi"; runway hold shorts still need `CROSS`.
 - A taxiing aircraft's right-click quick commands offer Resume taxi when a taxiway or spot hold short lies ahead.
+- A feed consumer such as vTBFM can list the YAAT rooms its VATSIM user may see: their ARTCC's rooms and rooms they are in.
 
 ### Changed
 
 - YAAT1 now deletes opt-in speech recordings after 12 months, restart snapshots once restored (7 days at most), and server log lines after 90 days.
 - On SFO 28R, GA and cargo arrivals exit right, and an arrival whose remarks name its gate or parking area exits toward it.
+- The Join Room list and the room title name the ARTCC of the room's loaded scenario, else its creator's.
 
 ### Fixed
 
@@ -19,6 +21,7 @@
 - Pilot position reports and terrain-height checks no longer miss a nearby airport lying due east or west of the aircraft.
 - `HFROFF` releases held departures that had not spawned yet, so an untowered IFR runway departure no longer asks for release again and waits.
 - A fresh `TAXI` or `PUSH` replaces the earlier queued taxi plan and pending ground `WAIT`/`GIVEWAY` instructions, so stale ones no longer fire later.
+- Signing in while VATSIM is down reports VATSIM as unavailable instead of failing with a server error.
 
 ## v0.16.1-beta [2026/10/10]
 

@@ -969,7 +969,7 @@
                     <TextBlock FontWeight="Bold" Foreground="White">
                       <Run Text="(" />
                       <Run Text="{Binding
-                                            CreatorArtccId}" />
+                                            ArtccId}" />
                       <Run Text=") " />
                       <Run Text="{Binding
                                             CreatorInitials}" />
