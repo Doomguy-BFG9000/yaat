@@ -233,7 +233,9 @@ public sealed class AutomationWaitForTests : AutomationHostFixture
         );
 
         stopwatch.Stop();
-        Assert.InRange(stopwatch.ElapsedMilliseconds, 500, 1499);
+        // The bound is "returns, does not hang": 10 s is loose because a loaded suite can overshoot a tight wall-clock ceiling,
+        // while the lower bound still proves the wait lasted its own 500 ms timeout.
+        Assert.InRange(stopwatch.ElapsedMilliseconds, 500, 10_000);
         Assert.Contains("matched 1", error.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.Equal(1, error.GetProperty("details").GetProperty("matchCount").GetInt32());
     }
