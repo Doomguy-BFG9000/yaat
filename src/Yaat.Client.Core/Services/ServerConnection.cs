@@ -1857,6 +1857,10 @@ public record GroundNodeDto(int Id, double Latitude, double Longitude, string Ty
 public record GroundEdgeDto(int FromNodeId, int ToNodeId, string TaxiwayName, double DistanceNm, List<double[]>? IntermediatePoints)
 {
     public bool IsRunway => TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A runway centerline edge: a <c>RWY…</c> name that is not a <c>:link</c> crossing connector.</summary>
+    public bool IsRunwayCenterline => IsRunway && !TaxiwayName.Contains(":link", StringComparison.OrdinalIgnoreCase);
+
     public bool IsRamp => string.Equals(TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
 }
 

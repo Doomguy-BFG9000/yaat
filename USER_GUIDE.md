@@ -504,14 +504,14 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
   *With an aircraft selected* the menu's bold title names the aircraft and the place you clicked: `UAL238 · B738 → parking A5`, `→ spot 3`, `→ B / C` (the taxiways meeting at that node), or `→ runway 28R` on a runway.
 
-  *With an aircraft on the ground selected* it opens that aircraft's point menu, which starts, under the title, with an icon strip of the taxi items that apply (Taxi here, Taxi to a runway end, Push to, Custom taxi…) and then the text items, starting with "Taxi here": the one route found, or a submenu of up to 3 ("Taxi via T U W": the fewest-turns, shortest and fastest routes, duplicates dropped), routes that cross runways automatically appending crossing commands, each previewed on hover.
+  *With an aircraft on the ground selected* it opens that aircraft's point menu, which starts, under the title, with an icon strip of the taxi items that apply (Taxi here, Taxi to a runway end, Push to, Custom taxi…) and then the text items, starting with "Taxi here": the one route found, or a submenu of up to 3 ("Taxi via T U W": the fewest-turns, shortest and fastest routes, duplicates dropped), routes that cross runways automatically appending crossing commands, each previewed on hover. The taxi ends at the node you clicked: a spot or parking node by name, any other node by its node number (`TAXI W B #1234`).
 
   Then come "Push to {spot}" (on a parking or spot node, when the selected aircraft is at a stand or resting after a push and a tug can move it there), "Custom taxi…" (a taxi command box pre-filled from the node) and "Warp here". Below them come "Measure from here", "Draw taxi route…" (from that node) and "Push route…" (start a multi-point tug move at that node), offered only when the aircraft can push back and a tug can move it from where it stands to that node.
 
   **"Warp here" on a gate or helipad parks the aircraft at that stand** — it comes to rest on the stand's heading, the Aircraft List names the stand, and the aircraft's menu switches to the *At Parking* items below, so you can push it back straight away. Warping anywhere else leaves it holding in position.
 
   An airborne aircraft selected gets the airborne point items as text rows ("Fly heading", "Direct to", "Hold at") instead of the taxi items. *With nothing selected* it carries only the [measuring](#measuring-distance-and-bearing) items.
-- **On a runway** — with a selected aircraft that can taxi, a right-click anywhere on a runway's surface (away from its hold-short bars and threshold marker) opens the same icon strip and offers "Taxi to {end}" for each end of every runway under the click.
+- **On a runway** — with a selected aircraft that can taxi, a right-click anywhere on a runway's surface or on a node of its centerline (away from its hold-short bars and threshold marker) opens the same icon strip and offers "Taxi to {end}" for each end of every runway under the click.
 
   Each end lists up to three hold shorts, named by their taxiway: the nearest one by taxi route ("At B (nearest)"), the one nearest where you clicked ("At E (near click)"), and the one at that end's threshold ("Full length (at W)"); one hold short that fits two of these shows once with both tags.
 

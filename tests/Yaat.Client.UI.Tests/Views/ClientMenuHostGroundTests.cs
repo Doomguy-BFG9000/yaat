@@ -1045,6 +1045,92 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.All(taxiHere.Children, c => Assert.True((c.Command is not null) || (c.Children.Count > 0), $"'{c.Label}' sends nothing"));
     }
 
+    // A node with no named terminus — any taxiway intersection — is pinned with its node id, so the server stops at the
+    // clicked node instead of at the junction where the last two taxiways meet.
+    [AvaloniaFact]
+    public void TaxiChoices_PlainNodeRouteWithoutCrossings_PinsTheNode()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = TaxiingOnW3();
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
+        List<TaxiRoute> RoutesTo(GroundNodeDto node) =>
+            main.Ground.FindRoutesToNode(from, node.Id, GroundViewModel.CategoryFor(target), GroundViewModel.WakeClassFor(target));
+        GroundNodeDto destination = Oak
+            .Nodes.Where(n => n.Type == "TaxiwayIntersection")
+            .First(n =>
+                (RoutesTo(n) is { Count: > 0 } routes) && routes.All(r => r.HoldShortPoints.All(h => h.Reason != HoldShortReason.RunwayCrossing))
+            );
+
+        List<string> commands = LeafCommands(host.GetTaxiChoices(Callsign, destination, null));
+
+        Assert.NotEmpty(commands);
+        Assert.All(commands, c => Assert.EndsWith($" #{destination.Id}", c));
+    }
+
+    [AvaloniaFact]
+    public void TaxiChoices_PlainNodeRouteCrossingARunway_PinsTheNodeBeforeTheCrossingClauses()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = TaxiingOnW3();
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
+        List<TaxiRoute> RoutesTo(GroundNodeDto node) =>
+            main.Ground.FindRoutesToNode(from, node.Id, GroundViewModel.CategoryFor(target), GroundViewModel.WakeClassFor(target));
+        GroundNodeDto destination = Oak
+            .Nodes.Where(n => n.Type == "TaxiwayIntersection")
+            .First(n =>
+                (RoutesTo(n) is { Count: > 0 } routes) && routes.Any(r => r.HoldShortPoints.Any(h => h.Reason == HoldShortReason.RunwayCrossing))
+            );
+
+        List<string> commands = LeafCommands(host.GetTaxiChoices(Callsign, destination, null));
+
+        Assert.NotEmpty(commands);
+        Assert.Contains(commands, c => c.Contains(" HS ", StringComparison.Ordinal));
+        foreach (string command in commands)
+        {
+            int pin = command.IndexOf($" #{destination.Id}", StringComparison.Ordinal);
+            Assert.True(pin >= 0, command);
+            int holdShort = command.IndexOf(" HS ", StringComparison.Ordinal);
+            Assert.True((holdShort < 0) || (pin < holdShort), command);
+            int cross = command.IndexOf(", CROSS ", StringComparison.Ordinal);
+            Assert.True((cross < 0) || (pin < cross), command);
+        }
+    }
+
+    // A named stand is the terminus; no node pin joins it.
+    [AvaloniaFact]
+    public void TaxiChoices_NamedSpotAndParking_CarryTheStandTokenAndNoNodePin()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = TaxiingOnW3();
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
+        List<TaxiRoute> RoutesTo(GroundNodeDto node) =>
+            main.Ground.FindRoutesToNode(from, node.Id, GroundViewModel.CategoryFor(target), GroundViewModel.WakeClassFor(target));
+        GroundNodeDto spot = Oak.Nodes.First(n => (n.Type == "Spot") && (n.Name is not null) && (RoutesTo(n).Count > 0));
+        GroundNodeDto parking = Oak.Nodes.First(n => (n.Type == "Parking") && (n.Name is not null) && (RoutesTo(n).Count > 0));
+
+        AssertStandTokens(LeafCommands(host.GetTaxiChoices(Callsign, spot, null)), $"${spot.Name}");
+        AssertStandTokens(LeafCommands(host.GetTaxiChoices(Callsign, parking, null)), $"@{parking.Name}");
+    }
+
+    [AvaloniaFact]
+    public void TaxiChoices_RunwayHoldShortNode_LeafCommandsCarryNoNodePin()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+
+        List<string> commands = LeafCommands(host.GetTaxiChoices(Callsign, Runway30HoldShortNode, null));
+
+        Assert.NotEmpty(commands);
+        Assert.All(commands, c => Assert.DoesNotContain("#", c));
+    }
+
     [AvaloniaFact]
     public void CustomTaxiSeed_FollowsTheNodeType()
     {
@@ -1078,6 +1164,39 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     /// <summary>The per-route choices: a "Taxi here" submenu's children, else the answer itself.</summary>
     private static IReadOnlyList<MenuCommandChoice> RouteChoices(IReadOnlyList<MenuCommandChoice> choices) =>
         (choices is [{ Label: "Taxi here" } parent]) ? parent.Children : choices;
+
+    /// <summary>Every command the choice tree can send, walking "Taxi here" submenus and their per-route children.</summary>
+    private static List<string> LeafCommands(IReadOnlyList<MenuCommandChoice> choices)
+    {
+        var commands = new List<string>();
+        foreach (MenuCommandChoice choice in choices)
+        {
+            Walk(choice);
+        }
+
+        return commands;
+
+        void Walk(MenuCommandChoice choice)
+        {
+            if (choice.Command is { } command)
+            {
+                commands.Add(command);
+            }
+
+            foreach (MenuCommandChoice child in choice.Children)
+            {
+                Walk(child);
+            }
+        }
+    }
+
+    /// <summary>Every command carries the stand token and none a node pin.</summary>
+    private static void AssertStandTokens(List<string> commands, string token)
+    {
+        Assert.NotEmpty(commands);
+        Assert.All(commands, c => Assert.Contains(token, c));
+        Assert.All(commands, c => Assert.DoesNotContain("#", c));
+    }
 
     /// <summary>
     /// A route to <paramref name="runway"/>: a "Taxi …" submenu previewing the route, whose first item is the departure

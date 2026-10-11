@@ -274,7 +274,196 @@ public class GroundCanvasRunwaySurfaceHitTests
         }
     }
 
+    // Zoomed out, the painted runway is narrower than the node hit radius, so a right-click on a centerline node lands
+    // off the rectangle. It opens the same runway menu a painted-runway click opens, with no node menu.
+    [AvaloniaFact]
+    public void RightClick_RunwayCenterlineNodeOffThePaintedRunway_RaisesTheSurfaceMenu()
+    {
+        GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
+        (GroundCanvas canvas, Window window) = ShowCanvas(layout);
+        try
+        {
+            canvas.SelectedAircraft = GroundAircraft(layout);
+            GroundRunwayDto runway = Runway(layout, "28R/10L");
+            (GroundNodeDto node, Point click) = CenterlineNodeClick(canvas, layout, runway);
+            Assert.Empty(canvas.FindRunwaysAtPoint(click));
+            Assert.Equal(node.Id, canvas.FindNodeAtPoint(click)!.Id);
+            (List<IReadOnlyList<string>> surface, List<int> nodes) = Record(canvas);
+
+            RightClick(canvas, window, click);
+
+            Assert.Equal([runway.Name], Assert.Single(surface));
+            Assert.Empty(nodes);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    // With nothing selected the centerline-node click is the nearest-node click it has always been.
+    [AvaloniaFact]
+    public void RightClick_RunwayCenterlineNodeOffThePaintedRunway_NoSelection_KeepsTheNodeClick()
+    {
+        GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
+        (GroundCanvas canvas, Window window) = ShowCanvas(layout);
+        try
+        {
+            GroundRunwayDto runway = Runway(layout, "28R/10L");
+            (GroundNodeDto node, Point click) = CenterlineNodeClick(canvas, layout, runway);
+            Assert.Empty(canvas.FindRunwaysAtPoint(click));
+            Assert.Equal(node.Id, canvas.FindNodeAtPoint(click)!.Id);
+            (List<IReadOnlyList<string>> surface, List<int> nodes) = Record(canvas);
+
+            RightClick(canvas, window, click);
+
+            Assert.Empty(surface);
+            Assert.Equal([node.Id], nodes);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    // An airborne selection never gets the runway-surface menu, the centerline node included.
+    [AvaloniaFact]
+    public void RightClick_RunwayCenterlineNodeOffThePaintedRunway_AirborneSelection_KeepsTheNodeClick()
+    {
+        GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
+        (GroundCanvas canvas, Window window) = ShowCanvas(layout);
+        try
+        {
+            canvas.SelectedAircraft = AirborneAircraft();
+            GroundRunwayDto runway = Runway(layout, "28R/10L");
+            (GroundNodeDto node, Point click) = CenterlineNodeClick(canvas, layout, runway);
+            Assert.Empty(canvas.FindRunwaysAtPoint(click));
+            Assert.Equal(node.Id, canvas.FindNodeAtPoint(click)!.Id);
+            (List<IReadOnlyList<string>> surface, List<int> nodes) = Record(canvas);
+
+            RightClick(canvas, window, click);
+
+            Assert.Empty(surface);
+            Assert.Equal([node.Id], nodes);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    // With both runway layers hidden, the centerline-node fallback does not apply: the click is the node's, not the runway's.
+    [AvaloniaFact]
+    public void RightClick_RunwayCenterlineNodeWithRunwaysHidden_KeepsTheNodeClick()
+    {
+        GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
+        (GroundCanvas canvas, Window window) = ShowCanvas(layout);
+        try
+        {
+            canvas.SelectedAircraft = GroundAircraft(layout);
+            GroundRunwayDto runway = Runway(layout, "28R/10L");
+            (GroundNodeDto node, Point click) = CenterlineNodeClick(canvas, layout, runway);
+            canvas.ShowYaatLayout = false;
+            canvas.ShowVideoMapOverlay = false;
+            (List<IReadOnlyList<string>> surface, List<int> nodes) = Record(canvas);
+
+            RightClick(canvas, window, click);
+
+            Assert.Empty(surface);
+            Assert.Equal([node.Id], nodes);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
     // --- Fixtures ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// The painted half-width the centerline-node tests zoom to, in pixels: slimmer than the node hit radius the click
+    /// must stay inside.
+    /// </summary>
+    private const double OffSurfaceHalfWidthPx = 10;
+
+    /// <summary>
+    /// How far off the node the centerline-node tests click, in pixels: outside the painted half-width, inside the node
+    /// hit radius.
+    /// </summary>
+    private const double OffSurfacePx = 12;
+
+    /// <summary>
+    /// How far the click must sit from a hold-short node, in pixels: just clear of the node radius the hold-short rung
+    /// outranks the surface menu with.
+    /// </summary>
+    private const double ClearOfHoldShortPx = 21;
+
+    /// <summary>The two sides of the runway a perpendicular click is tried on.</summary>
+    private static readonly bool[] CenterlineSides = [false, true];
+
+    /// <summary>
+    /// A node on <paramref name="runway"/>'s centerline and nothing else, and a click a few pixels perpendicular off it:
+    /// off the painted rectangle, still on the node, off any threshold marker and clear of every hold-short node. The
+    /// view is left focused on the node.
+    /// </summary>
+    private static (GroundNodeDto Node, Point Click) CenterlineNodeClick(GroundCanvas canvas, GroundLayoutDto layout, GroundRunwayDto runway)
+    {
+        var ids = RunwayIdentifier.Parse(runway.Name);
+        List<GroundEdgeDto> centerlines = [.. layout.Edges.Where(e => e.IsRunwayCenterline)];
+        foreach (GroundNodeDto node in layout.Nodes)
+        {
+            List<GroundEdgeDto> atNode = [.. centerlines.Where(e => (e.FromNodeId == node.Id) || (e.ToNodeId == node.Id))];
+            if ((atNode.Count == 0) || !atNode.All(e => RunwayIdentifier.Parse(e.TaxiwayName[3..]) == ids))
+            {
+                continue;
+            }
+
+            FocusOn(canvas, runway, Position(node), OffSurfaceHalfWidthPx);
+            Point onNode = Screen(canvas, Position(node));
+            IEnumerable<Point> clicks = CenterlineSides.Select(flip => Perpendicular(canvas, runway, onNode, OffSurfacePx, flip));
+            foreach (Point click in clicks.Where(click => IsSurfaceOnlyClick(canvas, layout, node, click)))
+            {
+                return (node, click);
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No {layout.AirportId} node on the {runway.Name} centerline has an off-surface point within the node hit radius"
+        );
+    }
+
+    /// <summary>
+    /// Whether <paramref name="click"/> is on <paramref name="node"/> alone: off the painted rectangle, off any
+    /// threshold marker, clear of every hold-short node.
+    /// </summary>
+    private static bool IsSurfaceOnlyClick(GroundCanvas canvas, GroundLayoutDto layout, GroundNodeDto node, Point click)
+    {
+        if ((canvas.FindRunwaysAtPoint(click).Count > 0) || (canvas.FindRunwayThresholdAtPoint(click) is not null))
+        {
+            return false;
+        }
+
+        if (canvas.FindNodeAtPoint(click)?.Id != node.Id)
+        {
+            return false;
+        }
+
+        return layout.Nodes.Where(n => n.Type == "RunwayHoldShort").All(n => PixelDistance(Screen(canvas, Position(n)), click) >= ClearOfHoldShortPx);
+    }
+
+    private static double PixelDistance(Point a, Point b) => Math.Sqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Y - b.Y) * (a.Y - b.Y)));
+
+    /// <summary><paramref name="px"/> pixels perpendicular to <paramref name="runway"/> off <paramref name="from"/>, on the side <paramref name="flip"/> picks.</summary>
+    private static Point Perpendicular(GroundCanvas canvas, GroundRunwayDto runway, Point from, double px, bool flip)
+    {
+        Point first = Screen(canvas, new LatLon(runway.Coordinates[0][0], runway.Coordinates[0][1]));
+        Point last = Screen(canvas, new LatLon(runway.Coordinates[^1][0], runway.Coordinates[^1][1]));
+        double dx = last.X - first.X;
+        double dy = last.Y - first.Y;
+        double length = Math.Sqrt((dx * dx) + (dy * dy));
+        double sign = flip ? -1 : 1;
+        return new Point(from.X + (sign * dy / length * px), from.Y - (sign * dx / length * px));
+    }
 
     private static readonly Lazy<GroundLayoutDto> SfoLayout = new(() =>
     {

@@ -63,7 +63,9 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// <summary>
     /// The primary ground view model's routes from the aircraft's nearest node to <paramref name="node"/>, with the
     /// aircraft's own category and wake class. A named Spot is the taxi's spot destination, a named Parking or Helipad
-    /// its stand; the destination runway is <paramref name="runwayEnd"/>, else a hold-short node's runway End1.
+    /// its stand; the destination runway is <paramref name="runwayEnd"/>, else a hold-short node's runway End1. A node
+    /// with no named terminus pins the stop with a trailing <c>#id</c>, so the aircraft stops at the clicked node rather
+    /// than at the junction of the last two taxiways.
     /// </summary>
     public IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd)
     {
@@ -194,8 +196,10 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     /// <summary>
     /// One route's Taxi choice. To a runway: a submenu previewing the route over the departure and hold-short variants
-    /// (null when there are none). Otherwise one crossing variant is a leaf sending it, several a submenu previewing the
-    /// route over them, and none leaves the route out.
+    /// (null when there are none). Otherwise the route is pinned at the clicked node with a trailing <c>#id</c> when no
+    /// named terminus ends it — a route whose segments carry no named taxiway is that pin alone — and one crossing
+    /// variant is a leaf sending it, several a submenu previewing the route over them, and a route with no path at all
+    /// is left out.
     /// </summary>
     private static MenuCommandChoice? RouteChoice(GroundViewModel ground, TaxiRoute route, TaxiSpotDestination? spot, string? destRunway)
     {
@@ -220,7 +224,11 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
             );
         }
 
-        List<(string Label, string Command, TaxiRoute Preview)> variants = ground.BuildTaxiCrossingVariants(route, spot, pathOverride: null);
+        List<(string Label, string Command, TaxiRoute Preview)> variants = ground.BuildTaxiCrossingVariants(
+            route,
+            spot,
+            pathOverride: TaxiRouteFormatter.BuildReadableTaxiPath(route, hasNamedTerminus: spot is not null)
+        );
         return variants.Count switch
         {
             0 => null,

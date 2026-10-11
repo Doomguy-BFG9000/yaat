@@ -2129,11 +2129,25 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// Resolves a right-click on a runway surface while the selected aircraft can be given a taxi route: a
     /// <c>RunwayHoldShort</c> node within the node hit radius opens that node's menu, even over a nearer node; a hit
     /// threshold marker is left to the threshold rung below; anywhere else on the surface raises
-    /// <see cref="RunwaySurfaceRightClicked"/>. Returns whether it raised an event.
+    /// <see cref="RunwaySurfaceRightClicked"/>. A runway-centerline node counts as a surface click even off the painted
+    /// rectangle — zoomed out the runway is narrower than the node hit radius, so <see cref="RunwaysAtCenterlineNode"/>
+    /// stands in for <see cref="FindRunwaysAtPoint"/> there, while the runways are drawn at all. Returns whether it
+    /// raised an event.
     /// </summary>
     private bool TryRaiseRunwaySurfaceClick(Point screenPos)
     {
-        if (!AircraftCommandApplicability.CanDrawTaxiRoute(SelectedAircraft) || (FindRunwaysAtPoint(screenPos) is not { Count: > 0 } runways))
+        if (!AircraftCommandApplicability.CanDrawTaxiRoute(SelectedAircraft))
+        {
+            return false;
+        }
+
+        IReadOnlyList<string> runways = FindRunwaysAtPoint(screenPos);
+        if ((runways.Count == 0) && (ShowYaatLayout || ShowVideoMapOverlay) && (FindNodeAtPoint(screenPos) is { } node))
+        {
+            runways = RunwaysAtCenterlineNode(node);
+        }
+
+        if (runways.Count == 0)
         {
             return false;
         }
@@ -2151,6 +2165,38 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         RunwaySurfaceRightClicked?.Invoke(runways, screenPos);
         return true;
+    }
+
+    /// <summary>
+    /// The runways whose centerline passes through <paramref name="node"/>: each of the layout's
+    /// <see cref="GroundEdgeDto.IsRunwayCenterline"/> edges at the node, mapped to the runway that name designates.
+    /// Distinct, in edge order; an edge whose runway has no <see cref="GroundRunwayDto"/> is skipped.
+    /// </summary>
+    private List<string> RunwaysAtCenterlineNode(GroundNodeDto node)
+    {
+        var runways = new List<string>();
+        if (Layout is not { } layout)
+        {
+            return runways;
+        }
+
+        foreach (GroundEdgeDto edge in layout.Edges)
+        {
+            bool atNode = (edge.FromNodeId == node.Id) || (edge.ToNodeId == node.Id);
+            if (!atNode || !edge.IsRunwayCenterline)
+            {
+                continue;
+            }
+
+            var edgeRunway = RunwayIdentifier.Parse(edge.TaxiwayName[3..]);
+            GroundRunwayDto? runway = (layout.Runways ?? []).Find(r => RunwayIdentifier.Parse(r.Name) == edgeRunway);
+            if ((runway is not null) && !runways.Contains(runway.Name))
+            {
+                runways.Add(runway.Name);
+            }
+        }
+
+        return runways;
     }
 
     /// <summary>The <c>RunwayHoldShort</c> node nearest <paramref name="screenPos"/> within the node hit radius, or null.</summary>

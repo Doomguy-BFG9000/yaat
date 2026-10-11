@@ -28,6 +28,8 @@
 - The context menu's Temporary altitude, Cruise, Squawk and Speed popups refuse unreadable input with a message and stay open, instead of crashing on `FL230` or `23,000`.
 - The context menu no longer offers the For section while a delayed spawn is selected.
 - `CTO` signature help no longer lists a "360 overhead" departure; `CTO 360` is cleared for takeoff, fly heading 360.
+- Ground view: Taxi here to a taxiway node or intersection now stops at that node instead of the junction before it.
+- Ground view: right-clicking a runway centerline node opens the runway menu, with taxi to either end for departure.
 - CRC's SAID shows an aircraft squawking a code other than its flight plan's, such as after `RANDSQ`, as unidentified: teal icon, callsign only.
 
 ## v0.16.1-beta [2026/10/10]

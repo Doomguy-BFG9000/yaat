@@ -283,6 +283,31 @@ public class GroundParserTests
         Assert.Equal(["28R"], taxi.CrossRunways);
     }
 
+    [Fact]
+    public void TaxiNodeRef_TrailingPinAfterTaxiways_WithHoldShort()
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("TAXI W B #42 HS 28R");
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        Assert.Equal(["W", "B", "#42"], taxi.Path);
+        Assert.Equal(["28R"], taxi.HoldShorts.Select(h => h.ToCanonical()));
+        Assert.Null(taxi.DestinationRunway);
+    }
+
+    // The comma form the crossing menu sends is a compound — the TAXI block carries the pin, the CROSS block the runway.
+    [Fact]
+    public void TaxiNodeRef_TrailingPinAfterTaxiways_WithCross()
+    {
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("TAXI W B #42, CROSS 28R");
+
+        Assert.True(result.IsSuccess, result.Reason);
+        Assert.Single(result.Value!.Blocks);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value.Blocks[0].Commands[0]);
+        Assert.Equal(["W", "B", "#42"], taxi.Path);
+        Assert.Null(taxi.DestinationRunway);
+        CrossRunwayCommand cross = Assert.IsType<CrossRunwayCommand>(result.Value.Blocks[0].Commands[1]);
+        Assert.Equal(["28R"], cross.RunwayIds);
+    }
+
     // --- PUSH cardinal direction syntax ---
 
     [Fact]
