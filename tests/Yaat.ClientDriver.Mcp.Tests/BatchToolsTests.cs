@@ -334,6 +334,104 @@ public sealed class BatchToolsTests : AutomationHostFixture
         Assert.Equal("The client's screenshot of the batch's screenshot step carried no PNG to save", step.GetProperty("error").GetString());
     }
 
+    // A wait_until step that captured a screenshot saves it like the screenshot tool does: the step result carries the file's
+    // path and pixel size, not the base 64 image, and the wait's own answer (met, held, last, then) rides along untouched.
+    [Fact]
+    public async Task WaitUntilStep_WithAScreenshot_SavesItAndReturnsThePath()
+    {
+        byte[] png = await File.ReadAllBytesAsync(ShotFixture, TestContext.Current.CancellationToken);
+        string base64 = Convert.ToBase64String(png);
+        Outcome outcome = await RunBatchAsync(
+            """[{"method":"wait_until","params":{"conditions":[{"kind":"on_ground","callsign":"AAL1"}],"timeoutMs":1000}}]""",
+            Answer(
+                (_, _) =>
+                    new WaitUntilResult(
+                        true,
+                        [0],
+                        3.5,
+                        120,
+                        [new WaitUntilLastValue(0, "on_ground", "on ground")],
+                        new ScreenshotResult(200, 100, 1.0, base64),
+                        null,
+                        null
+                    )
+            ),
+            TimeSpan.FromSeconds(30),
+            TimeSpan.Zero,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(["wait_until"], outcome.Methods);
+        Assert.DoesNotContain(base64, outcome.Result, StringComparison.Ordinal);
+        JsonElement result = Step(outcome.Result, 0).GetProperty("result");
+        Assert.True(result.GetProperty("met").GetBoolean());
+        Assert.Equal(0, result.GetProperty("held")[0].GetInt32());
+        Assert.Equal(3.5, result.GetProperty("simSeconds").GetDouble());
+        Assert.Equal(120, result.GetProperty("elapsedMs").GetInt32());
+        Assert.Equal("on ground", result.GetProperty("last")[0].GetProperty("value").GetString());
+        Assert.False(result.TryGetProperty("screenshotError", out _));
+        JsonElement shot = result.GetProperty("screenshot");
+        Assert.Equal(200, shot.GetProperty("width").GetInt32());
+        Assert.Equal(100, shot.GetProperty("height").GetInt32());
+        Assert.False(shot.TryGetProperty("pngBase64", out _), shot.GetRawText());
+        Assert.False(shot.TryGetProperty("scale", out _), shot.GetRawText());
+        string path = shot.GetProperty("path").GetString()!;
+        Assert.Equal(png, await File.ReadAllBytesAsync(path, TestContext.Current.CancellationToken));
+    }
+
+    // A PNG the wait's answer carried but this server cannot decode costs only the screenshot: the step still passes, with a
+    // null screenshot and the refusal in screenshotError.
+    [Fact]
+    public async Task WaitUntilStep_WithAnUndecodableScreenshot_PassesWithScreenshotError()
+    {
+        Outcome outcome = await RunBatchAsync(
+            """[{"method":"wait_until","params":{"conditions":[{"kind":"on_ground","callsign":"AAL1"}],"timeoutMs":1000}}]""",
+            Answer(
+                (_, _) =>
+                    new WaitUntilResult(
+                        true,
+                        [0],
+                        3.5,
+                        120,
+                        [new WaitUntilLastValue(0, "on_ground", "on ground")],
+                        new ScreenshotResult(10, 10, 1.0, "not base64!"),
+                        null,
+                        null
+                    )
+            ),
+            TimeSpan.FromSeconds(30),
+            TimeSpan.Zero,
+            TestContext.Current.CancellationToken
+        );
+
+        JsonElement step = Step(outcome.Result, 0);
+        Assert.True(step.GetProperty("ok").GetBoolean(), outcome.Result);
+        JsonElement result = step.GetProperty("result");
+        Assert.Equal(JsonValueKind.Null, result.GetProperty("screenshot").ValueKind);
+        Assert.Contains("not valid base64", result.GetProperty("screenshotError").GetString()!, StringComparison.Ordinal);
+        Assert.Equal(0, result.GetProperty("held")[0].GetInt32());
+    }
+
+    // A wait_until step that captured no screenshot passes the host's answer through untouched.
+    [Fact]
+    public async Task WaitUntilStep_WithoutAScreenshot_PassesTheAnswerThrough()
+    {
+        Outcome outcome = await RunBatchAsync(
+            """[{"method":"wait_until","params":{"conditions":[{"kind":"on_ground","callsign":"AAL1"}],"timeoutMs":1000}}]""",
+            Answer((_, _) => new WaitUntilResult(true, [0], 3.5, 120, [new WaitUntilLastValue(0, "on_ground", "on ground")], null, null, null)),
+            TimeSpan.FromSeconds(30),
+            TimeSpan.Zero,
+            TestContext.Current.CancellationToken
+        );
+
+        JsonElement step = Step(outcome.Result, 0);
+        Assert.True(step.GetProperty("ok").GetBoolean(), outcome.Result);
+        JsonElement result = step.GetProperty("result");
+        Assert.True(result.GetProperty("met").GetBoolean());
+        Assert.Equal(0, result.GetProperty("held")[0].GetInt32());
+        Assert.False(result.TryGetProperty("screenshot", out _), result.GetRawText());
+    }
+
     [Fact]
     public async Task UnknownStepShape_FailsNamingTheAcceptedShapes()
     {

@@ -47,8 +47,11 @@ public sealed class BatchTools(PipeDirectory pipes, RecordingSession session)
             + "change here (a numeric \"timeoutMs\" in the params sets how long its answer may take); {\"assert\": \"wait\", "
             + "\"selector\": ..., \"condition\": ...} — as wait_for, with \"timeoutMs\" defaulting to 1000; or {\"assert\": "
             + "\"no_errors\"} — fails when the client logged errors since the batch started or the previous no_errors step. Steps "
-            + "address elements by selector: a step whose params carry nodeId or windowNodeId is refused. A screenshot step's PNG is "
-            + "saved to the shots folder and its result carries the file's path, width and height instead of the image. The whole "
+            + "address elements by selector: a step whose params carry nodeId or windowNodeId is refused. A screenshot step's PNG, "
+            + "and the PNG a wait_until step captured at its match, are saved to the shots folder: a screenshot step's result is the file's "
+            + "path, width and height instead of the image, and a wait_until step's \"screenshot\" field becomes that path, width and height "
+            + "with its other fields unchanged (a PNG this server cannot decode leaves \"screenshot\" null and sets \"screenshotError\"; "
+            + "the step still passes). The whole "
             + "batch stops after 300 s. While a recording of the client runs, every click, click_point, hover and drag step that "
             + "passes is logged to <clip>-actions.jsonl at the instant it was sent; a step whose log write failed carries a "
             + "\"warning\". Returns a JSON result — {\"passed\": ..., \"steps\": [...], \"failedAt\": ...} — never an MCP "
@@ -312,6 +315,11 @@ public sealed class BatchTools(PipeDirectory pipes, RecordingSession session)
                     return ScreenshotOutcome(method, answer);
                 }
 
+                if (string.Equals(method, ProtocolMethods.WaitUntil, StringComparison.Ordinal))
+                {
+                    return WaitUntilOutcome(method, answer);
+                }
+
                 string? logProblem = await LogPointerStepAsync(method, parameters, answer, sentUtc).ConfigureAwait(false);
                 return StepOutcome.Passed(method, null, answer) with { Warning = logProblem };
             }
@@ -411,6 +419,67 @@ public sealed class BatchTools(PipeDirectory pipes, RecordingSession session)
                 ResultJson
             );
             return StepOutcome.Passed(method, null, summary);
+        }
+
+        /// <summary>
+        /// A wait_until step's result: the PNG the client captured at the match saved like the screenshot tool saves one, so the
+        /// batch result carries the file's path and pixel size instead of the whole image, with every other field of the wait's
+        /// answer — <c>met</c>, <c>held</c>, <c>simSeconds</c>, <c>elapsedMs</c>, <c>last</c>, <c>then</c> — as the host wrote it.
+        /// A PNG this server cannot decode leaves the step passing with <c>screenshotError</c> set, as the wait_until tool
+        /// reports it; an answer carrying no screenshot, or one this server cannot read as a screenshot result, passes untouched.
+        /// </summary>
+        private static StepOutcome WaitUntilOutcome(string method, JsonElement answer)
+        {
+            if (!TryReadShot(answer, out JsonElement raw))
+            {
+                return StepOutcome.Passed(method, null, answer);
+            }
+
+            ScreenshotResult? shot;
+            try
+            {
+                shot = ProtocolSerializer.Deserialize<ScreenshotResult>(raw.GetRawText());
+            }
+            catch (JsonException ex)
+            {
+                // A step never becomes an MCP error: a screenshot this server cannot read is left as written, named in the warning.
+                return StepOutcome.Passed(method, null, answer) with
+                {
+                    Warning = $"the wait_until step's screenshot could not be read, so its answer passed through unchanged: {ex.Message}",
+                };
+            }
+
+            JsonObject replaced = JsonNode.Parse(answer.GetRawText())!.AsObject();
+            try
+            {
+                CaptureResult saved = InspectTools.SavePipeShot(shot, 0, "the batch's wait_until screenshot at the match");
+                replaced["screenshot"] = new JsonObject
+                {
+                    ["path"] = saved.Path,
+                    ["width"] = saved.Width,
+                    ["height"] = saved.Height,
+                };
+            }
+            catch (McpException ex)
+            {
+                // The wait's own answer is what the caller is here for; an undecodable PNG costs only the screenshot.
+                replaced["screenshot"] = null;
+                replaced["screenshotError"] = ex.Message;
+            }
+
+            return StepOutcome.Passed(method, null, JsonSerializer.SerializeToElement(replaced, ResultJson));
+        }
+
+        /// <summary>
+        /// The answer's <c>screenshot</c> member as raw JSON, when the answer is an object carrying one that is itself an object;
+        /// a missing member, a non-object answer or a non-object member leaves <paramref name="raw"/> as <c>default</c>.
+        /// </summary>
+        private static bool TryReadShot(JsonElement answer, out JsonElement raw)
+        {
+            raw = default;
+            return (answer.ValueKind == JsonValueKind.Object)
+                && answer.TryGetProperty("screenshot", out raw)
+                && (raw.ValueKind == JsonValueKind.Object);
         }
 
         private async Task<StepOutcome> AssertStepAsync(JsonElement step, int index, string assert, TimeSpan remaining)
