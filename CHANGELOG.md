@@ -12,6 +12,10 @@
 
 - YAAT1 now deletes opt-in speech recordings after 12 months, restart snapshots once restored (7 days at most), and server log lines after 90 days.
 
+### Fixed
+
+- Pilot position reports and terrain-height checks no longer miss a nearby airport lying due east or west of the aircraft.
+
 ## v0.16.1-beta [2026/10/10]
 
 ### Changed
