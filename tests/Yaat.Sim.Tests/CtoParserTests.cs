@@ -97,6 +97,14 @@ public class CtoParserTests : IDisposable
     }
 
     [Fact]
+    public void CtoRegistry_HasNoLiteral360Overload()
+    {
+        CommandDefinition cto = CommandRegistry.All[CanonicalCommandType.ClearedForTakeoff];
+
+        Assert.DoesNotContain(cto.Overloads, o => o.Parameters.Any(p => p.IsLiteral && (p.Name == "360")));
+    }
+
+    [Fact]
     public void Cto_Mrc_RightCrosswind()
     {
         ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO MRC");
