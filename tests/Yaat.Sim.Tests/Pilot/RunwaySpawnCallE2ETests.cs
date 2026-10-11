@@ -294,6 +294,31 @@ public class RunwaySpawnCallE2ETests
     }
 
     [Fact]
+    public void HfrGatedRunwaySpawn_UntoweredField_HfrOffReleasesThroughTheGate_DepartsOnItsOwn_WithNoReleaseRequest()
+    {
+        if (Prepare(Aun with { DelaySeconds = 10 }, "FAT_F_APP", "APP", []) is not { } prepared)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, List<TerminalEntry> terminal) = prepared;
+        SimScenarioState scenario = engine.Scenario!;
+        Assert.True(HeldReleaseService.Arm(scenario, engine.World, "KAUN").Success);
+        Tick(engine, 40);
+        Assert.Null(engine.FindAircraft("N513SJ"));
+
+        // HFROFF auto-releases everything still held at the field — including a spawn-gated runway departure. Like a REL
+        // through the gate, it already has its release: it must depart on its own and never ask the student for one again.
+        Assert.True(HeldReleaseService.Disarm(scenario, engine.World, "KAUN").Success);
+        Assert.True(TickUntil(engine, () => engine.FindAircraft("N513SJ") is not null, 90) > 0, "the released spawn never appeared");
+        AircraftState aircraft = engine.FindAircraft("N513SJ")!;
+
+        Assert.True(TickUntil(engine, () => !aircraft.IsOnGround, 120) > 0, "never departed after HFROFF");
+        Assert.DoesNotContain(terminal, t => t.Message.Contains("request release", StringComparison.Ordinal));
+        Assert.False(aircraft.PendingPilotRequest is { Kind: PilotPendingRequestKind.Release });
+    }
+
+    [Fact]
     public void HfrGatedRunwaySpawn_ToweredField_ApproachStudent_TakesTheToweredAutoTakeoff()
     {
         if (Prepare(Fat with { DelaySeconds = 10 }, "FAT_F_APP", "APP", []) is not { } prepared)
