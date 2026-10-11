@@ -114,8 +114,8 @@ The route is the one the aircraft drives, not `AssignedTaxiRoute`: a `FOLLOWG` f
    clear it. If it fails, return the error; **real state is unchanged**.
 6. **Post-validation phase clear** — only now (after dry-run passes) does the deferred `ClearsPhase` actually clear the `PhaseList`
    (`CommandDispatcher.ClearPhaseChain`).
-7. **Dimension-aware queue clearing** — `ClearConflictingBlocks` (`:3054`) removes queued blocks whose dimensions overlap the incoming command;
-   non-conflicting blocks survive and are re-appended.
+7. **Dimension-aware queue clearing** — `ClearConflictingBlocks` removes queued blocks whose dimensions overlap the incoming command;
+   non-conflicting blocks survive and are re-appended. A compound the phase gate (step 4) lets through to the phase path runs the same clearing there, under the rule in [the phase gate](#the-phase-gate).
 8. **Enqueue + apply first block** — `EnqueueBlocks` (`:3467`) appends the new blocks; the first new block with no trigger is applied immediately via
    `ApplyBlock` (`:3010`). Triggered blocks wait for the physics tick.
 
@@ -145,6 +145,10 @@ The route is the one the aircraft drives, not `AssignedTaxiRoute`: a `FOLLOWG` f
    - **`Rejected`** → return the reason; state unchanged.
    - **`ClearsPhase`** → return the `PhaseShouldBeCleared` sentinel (`:73`) so `DispatchCompoundCore` can validate *before* clearing.
    - **`Allowed`** → return `null` (fall through to normal dispatch). Phase notification is deferred to `BuildApplyAction` after a successful apply.
+
+**Supersede on the phase path.** When the gate lets a compound through, `DispatchWithPhase` clears queued work only for a compound of more than one block (the full deferred clear) or a single block that is a *fresh* ground-movement clearance: `TAXI`, `TAXIAUTO`, `PUSH`, `PUSHM` and their forced forms (`IsFreshGroundMovementClearance`). `PUSH` is fresh only from a phase other than `PushbackPhase`, so a mid-push `PUSH FACE x` / `PUSH TAIL x` amends the push and keeps the chain. `AIRTAXI` and `FOLLOWG` are outside the fresh set (owner scope), as are `HOLD`, `RES`, a lone `HS` and a lone `CROSS`; they keep the queue, with no `lost:` warning. A fresh clearance runs `ClearConflictingBlocks` with the compound's dimensions (queued `Ground` work goes, queued altitude and speed stay) and `CancelSupersededDeferrals`, which cancels pending or already-expired `WAIT` / `GIVEWAY` deferrals whose payload dimension overlaps `Ground` (`All` included), so none fires over the new clearance. Deferrals with no ground axis (`CT`, `SQ`, altitude, speed) and pilot-reaction delays are kept, and a firing deferral (`ctx.PreserveConditionals`) cancels nothing. The no-phase main path (steps 5-8) is unchanged.
+
+`EmitQueueClearWarning` reports the dropped blocks and the cancelled deferrals (named by source text, e.g. `(lost: WAIT 30 TAXI M4 M1)`) in one `queue cleared by … (lost: …)` warning, also when only deferrals were cancelled. A dropped unconditional block whose commands all appear among the incoming compound's unconditional commands is not reported; a repeat only inside a conditional incoming block still is.
 
 ### The two sentinels
 
@@ -244,10 +248,10 @@ Client side, two independent surfaces consume that:
 
 ## Dimension classification
 
-`ClearConflictingBlocks` (`CommandDispatcher.cs:3054`) is dimension-aware. Each command declares which axes it touches via
-`CommandDescriber.GetCommandDimension` (`CommandDescriber.cs:379`): `Lateral`, `Vertical`, `Speed`, `All`, or `None`. Tower and ground commands are
-`All`; ClimbVia/DescendVia and DepartFix are `Lateral | Vertical`; holds are `Lateral`. A new heading command clears queued lateral blocks
-but leaves a queued altitude block alone; mixed-dimension blocks are split via `SplitBlockNonConflicting` (`:3400`).
+`ClearConflictingBlocks` is dimension-aware. Each command declares which axes it touches via
+`CommandDescriber.GetCommandDimension`: `Lateral`, `Vertical`, `Speed`, `Ground`, `All`, or `None`. Tower commands are `All`; ground (surface) commands
+are `Ground`; ClimbVia/DescendVia and DepartFix are `Lateral | Vertical`; holds are `Lateral`. A new heading command clears queued lateral blocks
+but leaves a queued altitude block alone; mixed-dimension blocks are split via `SplitBlockNonConflicting`.
 
 **CrossFix is not lateral; DepartFix is.** `DispatchCrossFix` stamps the restriction on the fix when it is already on the route and appends it when it
 is not, leaving every other fix and restriction untouched — so `CFIX` is `Vertical` (plus `Speed` only when a speed was given) and a hand-built

@@ -376,7 +376,14 @@ public static class CommandDispatcher
                 // they actually arm the just-installed pattern. Otherwise they sit
                 // in the queue forever (UpdateCommandQueue short-circuits while a
                 // phase is active).
-                if (result.Success && compound.Blocks.Count > 1)
+                //
+                // A single block supersedes the queue only when it is a fresh taxi or pushback clearance: an
+                // amendment to the movement in progress (HOLD / RES / HS / CROSS / a mid-push PUSH FACE) keeps the
+                // chain queued behind it, but a new taxi clearance replaces the one that chain was issued with
+                // (issue #475). A compound of more than one block cancels every pending deferred dispatch; a single
+                // fresh clearance cancels only the WAIT / GIVEWAY payloads carrying surface work
+                // (CancelSupersededDeferrals).
+                if (result.Success && ((compound.Blocks.Count > 1) || IsFreshGroundMovementClearance(compound, currentPhaseBeforeDispatch)))
                 {
                     CommandDimension phaseIncomingDims = CommandDescriber.GetCompoundDimensions(compound);
                     List<CommandBlock> phasePreserved = ClearConflictingBlocks(
@@ -384,13 +391,10 @@ public static class CommandDispatcher
                         phaseIncomingDims,
                         ctx,
                         ctx.PreserveConditionals,
-                        out List<string>? phaseDropped
+                        out List<CommandBlock>? phaseDropped
                     );
-                    EmitQueueClearWarning(aircraft, phaseDropped, compound);
-                    if (!ctx.PreserveConditionals)
-                    {
-                        aircraft.DeferredDispatches.Clear();
-                    }
+                    List<DeferredDispatch> cancelledDeferrals = CancelSupersededDeferrals(aircraft, compound, ctx);
+                    EmitQueueClearWarning(aircraft, phaseDropped, cancelledDeferrals, compound);
 
                     var modifierMessages = new List<string>();
                     var remainingBlocks = new List<ParsedBlock>();
@@ -490,8 +494,8 @@ public static class CommandDispatcher
         else
         {
             CommandDimension incomingDims = CommandDescriber.GetCompoundDimensions(compound);
-            preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx, ctx.PreserveConditionals, out List<string>? dropped);
-            EmitQueueClearWarning(aircraft, dropped, compound);
+            preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx, ctx.PreserveConditionals, out List<CommandBlock>? dropped);
+            EmitQueueClearWarning(aircraft, dropped, [], compound);
             if (!ctx.PreserveConditionals)
             {
                 aircraft.DeferredDispatches.Clear();
@@ -662,6 +666,61 @@ public static class CommandDispatcher
     /// deferred dispatches; only a fresh immediate command supersedes pending work.
     /// </summary>
     public static bool IsConditionalIncoming(CompoundCommand compound) => compound.Blocks.Count > 0 && compound.Blocks[0].Condition is not null;
+
+    /// <summary>
+    /// Whether an unconditional compound's first block carries a fresh taxi or pushback clearance (<c>TAXI</c>,
+    /// <c>TAXIAUTO</c>, <c>PUSH</c>, <c>PUSHM</c> and their forced forms). Such a clearance replaces the one any
+    /// queued surface chain was issued with, so it supersedes that chain even as a single block; an amendment to the
+    /// movement in progress (<c>HOLD</c>, <c>RES</c>, <c>HS</c>, <c>CROSS</c>) does not. A <c>PUSH</c> issued during a
+    /// pushback is such an amendment (a mid-push <c>PUSH FACE</c> / <c>PUSH TAIL</c>), so it is fresh only from another
+    /// phase. A conditional compound is purely additive and never qualifies. <c>AIRTAXI</c> and <c>FOLLOWG</c> are
+    /// deliberately outside the fresh set (owner scope).
+    /// </summary>
+    private static bool IsFreshGroundMovementClearance(CompoundCommand compound, Phase? phaseBeforeDispatch) =>
+        (compound.Blocks.Count > 0)
+        && !IsConditionalIncoming(compound)
+        && compound.Blocks[0].Commands.Any(c => IsFreshTaxiOrPushbackClearance(CommandDescriber.ToCanonicalType(c), phaseBeforeDispatch));
+
+    private static bool IsFreshTaxiOrPushbackClearance(CanonicalCommandType type, Phase? phaseBeforeDispatch) =>
+        type switch
+        {
+            CanonicalCommandType.Taxi
+            or CanonicalCommandType.TaxiAuto
+            or CanonicalCommandType.PushbackMulti
+            or CanonicalCommandType.ForcedPushbackMulti => true,
+            CanonicalCommandType.Pushback or CanonicalCommandType.ForcedPushback => phaseBeforeDispatch is not PushbackPhase,
+            _ => false,
+        };
+
+    /// <summary>
+    /// Cancels the deferred dispatches a compound handled by the active phase supersedes, and returns the ones the lost
+    /// warning names. A compound of more than one block cancels every deferral, unnamed. A single fresh taxi or pushback
+    /// clearance cancels only the <c>WAIT</c> / <c>GIVEWAY</c> payloads that carry surface work (their dimensions
+    /// overlap <see cref="CommandDimension.Ground"/>), whether still pending or already expired and held, so none can
+    /// fire over the new clearance; a deferred frequency change, squawk, altitude or speed is kept, and a pilot-reaction
+    /// delay is never cancelled, so commands issued in a row still fire in order. A firing deferral
+    /// (<see cref="DispatchContext.PreserveConditionals"/>) cancels nothing.
+    /// </summary>
+    private static List<DeferredDispatch> CancelSupersededDeferrals(AircraftState aircraft, CompoundCommand compound, DispatchContext ctx)
+    {
+        if (ctx.PreserveConditionals)
+        {
+            return [];
+        }
+
+        if (compound.Blocks.Count > 1)
+        {
+            aircraft.DeferredDispatches.Clear();
+            return [];
+        }
+
+        List<DeferredDispatch> cancelled = aircraft.DeferredDispatches.FindAll(CarriesSurfaceWork);
+        aircraft.DeferredDispatches.RemoveAll(CarriesSurfaceWork);
+        return cancelled;
+
+        static bool CarriesSurfaceWork(DeferredDispatch d) =>
+            !d.IsReactionDelay && ((CommandDescriber.GetCompoundDimensions(d.Payload) & CommandDimension.Ground) != 0);
+    }
 
     /// <summary>
     /// CAPP issued to an aircraft already established on a JFAC/JLOC lateral join authorizes the
@@ -850,9 +909,9 @@ public static class CommandDispatcher
                         CommandDimension.Vertical,
                         ctx,
                         preserveTriggeredBlocks: false,
-                        out List<string>? dropped
+                        out List<CommandBlock>? dropped
                     );
-                    EmitQueueClearWarning(aircraft, dropped, compound);
+                    EmitQueueClearWarning(aircraft, dropped, [], compound);
                     aircraft.Queue.Blocks.AddRange(preserved);
                 }
 
@@ -3043,10 +3102,10 @@ public static class CommandDispatcher
     /// preserving non-conflicting blocks. For the current applied block, marks conflicting
     /// tracked commands as complete (superseded). Returns the preserved blocks (removed
     /// from the queue) so the caller can re-append them after enqueueing new blocks.
-    /// <paramref name="droppedDescriptions"/> receives a description of every pending block
-    /// that was lost outright (full conflict or fast-path wipe), so callers can warn the
-    /// RPO. Partial splits — where some commands in a block were preserved — are NOT
-    /// reported, since the queued instruction survived in modified form. Already-applied
+    /// <paramref name="droppedBlocks"/> receives every pending block that was lost outright
+    /// (full conflict or fast-path wipe), so callers can warn the RPO. Partial splits — where
+    /// some commands in a block were preserved — are NOT reported, since the queued
+    /// instruction survived in modified form. Already-applied
     /// blocks are likewise NOT reported: their effect already took hold (e.g. a chain of
     /// CFIX crossing restrictions stamped on the route, or an earlier DM/SPEED), so
     /// superseding them is not a loss the RPO needs to re-issue.
@@ -3056,11 +3115,11 @@ public static class CommandDispatcher
         CommandDimension incomingDimensions,
         DispatchContext ctx,
         bool preserveTriggeredBlocks,
-        out List<string> droppedDescriptions
+        out List<CommandBlock> droppedBlocks
     )
     {
         CommandQueue queue = aircraft.Queue;
-        droppedDescriptions = [];
+        droppedBlocks = [];
 
         // Fast path: All/None → clear everything (original behavior). Skipped when
         // preserving triggered blocks (a firing deferral must keep pending conditionals)
@@ -3075,7 +3134,7 @@ public static class CommandDispatcher
             {
                 if (!queue.Blocks[i].IsApplied)
                 {
-                    droppedDescriptions.Add(DescribeQueueBlock(queue.Blocks[i]));
+                    droppedBlocks.Add(queue.Blocks[i]);
                 }
             }
             queue.Blocks.Clear();
@@ -3123,7 +3182,7 @@ public static class CommandDispatcher
                 // them silently. Only not-yet-applied queued work is reported as lost.
                 if (!block.IsApplied)
                 {
-                    droppedDescriptions.Add(DescribeQueueBlock(block));
+                    droppedBlocks.Add(block);
                 }
             }
             else
@@ -3144,25 +3203,47 @@ public static class CommandDispatcher
     private static string DescribeQueueBlock(CommandBlock block) =>
         !string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription;
 
+    /// <summary>A cancelled deferral as the controller typed it, gate included (<c>WAIT 30 TAXI M4 M1</c>), else its payload.</summary>
+    private static string DescribeDeferral(DeferredDispatch deferral) =>
+        !string.IsNullOrEmpty(deferral.SourceText)
+            ? deferral.SourceText
+            : string.Join("; ", deferral.Payload.Blocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeCommand))));
+
     /// <summary>
     /// Append a "queue cleared" warning to <paramref name="aircraft"/>'s PendingWarnings
     /// when the dispatcher silently dropped one or more queued blocks. The warning lists
     /// what was lost so an RPO can re-issue any instructions that mattered.
     ///
-    /// Suppresses dropped blocks whose description equals one of the blocks in the incoming
-    /// compound — those will be re-enqueued by the same dispatch and aren't actually lost.
-    /// This makes re-sending an identical compound silent rather than emitting a spurious
-    /// "lost: …" warning that names exactly the blocks the user just re-issued.
+    /// Suppresses dropped blocks the incoming compound re-issues: one whose description equals
+    /// one of the incoming blocks, or an unconditional one each of whose commands appears among
+    /// the incoming compound's unconditional commands (<c>HS B</c> queued, <c>TAXIAUTO 30, HS B</c>
+    /// sent; a conditional <c>AT B HS C</c> does not re-issue a queued <c>HS C</c>). This makes
+    /// re-sending an instruction silent rather than emitting a spurious "lost: …" warning that
+    /// names exactly what the user just re-issued. Every cancelled deferral in
+    /// <paramref name="cancelledDeferrals"/> is named, after the dropped blocks.
     /// </summary>
-    private static void EmitQueueClearWarning(AircraftState aircraft, IReadOnlyList<string> dropped, CompoundCommand compound)
+    private static void EmitQueueClearWarning(
+        AircraftState aircraft,
+        IReadOnlyList<CommandBlock> dropped,
+        IReadOnlyList<DeferredDispatch> cancelledDeferrals,
+        CompoundCommand compound
+    )
     {
-        if (dropped.Count == 0)
+        if ((dropped.Count == 0) && (cancelledDeferrals.Count == 0))
         {
             return;
         }
 
-        HashSet<string> incoming = ComputeIncomingBlockDescriptions(compound);
-        var trulyLost = dropped.Where(d => !incoming.Contains(d)).ToList();
+        HashSet<string> incomingBlocks = ComputeIncomingBlockDescriptions(compound);
+        HashSet<string> incomingCommands = new(
+            compound.Blocks.Where(b => b.Condition is null).SelectMany(b => b.Commands).Select(CommandDescriber.DescribeCommand),
+            StringComparer.OrdinalIgnoreCase
+        );
+        var trulyLost = dropped
+            .Where(b => !incomingBlocks.Contains(DescribeQueueBlock(b)) && !IsReissuedByIncomingCommands(b, incomingCommands))
+            .Select(DescribeQueueBlock)
+            .Concat(cancelledDeferrals.Select(DescribeDeferral))
+            .ToList();
         if (trulyLost.Count == 0)
         {
             return;
@@ -3172,6 +3253,16 @@ public static class CommandDispatcher
         string lost = string.Join(", ", trulyLost);
         aircraft.PendingWarnings.Add($"{aircraft.Callsign} queue cleared by {src} (lost: {lost})");
     }
+
+    /// <summary>
+    /// Whether every command of an unconditional dropped block is among <paramref name="incomingCommands"/>. A triggered
+    /// block is re-issued only with its condition, which the whole-block description match covers; a block restored
+    /// from a snapshot before rehydration has no parsed commands and is matched by description alone.
+    /// </summary>
+    private static bool IsReissuedByIncomingCommands(CommandBlock block, HashSet<string> incomingCommands) =>
+        (block.Trigger is null)
+        && block.ParsedCommands is { Count: > 0 } commands
+        && commands.All(c => incomingCommands.Contains(CommandDescriber.DescribeCommand(c)));
 
     /// <summary>
     /// Mirrors the block-description format produced by <see cref="EnqueueBlocks"/> so the

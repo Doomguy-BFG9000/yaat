@@ -1807,6 +1807,8 @@ When a new command replaces queued work, YAAT clears only conflicting control su
 
 This means adjusting speed does not cancel a turn, and issuing a heading does not cancel a previously queued altitude trigger unless that queued block also contained lateral work. If a queued block is dropped, YAAT adds a terminal warning naming the lost block. Note that the supersede-on-conflict behavior applies only to **immediate** commands; commands gated by a precondition (`AT`/`ONHO`/`WAIT`/`BEHIND`/…) are additive and never cancel each other (see below).
 
+A fresh `TAXI`, `TAXIAUTO`, `PUSH` or `PUSHM` replaces the taxi plan queued behind the current movement, including a pending `WAIT`/`GIVEWAY` that would taxi the aircraft later, and the warning names what was dropped (`lost: WAIT 30 TAXI M4 M1`). `HOLD`, `RES`, a lone `HS` or `CROSS`, and a mid-push `PUSH FACE`/`PUSH TAIL` leave the queued route alone.
+
 A queued **pattern entry** or **approach clearance** counts as lateral work. After `DCT VPCOL; ERD 28R`, vectoring the aircraft with `RELR 20` (or `FH`, or a fresh `DCT`) cancels the downwind entry and warns `queue cleared by RELR 20 (lost: ERD 28R)` — the vector is the new plan, so re-issue the entry when you want it.
 
 `DM`/`CM` and `SPD` still leave the entry queued, and so does `CFIX`: a crossing restriction stacks onto the route instead of replacing it, so a hand-built descend-via chain never cancels a queued clearance.

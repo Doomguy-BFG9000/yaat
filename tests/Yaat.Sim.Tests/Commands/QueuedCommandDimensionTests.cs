@@ -544,13 +544,12 @@ public class QueuedCommandDimensionTests
     }
 
     // ---------------------------------------------------------------------------------------------------
-    // End-to-end on the real OAK layout, on the shape that actually reaches the queue. A BARE surface
-    // clearance never does: with a ground phase active, DispatchWithPhase hands the TAXI to
-    // TryApplyTowerCommand and DispatchCompound returns that result directly, so ClearConflictingBlocks is
-    // never called at all. On that path the clear runs only for a compound of more than one block — the
-    // Blocks.Count > 1 guard in CommandDispatcher.cs:244-247, on the union GetCompoundDimensions reports — so a chained
-    // ground compound is where the fired dimension bites, and where the union of two ground verbs used to
-    // add up to All and take the clear-everything fast path through queued airborne work.
+    // End-to-end on the real OAK layout. With a ground phase active, DispatchWithPhase hands a surface
+    // clearance to TryApplyTowerCommand, and the queue clear on that path runs for a compound of more than
+    // one block or for a fresh TAXI / TAXIAUTO / PUSH / PUSHM (IsFreshGroundMovementClearance), on the union
+    // GetCompoundDimensions reports. A chained ground compound is where the fired dimension bites, and where
+    // the union of two ground verbs used to add up to All and take the clear-everything fast path through
+    // queued airborne work.
     // ---------------------------------------------------------------------------------------------------
 
     /// <summary>The chained surface clearance under test: two ground verbs, so the dispatcher reaches the queue.</summary>
@@ -690,7 +689,7 @@ public class QueuedCommandDimensionTests
     // holding short with "AT 2000 TL 270" pre-armed (7110.65 §5-8-2.a REQUIRES the initial heading be
     // assigned BEFORE departure) lost that turn the moment the clearance was chained with anything else —
     // CTO fired All, so the compound's union tripped the clear-everything fast path in
-    // ClearConflictingBlocks. As with the taxi cases above, a LONE CTO never reaches the clear at all:
+    // ClearConflictingBlocks. A LONE CTO never reaches the clear at all:
     // DispatchWithPhase hands it to the tower path and DispatchCompoundCore returns that result directly,
     // so the repro needs a second block.
     // ---------------------------------------------------------------------------------------------------
