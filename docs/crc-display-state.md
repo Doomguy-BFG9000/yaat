@@ -55,7 +55,7 @@ Subscribers receive `Receive<Topic>` (updates) and `Delete<Topic>` (removals). C
 - **STARS**: `StarsTracks`, `StarsLineNumbers`, `StarsShortTermConflicts` (ATPA), `StarsCoordination`.
 - **ERAM**: `EramTargets`, `EramDataBlocks`, `EramTracks`, `EramSectorConfiguration`, `EramRouteLines`, `EramShortTermConflicts`, `EramCrrGroups`.
 - **ASDEX**: `AsdexTargets`, `AsdexTracks`, `AsdexTempData`, `AsdexTempDataPresets`, `AsdexSafetyLogicConfiguration`, `AsdexHoldBars`, `AsdexAlerts`.
-- **SAAB SAID** (CRC 2.17 surface display — ASDE-X family, minus alerts/safety-logic/hold-bars): `SaabSaidTargets`, `SaabSaidTracks`, `SaabSaidTempData`, `SaabSaidTempDataPresets`. The track DTO adds a `HasFlightPlanData` flag (Key 2); facility config is the nested `saidConfiguration.saabConfiguration` shape and carries no range/ceiling (defaults to the ASDE-X 15 nm / 1500 ft).
+- **SAAB SAID** (CRC 2.17 surface display — ASDE-X family, minus alerts/safety-logic/hold-bars): `SaabSaidTargets`, `SaabSaidTracks`, `SaabSaidTempData`, `SaabSaidTempDataPresets`. The track DTO adds a `HasFlightPlanData` flag (Key 2) that CRC never reads (an unidentified track is decided by a null `BeaconCode`, see "SAAB SAID surface display"); facility config is the nested `saidConfiguration.saabConfiguration` shape and carries no range/ceiling (defaults to the ASDE-X 15 nm / 1500 ft).
 - **Tower Cab / Ground**: `TowerCabAircraft`, `GroundTargets`.
 - **Flight data**: `FlightPlans`, `FlightStrips`.
 - **Weather**: `NexradData`.
@@ -371,7 +371,7 @@ Skip step 4 and you'll see the field update for clients that were subscribed whe
 
 ## SAAB SAID surface display
 
-CRC 2.17 (2026-06) added **SAAB SAID**, a surface-awareness display in the ASDE-X family. YAAT emulates it server-side only — real CRC clients render it; there is no YAAT instructor view (same posture as ASDE-X). SAID ≈ **ASDE-X minus alerts / safety-logic / hold-bars, plus a `HasFlightPlanData` track flag**, behind a `SaidVendor {UAvionix, Saab, Indra}` abstraction (only Saab implemented).
+CRC 2.17 (2026-06) added **SAAB SAID**, a surface-awareness display in the ASDE-X family. YAAT emulates it server-side only — real CRC clients render it; there is no YAAT instructor view (same posture as ASDE-X). SAID ≈ **ASDE-X minus alerts / safety-logic / hold-bars**, with its own correlation rule (below), behind a `SaidVendor {UAvionix, Saab, Indra}` abstraction (only Saab implemented).
 
 Every site mirrors the ASDE-X stack: `Said*` state on `AircraftStarsState` (separate fields, not reused `Asdex*`) and `SaidConfig`/`SaabSaidConfig` in `ArtccConfig.cs`.
 
@@ -379,6 +379,11 @@ Then come `SaidRoomState` (the one-shot terminate marker) + `SimulationEngine.Ap
 
 `saidConfiguration` JSON is vendor-nested with **no range/ceiling**, so it reuses the ASDE-X defaults (15 nm / 1500 ft + 600 ft hysteresis, tower-centered). Topic categories serialize as **string names**, so the mid-enum vNAS `SaabSaid*` `TopicCategory` insertions don't shift yaat-server parsing — just add the four string cases.
 
+- **Unidentified is a null `BeaconCode`.** CRC draws a SAID track as unidentified (teal icon, callsign only) when `SaabSaidTrack.IsUnidentified => !BeaconCode.HasValue`; it never reads `HasFlightPlanData`. `DtoConverter.ToSaidTrack` sends a correlated track with the squawked code and an uncorrelated one with a null `BeaconCode`, `HasFlightPlanData` false and empty type, category and fix. Correlated means the aircraft has a flight plan, a non-zero assigned code, and a squawk equal to it, so `RANDSQ`, a cold call on 1200, or no flight plan all show unidentified. A stored `SaidBeaconCodeOverride` still wins. The SAID track fingerprint carries the assigned code and flight-plan presence, so the track re-sends when either changes.
+
+  A SAID data-block edit echoes every field back, beacon included. `CrcClientState.Said.cs` drops the beacon from the edit when it equals what the track shows (`DtoConverter.SaidBeaconWireValue`; unidentified echoes as an empty string), so an edit that only touched a scratchpad does not pin the beacon and the live squawk-vs-assigned rule keeps deciding. A changed beacon is still stored as an override.
+
+  ASDE-X's cyan means no correlated track, while SAID's teal comes from a null beacon: the displays look alike but work differently, so don't copy the ASDE-X beacon mapping into SAID.
 - **Suspend mirrors ASDE-X; don't hide/clamp.** `DtoConverter.ToSaidTrack` emits `Suspended` when `stars.SaidSuspended` (parallels `ToAsdexTrack`); the aircraft stays on the surface display, only the track status changes, and only `SaidTerminated` removes it.
 
   CRC once crashed rendering a `Suspended` SAID track (its "mega font" only supported `FontType.Asdex`); YAAT had a temporary hide+clamp workaround, but **CRC fixed it and the workaround was reverted — do not re-introduce `IsHiddenFromSaid` or status-clamping.**
