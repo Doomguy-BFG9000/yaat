@@ -19,25 +19,20 @@
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release v0.16.0-beta reels
   - [ ] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release v0.16.0-beta reels
   - [ ] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release v0.16.0-beta reels
-- [/] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop · release vNext
-- [/] YAAT-261 AutomationWaitUntilTests.Landed_HeldAfterAirborneThenGround times out in the full UI suite · release vNext
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2 · release vNext
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover) · release vNext
 - [ ] YAAT-403 Support for vTBFM · release vNext
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
-- [/] YAAT-609 Treat only registrations and listed bizjet operators as GA for exit sides · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
+- [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
+- [ ] YAAT-620 ERAM shows an untracked aircraft squawking a non-assigned code as correlated · release vNext
 
 ## Context-menu quick commands (#471)
 
-- [/] YAAT-312 Context menu: stale descriptions after the builder refactor · release vNext
 - [ ] YAAT-445 Seed the context menu's heading pickers and warp popup with magnetic heading, not true · release vNext
-- [/] YAAT-446 Stop the Temporary altitude and Cruise popups throwing on FL or comma input · release vNext
 - [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus · release vNext
 - [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway · release vNext
-- [/] YAAT-503 Context-menu For section is offered for a delayed-spawn selection · release vNext
 - [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS · release vNext
-- [ ] YAAT-524 CTO 360 still parses as heading 360: remove or implement the CTO 360 overload · release vNext
 - [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip · release vNext
 - [ ] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
 - [ ] YAAT-581 Offer RES in the context menu for a HOLD-ed taxiing aircraft
@@ -470,3 +465,5 @@
 - [ ] YAAT-602 Refuse an expired YAAT token at /vnas/auth/refresh instead of forwarding it to VATSIM
 - [ ] YAAT-607 Isolate the wake-table installers in yaat-server tests and document leftover-state leaks
 - [ ] YAAT-614 Turn a shots-folder write failure into a step or tool error in the client driver
+- [ ] YAAT-617 Make AltitudeResolver refuse an AGL altitude when navdata is not loaded
+- [ ] YAAT-619 Keep a CRC client from binding to a room retired during the bind
