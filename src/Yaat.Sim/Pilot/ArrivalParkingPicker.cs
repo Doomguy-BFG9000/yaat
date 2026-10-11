@@ -10,7 +10,8 @@ namespace Yaat.Sim.Pilot;
 /// Where an arriving pilot says it is going. Nothing in a scenario assigns an arrival a parking spot, so the pilot picks
 /// one itself — deterministically per callsign (an FNV-1a draw, replay-safe, no RNG state) — from the layout's parking
 /// nodes that fit the operator: the operator's own ramp when the layout names one (FDX*, JSX*, DHL*), a cargo apron or
-/// a gate for an airline, a non-gate spot (FBO ramps, tie-down rows) for everyone else — general aviation avoids every
+/// a gate for an airline, a non-gate spot (FBO ramps, tie-down rows) for everyone else — an operator the airport's
+/// sidecar lists in <c>gaOperators</c> among them, whatever the fleet data says — general aviation avoids every
 /// gate name, so a layout whose airline hardstands match the gate shape keeps them out of the GA pool. A gate name is an
 /// optional leading upper-case letter, one to three digits, and an optional trailing upper-case letter ("29", "F8",
 /// "A13R", "G101"); an airline's pool is the digit-led gates when they are at least half of the layout's gates (OAK's
@@ -51,7 +52,17 @@ public static class ArrivalParkingPicker
 
     private const string CargoApronPrefix = "CARGO";
 
-    public static string? Pick(AircraftState aircraft, AirportGroundLayout? layout, IReadOnlyList<AircraftState> others, int salt)
+    /// <summary>
+    /// The pick for <paramref name="aircraft"/> over the layout's parking names. <paramref name="sidecars"/> supplies the
+    /// airport's <c>gaOperators</c>, so an operator the airport lists is pooled as general aviation.
+    /// </summary>
+    public static string? Pick(
+        AircraftState aircraft,
+        AirportGroundLayout? layout,
+        IReadOnlyList<AircraftState> others,
+        int salt,
+        AirportSidecarCatalog sidecars
+    )
     {
         if (layout is null)
         {
@@ -64,11 +75,11 @@ public static class ArrivalParkingPicker
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
-        return Pick(aircraft.Callsign, names, TakenSpots(others, aircraft.Callsign), salt);
+        return Pick(aircraft.Callsign, names, TakenSpots(others, aircraft.Callsign), salt, sidecars.GetGaOperators(layout.AirportId));
     }
 
     /// <summary>The pure choice: <paramref name="names"/> in ordinal order, minus <paramref name="taken"/>, narrowed to the operator's pool.</summary>
-    public static string? Pick(string callsign, IReadOnlyList<string> names, IReadOnlySet<string> taken, int salt)
+    public static string? Pick(string callsign, IReadOnlyList<string> names, IReadOnlySet<string> taken, int salt, IReadOnlySet<string> gaOperators)
     {
         if (names.Count == 0)
         {
@@ -81,7 +92,7 @@ public static class ArrivalParkingPicker
             free = [.. names];
         }
 
-        IReadOnlyList<string> pool = Candidates(callsign, free);
+        IReadOnlyList<string> pool = Candidates(callsign, free, gaOperators);
         double u = FinalApproachSpeedVariety.UnitInterval(callsign, "taxi-in" + salt.ToString(CultureInfo.InvariantCulture));
         return pool[(int)(u * pool.Count)];
     }
@@ -119,10 +130,13 @@ public static class ArrivalParkingPicker
         return taken;
     }
 
-    /// <summary>The names an operator would taxi to, in ordinal order; never empty when <paramref name="names"/> is not.</summary>
-    public static IReadOnlyList<string> Candidates(string callsign, IReadOnlyList<string> names)
+    /// <summary>
+    /// The names an operator would taxi to, in ordinal order; never empty when <paramref name="names"/> is not. An operator
+    /// in <paramref name="gaOperators"/> pools as general aviation, whatever the fleet data says of it.
+    /// </summary>
+    public static IReadOnlyList<string> Candidates(string callsign, IReadOnlyList<string> names, IReadOnlySet<string> gaOperators)
     {
-        string? operatorCode = OperatorCode(callsign);
+        string? operatorCode = OperatorCode(callsign, gaOperators);
         if (operatorCode is null)
         {
             var general = names
@@ -168,13 +182,10 @@ public static class ArrivalParkingPicker
         (callsign.Length >= 4) && callsign[..3].All(char.IsAsciiLetterUpper) && char.IsAsciiDigit(callsign[3]);
 
     /// <summary>
-    /// A general-aviation arrival as the picker judges it: no operator the fleet data knows (a registration, or a business-jet
-    /// operator such as <c>EJA</c>), so it parks in the non-gate pool.
+    /// The three-letter ICAO operator of an airline-style callsign (letters then digits) the fleet data knows and the
+    /// airport's sidecar does not list in <c>gaOperators</c>; null for a registration and for a listed GA operator.
     /// </summary>
-    public static bool IsGeneralAviation(string callsign) => OperatorCode(callsign) is null;
-
-    /// <summary>The three-letter ICAO operator of an airline-style callsign (letters then digits) the fleet data knows; null for a registration.</summary>
-    private static string? OperatorCode(string callsign)
+    private static string? OperatorCode(string callsign, IReadOnlySet<string> gaOperators)
     {
         if (!IsAirlineStyleCallsign(callsign))
         {
@@ -182,6 +193,11 @@ public static class ArrivalParkingPicker
         }
 
         string code = callsign[..3];
+        if (gaOperators.Contains(code))
+        {
+            return null;
+        }
+
         return AirlineFleets.TryGetAirline(code, out _) || RampAliases.ContainsKey(code) ? code : null;
     }
 

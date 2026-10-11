@@ -176,6 +176,72 @@ public class ExitDirectionSidecarTests
         Assert.Equal(("PLOT{N}", "{N}-*"), (area.Area, Assert.Single(area.Stands)));
     }
 
+    /// <summary>The <c>gaOperators</c> section mirrors <c>cargoOperators</c>: trimmed, upper-cased, de-duplicated.</summary>
+    [Fact]
+    public void Loader_ReadsGaOperators()
+    {
+        AirportSidecarLoadResult result = LoadSidecar(
+            """
+            {
+              "airportId": "KTST",
+              "gaOperators": [" eja ", "EJA", "XOJ"]
+            }
+            """
+        );
+
+        Assert.Empty(result.Warnings);
+        Assert.Equal(["EJA", "XOJ"], Assert.Single(result.Airports).GaOperators);
+    }
+
+    /// <summary>A code that is not three upper-case letters is warned and skipped, naming its own section.</summary>
+    [Theory]
+    [InlineData("FX")]
+    [InlineData("EJA1")]
+    [InlineData("TOOLS")]
+    public void Loader_InvalidGaOperator_WarnsAndSkips(string code)
+    {
+        AirportSidecarLoadResult result = LoadSidecar(
+            $$"""
+            { "airportId": "KTST", "gaOperators": ["{{code}}"] }
+            """
+        );
+
+        Assert.Empty(Assert.Single(result.Airports).GaOperators);
+        Assert.Contains(result.Warnings, w => w.Contains("gaOperators[0]", StringComparison.Ordinal));
+        Assert.Contains(result.Warnings, w => w.Contains("three-letter ICAO operator code", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A GA arrival for exit-side purposes is a registration written without its hyphen (a US N-number, or four to six
+    /// upper-case letters) or an airline-style callsign whose operator the sidecar lists in <c>gaOperators</c>; cargo wins
+    /// first, and an airline on neither list, or any other shape, is null.
+    /// </summary>
+    [Theory]
+    [InlineData("N377L", ArrivalClass.GeneralAviation)]
+    [InlineData("N12345", ArrivalClass.GeneralAviation)]
+    [InlineData("CFABC", ArrivalClass.GeneralAviation)]
+    [InlineData("GABCD", ArrivalClass.GeneralAviation)]
+    [InlineData("DEABC", ArrivalClass.GeneralAviation)]
+    [InlineData("EJA791", ArrivalClass.GeneralAviation)]
+    [InlineData("XOJ712", ArrivalClass.GeneralAviation)]
+    [InlineData("OPT55", ArrivalClass.GeneralAviation)]
+    [InlineData("ATN3303", ArrivalClass.Cargo)]
+    [InlineData("UAL2164", null)]
+    [InlineData("QQQ123", null)]
+    [InlineData("RCH123", null)]
+    [InlineData("C2134", null)]
+    [InlineData("N0ABC", null)]
+    [InlineData("NABCDEFG", null)]
+    [InlineData("N123456", null)]
+    [InlineData("GABCDEFG", null)]
+    public void Classify_GaIsARegistrationOrAListedOperator(string callsign, ArrivalClass? expected)
+    {
+        var cargo = new HashSet<string>(StringComparer.Ordinal) { "ATN" };
+        var ga = new HashSet<string>(StringComparer.Ordinal) { "EJA", "XOJ", "OPT" };
+
+        Assert.Equal(expected, ArrivalExitSide.Classify(callsign, cargo, ga));
+    }
+
     [Fact]
     public void Catalog_ClassEntries_CrossFileMerge_LastWins_AndStayOutOfTheClassLessLookup()
     {

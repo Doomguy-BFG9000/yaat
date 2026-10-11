@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -11,6 +12,9 @@ namespace Yaat.Sim.Tests.Pilot;
 public class ArrivalParkingPickerTests
 {
     private static readonly IReadOnlySet<string> NoneTaken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>These units are about the pool rules themselves, not the airport's GA list, so they pass none.</summary>
+    private static readonly IReadOnlySet<string> NoGaOperators = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     private static readonly string[] OakLikeNames =
     [
@@ -40,63 +44,63 @@ public class ArrivalParkingPickerTests
     [Fact]
     public void Airline_TaxiesToANumberedGate()
     {
-        string? pick = ArrivalParkingPicker.Pick("SWA1234", OakLikeNames, NoneTaken, 0);
+        string? pick = ArrivalParkingPicker.Pick("SWA1234", OakLikeNames, NoneTaken, 0, NoGaOperators);
 
         Assert.NotNull(pick);
         Assert.True(ArrivalParkingPicker.IsGateName(pick), pick);
-        Assert.Equal(["1", "10", "29", "8B"], ArrivalParkingPicker.Candidates("SWA1234", OakLikeNames));
+        Assert.Equal(["1", "10", "29", "8B"], ArrivalParkingPicker.Candidates("SWA1234", OakLikeNames, NoGaOperators));
     }
 
     [Fact]
     public void OperatorWithItsOwnRamp_TaxiesThere()
     {
-        Assert.Equal(["FDX1", "FDX2"], ArrivalParkingPicker.Candidates("FDX440", OakLikeNames));
-        Assert.Equal(["JSX1"], ArrivalParkingPicker.Candidates("JSX176", OakLikeNames));
+        Assert.Equal(["FDX1", "FDX2"], ArrivalParkingPicker.Candidates("FDX440", OakLikeNames, NoGaOperators));
+        Assert.Equal(["JSX1"], ArrivalParkingPicker.Candidates("JSX176", OakLikeNames, NoGaOperators));
         // The DHL family flies under other ICAO codes but parks on the DHL ramp.
-        Assert.Equal(["DHL1", "DHL2"], ArrivalParkingPicker.Candidates("DHK123", OakLikeNames));
+        Assert.Equal(["DHL1", "DHL2"], ArrivalParkingPicker.Candidates("DHK123", OakLikeNames, NoGaOperators));
     }
 
     [Fact]
     public void CargoCarrierWithoutItsOwnRamp_TaxiesToTheCargoApron_ElseAGate()
     {
-        Assert.Equal(["CARGO1"], ArrivalParkingPicker.Candidates("GTI8123", OakLikeNames));
+        Assert.Equal(["CARGO1"], ArrivalParkingPicker.Candidates("GTI8123", OakLikeNames, NoGaOperators));
         string[] noApron = ["1", "29", "FDX1", "GA1"];
-        Assert.Equal(["1", "29"], ArrivalParkingPicker.Candidates("GTI8123", noApron));
+        Assert.Equal(["1", "29"], ArrivalParkingPicker.Candidates("GTI8123", noApron, NoGaOperators));
     }
 
     [Fact]
     public void GeneralAviation_TaxiesToANonGateSpot()
     {
-        IReadOnlyList<string> candidates = ArrivalParkingPicker.Candidates("N152SP", OakLikeNames);
+        IReadOnlyList<string> candidates = ArrivalParkingPicker.Candidates("N152SP", OakLikeNames, NoGaOperators);
 
         Assert.Equal(["A", "B", "GA1", "GA13", "NEW5", "SIG1"], candidates);
-        string? pick = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, NoneTaken, 0);
+        string? pick = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, NoneTaken, 0, NoGaOperators);
         Assert.Contains(pick, candidates);
     }
 
     [Fact]
     public void Pick_IsDeterministicPerCallsign_AndASaltRepicksWithinThePool()
     {
-        string? first = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, NoneTaken, 0);
-        string? again = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, NoneTaken, 0);
-        string? resalted = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, NoneTaken, 1);
+        string? first = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, NoneTaken, 0, NoGaOperators);
+        string? again = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, NoneTaken, 0, NoGaOperators);
+        string? resalted = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, NoneTaken, 1, NoGaOperators);
 
         Assert.Equal(first, again);
-        Assert.Contains(resalted, ArrivalParkingPicker.Candidates("N152SP", OakLikeNames));
+        Assert.Contains(resalted, ArrivalParkingPicker.Candidates("N152SP", OakLikeNames, NoGaOperators));
     }
 
     [Fact]
     public void TakenSpots_AreSkipped_AndAFullRampFallsBackToEverything()
     {
-        string first = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, NoneTaken, 0)!;
+        string first = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, NoneTaken, 0, NoGaOperators)!;
         var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { first };
 
-        string? second = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, taken, 0);
+        string? second = ArrivalParkingPicker.Pick("N152SP", OakLikeNames, taken, 0, NoGaOperators);
         Assert.NotEqual(first, second);
 
         var everything = new HashSet<string>(OakLikeNames, StringComparer.OrdinalIgnoreCase);
-        Assert.NotNull(ArrivalParkingPicker.Pick("N152SP", OakLikeNames, everything, 0));
-        Assert.Null(ArrivalParkingPicker.Pick("N152SP", [], NoneTaken, 0));
+        Assert.NotNull(ArrivalParkingPicker.Pick("N152SP", OakLikeNames, everything, 0, NoGaOperators));
+        Assert.Null(ArrivalParkingPicker.Pick("N152SP", [], NoneTaken, 0, NoGaOperators));
     }
 
     [Fact]
@@ -144,7 +148,7 @@ public class ArrivalParkingPickerTests
         Assert.NotNull(layout);
         var aircraft = new AircraftState { Callsign = "N152SP", AircraftType = "C172" };
 
-        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0, AirportSidecarCatalog.Empty);
 
         Assert.NotNull(pick);
         Assert.False(ArrivalParkingPicker.IsGateName(pick), pick);
@@ -156,7 +160,7 @@ public class ArrivalParkingPickerTests
     {
         string[] names = ["1", "29", "S5", "F8", "GA1"];
 
-        Assert.Equal(["1", "29"], ArrivalParkingPicker.Candidates("SWA1234", names));
+        Assert.Equal(["1", "29"], ArrivalParkingPicker.Candidates("SWA1234", names, NoGaOperators));
     }
 
     [Fact]
@@ -164,7 +168,7 @@ public class ArrivalParkingPickerTests
     {
         string[] names = ["A1", "F8", "G101", "GA1", "CG1"];
 
-        Assert.Equal(["A1", "F8", "G101"], ArrivalParkingPicker.Candidates("SWA1234", names));
+        Assert.Equal(["A1", "F8", "G101"], ArrivalParkingPicker.Candidates("SWA1234", names, NoGaOperators));
     }
 
     [Fact]
@@ -172,7 +176,7 @@ public class ArrivalParkingPickerTests
     {
         string[] names = ["1", "2", "A13R", "F8", "G101"];
 
-        Assert.Equal(["1", "2", "A13R", "F8", "G101"], ArrivalParkingPicker.Candidates("UAL123", names));
+        Assert.Equal(["1", "2", "A13R", "F8", "G101"], ArrivalParkingPicker.Candidates("UAL123", names, NoGaOperators));
     }
 
     [Fact]
@@ -180,7 +184,7 @@ public class ArrivalParkingPickerTests
     {
         string[] names = ["1", "29", "8B", "F8"];
 
-        Assert.Equal(["1", "29", "8B"], ArrivalParkingPicker.Candidates("UAL123", names));
+        Assert.Equal(["1", "29", "8B"], ArrivalParkingPicker.Candidates("UAL123", names, NoGaOperators));
     }
 
     [Fact]
@@ -188,7 +192,7 @@ public class ArrivalParkingPickerTests
     {
         string[] names = ["GA1", "S5", "T1", "KILO RAMP", "29"];
 
-        Assert.Equal(["GA1", "KILO RAMP"], ArrivalParkingPicker.Candidates("N123AB", names));
+        Assert.Equal(["GA1", "KILO RAMP"], ArrivalParkingPicker.Candidates("N123AB", names, NoGaOperators));
     }
 
     [Fact]
@@ -198,7 +202,7 @@ public class ArrivalParkingPickerTests
         Assert.NotNull(layout);
         var aircraft = new AircraftState { Callsign = "UAL123", AircraftType = "B738" };
 
-        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0, AirportSidecarCatalog.Empty);
 
         Assert.NotNull(pick);
         Assert.True(char.IsLetter(pick[0]), pick);
@@ -213,7 +217,7 @@ public class ArrivalParkingPickerTests
         Assert.NotNull(layout);
         var aircraft = new AircraftState { Callsign = "SWA1234", AircraftType = "B738" };
 
-        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0, AirportSidecarCatalog.Empty);
 
         Assert.NotNull(pick);
         Assert.True(char.IsDigit(pick[0]), pick);
@@ -227,7 +231,7 @@ public class ArrivalParkingPickerTests
         Assert.NotNull(layout);
         var aircraft = new AircraftState { Callsign = "UAL123", AircraftType = "B738" };
 
-        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0, AirportSidecarCatalog.Empty);
 
         Assert.NotNull(pick);
         Assert.True(char.IsLetter(pick[0]), pick);
@@ -241,7 +245,7 @@ public class ArrivalParkingPickerTests
         Assert.NotNull(layout);
         var aircraft = new AircraftState { Callsign = "UAL123", AircraftType = "B738" };
 
-        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0, AirportSidecarCatalog.Empty);
 
         Assert.NotNull(pick);
         Assert.True(char.IsLetter(pick[0]), pick);
@@ -255,7 +259,7 @@ public class ArrivalParkingPickerTests
         Assert.NotNull(layout);
         var aircraft = new AircraftState { Callsign = "AAL123", AircraftType = "B738" };
 
-        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0, AirportSidecarCatalog.Empty);
 
         Assert.NotNull(pick);
         Assert.Matches("^[AB]\\d", pick);

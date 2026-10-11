@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Pilot;
@@ -43,7 +44,13 @@ public static class TaxiInRequest
             return false;
         }
 
-        string? parking = ArrivalParkingPicker.Pick(aircraft, ctx.GroundLayout, ctx.ListAircraft?.Invoke() ?? [], 0);
+        string? parking = ArrivalParkingPicker.Pick(
+            aircraft,
+            ctx.GroundLayout,
+            ctx.ListAircraft?.Invoke() ?? [],
+            0,
+            NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty
+        );
         if (parking is null)
         {
             Log.LogDebug("[TaxiIn] {Callsign}: no parking in the layout to ask for; no taxi-in call", aircraft.Callsign);

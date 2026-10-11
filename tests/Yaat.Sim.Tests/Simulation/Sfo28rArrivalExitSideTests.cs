@@ -15,10 +15,10 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// SFO 28R arrivals exit toward where they park (YAAT-598). A parking remark (<c>/V/ PARKING SIGNATURE, 28R</c>) gives the side of
-/// 28R the parking lies on; without one, the KSFO sidecar sends GA (a registration callsign) and cargo operators right; every
-/// other arrival keeps the runway's default, left. A controller's <c>EL</c>/<c>ER</c> still wins. The final-approach forecast,
-/// the landing rollout and the runway exit resolve the same side, and a snapshot restore re-derives it. Real SFO layout,
-/// navdata, the shipped ZOA sidecar and the ZOA scenario remark strings.
+/// 28R the parking lies on; without one, the KSFO sidecar sends GA (a registration callsign, or a listed GA operator) and cargo
+/// operators right; every other arrival keeps the runway's default, left. A controller's <c>EL</c>/<c>ER</c> still wins. The
+/// final-approach forecast, the landing rollout and the runway exit resolve the same side, and a snapshot restore re-derives it.
+/// Real SFO layout, navdata, the shipped ZOA sidecar and the ZOA scenario remark strings.
 /// </summary>
 public class Sfo28rArrivalExitSideTests(ITestOutputHelper output)
 {

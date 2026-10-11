@@ -158,7 +158,7 @@ When a side preference is in play (explicit from `EL`/`ER`, or inferred from run
 With no controller instruction naming a side, the default side is `ArrivalExitSide.Resolve`, which `FinalApproachExitForecast`, `LandingPhase` and `RunwayExitPhase` all call, so the menu's forecast, the rollout and the exit agree (`RunwayExitPhaseDto.InferredSideValue` keeps it across a snapshot). Order:
 
 1. The side of the landing runway where the arrival parks, read from its flight-plan remarks (`FlightPlanParking`: `/V/ GATE F14, 28R`, `/V/ PARKING SIGNATURE, 28R`, `PARKING AT CUTTER`), measured from the threshold along the true heading. A stand (any airport) comes from the layout and an area is the centroid of the sidecar `parkingAreas` stands it covers; parking within 250 ft of the extended centreline gives no side, and an unknown stand falls to its area.
-2. The sidecar `exitDirections` entry for the arrival's class on that runway end (`ga`: no operator the fleet data knows, e.g. registrations, EJA, LXJ; `cargo`: an operator in `cargoOperators`).
+2. The sidecar `exitDirections` entry for the arrival's class on that runway end (`ga`: a registration callsign or an operator in the sidecar's `gaOperators`, e.g. EJA, XOJ; `cargo`: an operator in `cargoOperators`, judged first; any other operator, such as an airline, keeps the default).
 3. `InferPreferredExitSide` below.
 
 An `EL`/`ER`/`EXIT` command always wins. A side from (1) or (2) is a rule: the aircraft slows and takes a 90° exit on that side rather than switching for want of a high-speed one (SFO 28R heavy cargo takes D). The `ArrivalExitSide` log category traces the choice.

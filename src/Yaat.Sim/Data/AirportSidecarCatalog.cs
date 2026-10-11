@@ -27,6 +27,7 @@ public sealed class AirportSidecarCatalog
         StringComparer.OrdinalIgnoreCase
     );
     private readonly Dictionary<string, HashSet<string>> _cargoOperatorsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HashSet<string>> _gaOperatorsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ParkingAreaAlias>> _parkingAreasByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ExitCapacityRule>> _exitCapacityByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _movementAreaByAirport = new(StringComparer.OrdinalIgnoreCase);
@@ -54,6 +55,7 @@ public sealed class AirportSidecarCatalog
             MergeAdw(key, airport.Adw);
             MergeExitDirections(key, airport.ExitDirections);
             MergeNames(_cargoOperatorsByAirport, key, airport.CargoOperators);
+            MergeNames(_gaOperatorsByAirport, key, airport.GaOperators);
             MergeParkingAreas(key, airport.ParkingAreas);
             MergeExitCapacity(key, airport.ExitCapacity);
             MergeNames(_movementAreaByAirport, key, airport.MovementAreaTaxiways);
@@ -223,6 +225,14 @@ public sealed class AirportSidecarCatalog
     /// empty set when the airport lists none. Read by <see cref="ArrivalExitSide"/>.
     /// </summary>
     public IReadOnlySet<string> GetCargoOperators(string airportId) => NamesFor(_cargoOperatorsByAirport, airportId);
+
+    /// <summary>
+    /// The upper-cased three-letter operators whose arrivals the airport's sidecar counts as general aviation: for a
+    /// <c>ga</c> <c>exitDirections</c> entry (<see cref="ArrivalExitSide"/>) and for the parking pool, where a listed
+    /// operator parks among the general-aviation stands rather than an airline's
+    /// (<see cref="Yaat.Sim.Pilot.ArrivalParkingPicker"/>). Never null — returns an empty set when the airport lists none.
+    /// </summary>
+    public IReadOnlySet<string> GetGaOperators(string airportId) => NamesFor(_gaOperatorsByAirport, airportId);
 
     /// <summary>
     /// The parking areas a flight-plan remark may name at the airport, in load order, the first match winning. Never null —

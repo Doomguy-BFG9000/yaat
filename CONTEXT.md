@@ -327,7 +327,7 @@ A named exit the arrival can make, as the Exit left / Exit right flyouts list it
 The stretch of an exit taxiway between a landing runway's exit hold-short and the parallel runway's hold-short, capped by a sidecar `exitCapacity` rule; when it is full an arrival treats that exit as occupied (`ExitCapacitySegment`, docs/landing-and-runway-exit.md).
 
 **Arrival class**:
-The group an arrival falls in for a sidecar `exitDirections` entry's `arrivalClass`: `ga` (a callsign with no known operator — a registration, or an operator absent from the fleet data) or `cargo` (an operator in the sidecar's `cargoOperators`); cargo is judged first (`ArrivalExitSide.Classify`).
+The group an arrival falls in for a sidecar `exitDirections` entry's `arrivalClass`: `ga` (a registration callsign, or an operator in the sidecar's `gaOperators`, which also pools it as non-gate for arrival parking) or `cargo` (an operator in the sidecar's `cargoOperators`); cargo is judged first (`ArrivalExitSide.Classify`).
 
 **Parking remark**:
 A flight-plan remark naming where an arrival parks (`/V/ GATE F14, 28R`, `/V/ PARKING SIGNATURE, 28R`); its stand, or a sidecar `parkingAreas` area, sets the arrival's default exit side ahead of its arrival class (`FlightPlanParking`).

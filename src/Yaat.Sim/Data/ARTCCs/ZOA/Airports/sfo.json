@@ -101,6 +101,18 @@
     "ABW",
     "SQC"
   ],
+  "gaOperators": [
+    "EJA",
+    "LXJ",
+    "VJT",
+    "XOJ",
+    "EJM",
+    "OPT",
+    "XSR",
+    "JTL",
+    "WUP",
+    "NJE"
+  ],
   "parkingAreas": [
     {
       "area": "Signature",

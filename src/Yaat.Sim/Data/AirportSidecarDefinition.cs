@@ -122,8 +122,9 @@ public sealed class ExitDirectionEntry
     public string Side { get; set; } = "";
 
     /// <summary>
-    /// The arrivals the entry applies to: <c>"ga"</c> (a registration callsign) or <c>"cargo"</c> (an operator in the
-    /// sidecar's <c>cargoOperators</c>). Absent, it applies to every arrival.
+    /// The arrivals the entry applies to: <c>"ga"</c> (a registration callsign, or an operator in the sidecar's
+    /// <c>gaOperators</c>) or <c>"cargo"</c> (an operator in the sidecar's <c>cargoOperators</c>). Absent, it applies to
+    /// every arrival.
     /// </summary>
     [JsonPropertyName("arrivalClass")]
     public string? ArrivalClass { get; set; }
@@ -240,6 +241,13 @@ internal sealed class AirportSidecarFile
     public List<string> CargoOperators { get; set; } = [];
 
     /// <summary>
+    /// Three-letter ICAO operators whose arrivals are general aviation: a <c>ga</c> <c>exitDirections</c> entry, and the
+    /// parking pool, where a listed operator parks among the general-aviation stands rather than an airline's.
+    /// </summary>
+    [JsonPropertyName("gaOperators")]
+    public List<string> GaOperators { get; set; } = [];
+
+    /// <summary>
     /// Parking areas a flight-plan remark may name instead of a stand, each with the stands it covers; an area no entry
     /// matches gives no side.
     /// </summary>
@@ -283,6 +291,9 @@ public sealed record AirportSidecar(string AirportId)
 
     /// <summary>Upper-cased three-letter ICAO operators whose arrivals are <see cref="ArrivalClass.Cargo"/>.</summary>
     public IReadOnlyList<string> CargoOperators { get; init; } = [];
+
+    /// <summary>Upper-cased three-letter ICAO operators whose arrivals are <see cref="ArrivalClass.GeneralAviation"/>.</summary>
+    public IReadOnlyList<string> GaOperators { get; init; } = [];
 
     /// <summary>The parking areas a remark may name instead of a stand, in file order.</summary>
     public IReadOnlyList<ParkingAreaAlias> ParkingAreas { get; init; } = [];

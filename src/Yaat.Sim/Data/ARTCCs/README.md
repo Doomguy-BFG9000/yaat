@@ -334,7 +334,7 @@ falls back to the other side rather than rolling out forever. An entry with a bl
 other than `left`/`right` or a class other than `ga`/`cargo` is skipped with a warning; a duplicate
 runway and class within one file warns and the last entry wins.
 
-An arrival's class is `ga` when it has no known operator (a registration such as `N377L`, or an operator absent from the fleet data, e.g. `EJA`, `LXJ`), and `cargo` when its three-letter operator is in the file's `cargoOperators`. A classed entry's side is a rule, not a preference: the aircraft slows and takes a 90° exit on that side even where the only high-speed exits are on the other (SFO 28R heavy cargo takes D).
+An arrival's class is `cargo` when its three-letter operator is in the file's `cargoOperators` (judged first), and `ga` when its callsign is a registration (an N-number such as `N377L`, or 4-6 letters for a foreign registration without a hyphen) or its operator is in the file's `gaOperators` (e.g. `EJA`, `XOJ`). An airline or other unlisted operator is neither and keeps the runway's default side. A classed entry's side is a rule, not a preference: the aircraft slows and takes a 90° exit on that side even where the only high-speed exits are on the other (SFO 28R heavy cargo takes D).
 
 An arrival whose flight-plan remarks name where it parks (`/V/ GATE F14, 28R`, `/V/ PARKING SIGNATURE, 28R`, `PARKING AT CUTTER`) exits toward that parking instead, ahead of every `exitDirections` entry. The side is the side of the landing runway the stand (any airport) or `parkingAreas` area lies on, measured from the threshold along the true heading; an area is the centroid of its stands, and parking within 250 ft of the extended centreline gives no side. An unknown stand falls to the area, then to the class entry, then to the runway default.
 
@@ -344,6 +344,16 @@ Three-letter ICAO operator codes whose arrivals count as `cargo` for an `exitDir
 
 ```json
 "cargoOperators": [ "FDX", "UPS", "DHK" ]
+```
+
+Codes are trimmed, upper-cased and de-duplicated; an entry that is not three letters warns and is skipped.
+
+### `gaOperators`
+
+Three-letter ICAO operator codes, typically bizjet and fractional operators, whose arrivals count as `ga` alongside registration callsigns. It decides both the `ga` exit side and the arrival parking pool: a listed operator parks off the gates, like a registration.
+
+```json
+"gaOperators": [ "EJA", "LXJ", "XOJ" ]
 ```
 
 Codes are trimmed, upper-cased and de-duplicated; an entry that is not three letters warns and is skipped.

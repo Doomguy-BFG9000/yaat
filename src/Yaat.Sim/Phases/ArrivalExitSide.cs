@@ -9,8 +9,9 @@ namespace Yaat.Sim.Phases;
 public enum ArrivalClass
 {
     /// <summary>
-    /// No operator the fleet data knows, as the parking picker judges it (<see cref="ArrivalParkingPicker.IsGeneralAviation"/>): a
-    /// registration (<c>N377L</c>) or a business-jet operator such as <c>EJA791</c>.
+    /// An arrival the airport counts as general aviation for its exit side: a registration written without its hyphen
+    /// (<c>N377L</c>, <c>CFABC</c>), or an airline-style callsign whose operator the airport's sidecar lists in
+    /// <c>gaOperators</c> (a business-jet operator such as <c>EJA791</c> or <c>XOJ712</c>).
     /// </summary>
     GeneralAviation,
 
@@ -70,7 +71,10 @@ public static class ArrivalExitSide
             return parked;
         }
 
-        if (Classify(aircraft.Callsign, sidecars.GetCargoOperators(layout.AirportId)) is not { } arrivalClass)
+        if (
+            Classify(aircraft.Callsign, sidecars.GetCargoOperators(layout.AirportId), sidecars.GetGaOperators(layout.AirportId))
+            is not { } arrivalClass
+        )
         {
             return null;
         }
@@ -92,18 +96,55 @@ public static class ArrivalExitSide
 
     /// <summary>
     /// The arrival's class: <see cref="ArrivalClass.Cargo"/> for an airline-style callsign whose operator is in
-    /// <paramref name="cargoOperators"/>, else <see cref="ArrivalClass.GeneralAviation"/> for a callsign with no operator the
-    /// fleet data knows (<see cref="ArrivalParkingPicker.IsGeneralAviation"/>), null otherwise.
+    /// <paramref name="cargoOperators"/> (checked first, so it wins over <paramref name="gaOperators"/>);
+    /// <see cref="ArrivalClass.GeneralAviation"/> for a registration (<see cref="IsRegistration"/>) or an airline-style
+    /// callsign whose operator is in <paramref name="gaOperators"/>; null otherwise, including an airline the airport lists
+    /// on neither.
     /// </summary>
-    public static ArrivalClass? Classify(string callsign, IReadOnlySet<string> cargoOperators)
+    public static ArrivalClass? Classify(string callsign, IReadOnlySet<string> cargoOperators, IReadOnlySet<string> gaOperators)
     {
-        if (ArrivalParkingPicker.IsAirlineStyleCallsign(callsign) && cargoOperators.Contains(callsign[..3]))
+        if (ArrivalParkingPicker.IsAirlineStyleCallsign(callsign))
         {
-            return ArrivalClass.Cargo;
+            string operatorCode = callsign[..3];
+            if (cargoOperators.Contains(operatorCode))
+            {
+                return ArrivalClass.Cargo;
+            }
+
+            return gaOperators.Contains(operatorCode) ? ArrivalClass.GeneralAviation : null;
         }
 
-        return ArrivalParkingPicker.IsGeneralAviation(callsign) ? ArrivalClass.GeneralAviation : null;
+        return IsRegistration(callsign) ? ArrivalClass.GeneralAviation : null;
     }
+
+    /// <summary>
+    /// Whether a callsign is a registration written without its hyphen: a US N-number (<c>N</c>, a digit 1-9, then up to
+    /// four more upper-case letters or digits: <c>N377L</c>, <c>N12345</c>) or a non-US registration of four to six
+    /// upper-case letters (<c>CFABC</c>, <c>GABCD</c>).
+    /// </summary>
+    private static bool IsRegistration(string callsign) => IsUsRegistration(callsign) || IsForeignRegistration(callsign);
+
+    /// <summary>A US N-number: <c>N</c>, a digit 1-9, then up to four upper-case letters or digits.</summary>
+    private static bool IsUsRegistration(string callsign)
+    {
+        if ((callsign.Length is < 2 or > 6) || (callsign[0] != 'N') || (callsign[1] is < '1' or > '9'))
+        {
+            return false;
+        }
+
+        for (int i = 2; i < callsign.Length; i++)
+        {
+            if (!char.IsAsciiLetterUpper(callsign[i]) && !char.IsAsciiDigit(callsign[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>A non-US registration written without its hyphen: four to six upper-case letters.</summary>
+    private static bool IsForeignRegistration(string callsign) => (callsign.Length is >= 4 and <= 6) && callsign.All(char.IsAsciiLetterUpper);
 
     /// <summary>
     /// The side of <paramref name="runway"/>'s centreline (its threshold along its true heading) the parking the arrival's

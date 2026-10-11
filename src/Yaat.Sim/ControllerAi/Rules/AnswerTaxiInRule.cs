@@ -34,7 +34,13 @@ public sealed class AnswerTaxiInRule : IDecisionRule
             string why = $"taxi-in request answered with the parking the pilot asked for, {requested}";
             if (taken.Contains(requested))
             {
-                parking = ArrivalParkingPicker.Pick(aircraft, scope.Tick.LayoutFor(aircraft), scope.Tick.Snapshot, 1);
+                parking = ArrivalParkingPicker.Pick(
+                    aircraft,
+                    scope.Tick.LayoutFor(aircraft),
+                    scope.Tick.Snapshot,
+                    1,
+                    scope.Tick.NavDb.AirportSidecars
+                );
                 why = $"{requested} is taken; re-picked {parking}";
             }
 

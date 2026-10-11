@@ -107,7 +107,8 @@ public static class AirportSidecarLoader
                 BlockedTurns = ParseBlockedTurns(file, filePath, result),
                 Adw = ParseAdw(file, filePath, result),
                 ExitDirections = ParseExitDirections(file, filePath, result),
-                CargoOperators = ParseCargoOperators(file, filePath, result),
+                CargoOperators = ParseOperatorCodes(file.CargoOperators, "cargoOperators", filePath, result),
+                GaOperators = ParseOperatorCodes(file.GaOperators, "gaOperators", filePath, result),
                 ParkingAreas = ParseParkingAreas(file, filePath, result),
                 ExitCapacity = ParseExitCapacity(file, filePath, result),
                 MovementAreaTaxiways = ParsePavementClassNames(file.MovementAreaTaxiways, "movementAreaTaxiways", filePath, result),
@@ -310,20 +311,18 @@ public static class AirportSidecarLoader
     }
 
     /// <summary>
-    /// The <c>cargoOperators</c> section: trimmed, upper-cased, de-duplicated three-letter ICAO operator codes. Anything else
-    /// is warned and skipped.
+    /// An operator-code section (<c>cargoOperators</c> or <c>gaOperators</c>): trimmed, upper-cased, de-duplicated
+    /// three-letter ICAO operator codes. Anything else is warned and skipped.
     /// </summary>
-    private static List<string> ParseCargoOperators(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    private static List<string> ParseOperatorCodes(List<string> codes, string propertyName, string filePath, AirportSidecarLoadResult result)
     {
         var operators = new List<string>();
-        for (int i = 0; i < file.CargoOperators.Count; i++)
+        for (int i = 0; i < codes.Count; i++)
         {
-            string code = (file.CargoOperators[i] ?? "").Trim().ToUpperInvariant();
+            string code = (codes[i] ?? "").Trim().ToUpperInvariant();
             if ((code.Length != 3) || !code.All(char.IsAsciiLetterUpper))
             {
-                result.Warnings.Add(
-                    $"{filePath}: cargoOperators[{i}] must be a three-letter ICAO operator code, got '{file.CargoOperators[i]}', skipping"
-                );
+                result.Warnings.Add($"{filePath}: {propertyName}[{i}] must be a three-letter ICAO operator code, got '{codes[i]}', skipping");
                 continue;
             }
 

@@ -137,12 +137,13 @@ Sets the default turn-off side for arrivals on one landing runway end, ahead of 
 "exitDirections": [ { "runway": "26R", "side": "left", "notes": "Facility request: 26R vacates left." } ]
 ```
 
-### cargoOperators and parkingAreas
+### cargoOperators, gaOperators and parkingAreas
 
-`cargoOperators` lists the three-letter airline codes (`"FDX"`, `"UPS"`) whose arrivals count as cargo for an `exitDirections` entry. `parkingAreas` names the areas a flight-plan remark may give instead of a stand (`/V/ PARKING SIGNATURE, 28R`) and the stands each covers, so YAAT can tell which side of the runway the aircraft parks on. Details: [`cargoOperators`](src/Yaat.Sim/Data/ARTCCs/README.md#cargooperators), [`parkingAreas`](src/Yaat.Sim/Data/ARTCCs/README.md#parkingareas).
+`cargoOperators` lists the three-letter airline codes (`"FDX"`, `"UPS"`) whose arrivals count as cargo for an `exitDirections` entry. `gaOperators` lists the bizjet operator codes (`"EJA"`, `"XOJ"`) that count as general aviation, like a registration callsign, for an `exitDirections` entry and for arrival parking (off the gates); an airline not listed is not GA. `parkingAreas` names the areas a flight-plan remark may give instead of a stand (`/V/ PARKING SIGNATURE, 28R`) and the stands each covers, so YAAT can tell which side of the runway the aircraft parks on. Details: [`cargoOperators`](src/Yaat.Sim/Data/ARTCCs/README.md#cargooperators), [`gaOperators`](src/Yaat.Sim/Data/ARTCCs/README.md#gaoperators), [`parkingAreas`](src/Yaat.Sim/Data/ARTCCs/README.md#parkingareas).
 
 ```json
 "cargoOperators": [ "FDX", "UPS" ],
+"gaOperators": [ "EJA", "XOJ" ],
 "parkingAreas": [ { "area": "Signature", "stands": ["SIG*"] } ]
 ```
 

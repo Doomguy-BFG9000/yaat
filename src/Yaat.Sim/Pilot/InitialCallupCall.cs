@@ -155,7 +155,16 @@ public static class InitialCallupCall
     {
         if (
             PilotResponder.RequestsTaxiToParking(ctx.Aircraft, location)
-            && (ArrivalParkingPicker.Pick(ctx.Aircraft, ctx.GroundLayout, ctx.ListAircraft?.Invoke() ?? [], 0) is { } parking)
+            && (
+                ArrivalParkingPicker.Pick(
+                    ctx.Aircraft,
+                    ctx.GroundLayout,
+                    ctx.ListAircraft?.Invoke() ?? [],
+                    0,
+                    NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty
+                ) is
+                { } parking
+            )
         )
         {
             return PilotRequestContext.TaxiIn(facilityCallName, parking);

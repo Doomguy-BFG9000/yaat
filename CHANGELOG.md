@@ -12,7 +12,7 @@
 ### Changed
 
 - YAAT1 now deletes opt-in speech recordings after 12 months, restart snapshots once restored (7 days at most), and server log lines after 90 days.
-- On SFO 28R, GA and cargo arrivals exit right, and an arrival whose remarks name its gate or parking area exits toward it.
+- On SFO 28R, cargo, registration-callsign and listed bizjet arrivals exit right; an arrival whose remarks name its gate or parking area exits toward it.
 - The Join Room list and the room title name the ARTCC of the room's loaded scenario, else its creator's.
 
 ### Fixed
