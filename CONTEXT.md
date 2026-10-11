@@ -326,6 +326,12 @@ A named exit the arrival can make, as the Exit left / Exit right flyouts list it
 **Exit capacity segment**:
 The stretch of an exit taxiway between a landing runway's exit hold-short and the parallel runway's hold-short, capped by a sidecar `exitCapacity` rule; when it is full an arrival treats that exit as occupied (`ExitCapacitySegment`, docs/landing-and-runway-exit.md).
 
+**Arrival class**:
+The group an arrival falls in for a sidecar `exitDirections` entry's `arrivalClass`: `ga` (a callsign with no known operator — a registration, or an operator absent from the fleet data) or `cargo` (an operator in the sidecar's `cargoOperators`); cargo is judged first (`ArrivalExitSide.Classify`).
+
+**Parking remark**:
+A flight-plan remark naming where an arrival parks (`/V/ GATE F14, 28R`, `/V/ PARKING SIGNATURE, 28R`); its stand, or a sidecar `parkingAreas` area, sets the arrival's default exit side ahead of its arrival class (`FlightPlanParking`).
+
 **Forced rollout**:
 The rollout of a CLANDF forced landing: graph exits only at 3–6 kt/s, else a stop short of the runway end, and, once stopped with no exit ahead, a backtrack to the exit behind without asking until any tower or ground command arrives (`PhaseList.ForcedRollout`, docs/landing-and-runway-exit.md).
 

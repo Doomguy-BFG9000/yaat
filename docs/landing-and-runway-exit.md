@@ -155,6 +155,14 @@ The route-end stop — the tail-clear point past the bar, not the bar itself —
 
 When a side preference is in play (explicit from `EL`/`ER`, or inferred from runway/parking layout via `InferPreferredExitSide`), the planner walks past **off-side** candidates while looking for an **on-side** option further down the runway. Crossing the runway centerline to exit increases controller workload (the aircraft now has to taxi back across to reach parking), so a same-side exit a bit further down beats an opposite-side exit at the closest taxiway.
 
+With no controller instruction naming a side, the default side is `ArrivalExitSide.Resolve`, which `FinalApproachExitForecast`, `LandingPhase` and `RunwayExitPhase` all call, so the menu's forecast, the rollout and the exit agree (`RunwayExitPhaseDto.InferredSideValue` keeps it across a snapshot). Order:
+
+1. The side of the landing runway where the arrival parks, read from its flight-plan remarks (`FlightPlanParking`: `/V/ GATE F14, 28R`, `/V/ PARKING SIGNATURE, 28R`, `PARKING AT CUTTER`), measured from the threshold along the true heading. A stand (any airport) comes from the layout and an area is the centroid of the sidecar `parkingAreas` stands it covers; parking within 250 ft of the extended centreline gives no side, and an unknown stand falls to its area.
+2. The sidecar `exitDirections` entry for the arrival's class on that runway end (`ga`: no operator the fleet data knows, e.g. registrations, EJA, LXJ; `cargo`: an operator in `cargoOperators`).
+3. `InferPreferredExitSide` below.
+
+An `EL`/`ER`/`EXIT` command always wins. A side from (1) or (2) is a rule: the aircraft slows and takes a 90° exit on that side rather than switching for want of a high-speed one (SFO 28R heavy cargo takes D). The `ArrivalExitSide` log category traces the choice.
+
 `InferPreferredExitSide`'s priority order: (1) a per-end `exitDirections` override from the airport sidecar (`Data/ARTCCs/{ARTCC}/Airports/*.json`, via `AirportSidecarCatalog.GetExitDirection`) — needed where the GeoJSON `turnoff` flip for the reciprocal end is wrong (issue #405, KMIA 26R); (2) the GeoJSON-authored `turnoff` for the end (`GroundRunway.TurnoffForEnd`); (3) high-speed-exit count validated by parking proximity; (4) parking proximity; (5) parallel-runway HS inheritance.
 
 See the `exitDirections` section in `src/Yaat.Sim/Data/ARTCCs/README.md` for the authoring schema.

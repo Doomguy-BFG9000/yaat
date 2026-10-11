@@ -108,6 +108,8 @@ public sealed record AdwWindow(string ArrivalRunway, string DepartureRunway, dou
 /// assuming both landing directions vacate to the same physical side; this entry overrides that per
 /// end for layouts where the assumption doesn't hold. It wins over both the GeoJSON-authored side and
 /// the layout heuristics; an explicit <c>EL</c>/<c>ER</c> command on an aircraft still wins over it.
+/// An entry with an <see cref="ArrivalClass"/> applies only to arrivals of that class and wins over a
+/// class-less entry for the same end; an arrival's parking remark wins over both (<see cref="ArrivalExitSide"/>).
 /// </summary>
 public sealed class ExitDirectionEntry
 {
@@ -119,6 +121,13 @@ public sealed class ExitDirectionEntry
     [JsonPropertyName("side")]
     public string Side { get; set; } = "";
 
+    /// <summary>
+    /// The arrivals the entry applies to: <c>"ga"</c> (a registration callsign) or <c>"cargo"</c> (an operator in the
+    /// sidecar's <c>cargoOperators</c>). Absent, it applies to every arrival.
+    /// </summary>
+    [JsonPropertyName("arrivalClass")]
+    public string? ArrivalClass { get; set; }
+
     /// <summary>Facility rationale (SOP reference, request provenance). Informational only.</summary>
     [JsonPropertyName("notes")]
     public string? Notes { get; set; }
@@ -127,9 +136,41 @@ public sealed class ExitDirectionEntry
 /// <summary>
 /// One airport's validated exit-direction override, produced by <see cref="AirportSidecarLoader"/>
 /// from an <see cref="ExitDirectionEntry"/>. The runway designator is zero-pad-normalized so it
-/// matches <see cref="Yaat.Sim.Data.Airport.RunwayIdentifier"/> lookups.
+/// matches <see cref="Yaat.Sim.Data.Airport.RunwayIdentifier"/> lookups. A null <c>ArrivalClass</c>
+/// applies to every arrival.
 /// </summary>
-public sealed record ExitDirectionOverride(string Runway, ExitSide Side, string? Notes);
+public sealed record ExitDirectionOverride(string Runway, ArrivalClass? ArrivalClass, ExitSide Side, string? Notes);
+
+/// <summary>
+/// One parking area a flight-plan remark may name instead of a stand (<c>/V/ PARKING SIGNATURE, 28R</c>), as an entry of the
+/// unified per-airport sidecar's <c>parkingAreas</c> list (<see cref="AirportSidecarFile"/>): the area's name and the stands
+/// it covers. <c>{n}</c> in the area stands for a number the remark gives and is carried into the stand patterns
+/// (<c>"Plot {n}"</c> covering <c>"{n}-*"</c>).
+/// </summary>
+public sealed class ParkingAreaEntry
+{
+    /// <summary>The area as remarks name it, e.g. <c>"Signature"</c> or <c>"Plot {n}"</c>. Case and spaces are ignored.</summary>
+    [JsonPropertyName("area")]
+    public string? Area { get; set; }
+
+    /// <summary>The layout stand names the area covers: exact names, or a prefix ending in <c>*</c> (<c>"SIG*"</c>).</summary>
+    [JsonPropertyName("stands")]
+    public List<string>? Stands { get; set; }
+
+    /// <summary>Facility rationale. Informational only.</summary>
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+}
+
+/// <summary>
+/// One airport's validated parking area, produced by <see cref="AirportSidecarLoader"/> from a <see cref="ParkingAreaEntry"/>:
+/// the area upper-cased with its whitespace removed, the stand patterns upper-cased. Read by <see cref="ArrivalExitSide"/>.
+/// </summary>
+public sealed record ParkingAreaAlias(string Area, IReadOnlyList<string> Stands, string? Notes)
+{
+    /// <summary>The placeholder an area carries for the number a remark gives (<c>"PLOT{N}"</c>), as normalized from <c>{n}</c>.</summary>
+    public const string NumberToken = "{N}";
+}
 
 /// <summary>
 /// One stand-departure area rule, as an entry of the unified per-airport sidecar's <c>standDepartureAreas</c> list
@@ -194,6 +235,17 @@ internal sealed class AirportSidecarFile
     [JsonPropertyName("exitDirections")]
     public List<ExitDirectionEntry> ExitDirections { get; set; } = [];
 
+    /// <summary>Three-letter ICAO operators whose arrivals are cargo for a <c>cargo</c> <c>exitDirections</c> entry.</summary>
+    [JsonPropertyName("cargoOperators")]
+    public List<string> CargoOperators { get; set; } = [];
+
+    /// <summary>
+    /// Parking areas a flight-plan remark may name instead of a stand, each with the stands it covers; an area no entry
+    /// matches gives no side.
+    /// </summary>
+    [JsonPropertyName("parkingAreas")]
+    public List<ParkingAreaEntry> ParkingAreas { get; set; } = [];
+
     [JsonPropertyName("exitCapacity")]
     public List<ExitCapacityEntry> ExitCapacity { get; set; } = [];
 
@@ -228,6 +280,13 @@ public sealed record AirportSidecar(string AirportId)
     public IReadOnlyList<BlockedTurn> BlockedTurns { get; init; } = [];
     public IReadOnlyList<AdwWindow> Adw { get; init; } = [];
     public IReadOnlyList<ExitDirectionOverride> ExitDirections { get; init; } = [];
+
+    /// <summary>Upper-cased three-letter ICAO operators whose arrivals are <see cref="ArrivalClass.Cargo"/>.</summary>
+    public IReadOnlyList<string> CargoOperators { get; init; } = [];
+
+    /// <summary>The parking areas a remark may name instead of a stand, in file order.</summary>
+    public IReadOnlyList<ParkingAreaAlias> ParkingAreas { get; init; } = [];
+
     public IReadOnlyList<ExitCapacityRule> ExitCapacity { get; init; } = [];
 
     /// <summary>Upper-cased taxiway names forced to movement area, overriding the inferred classification.</summary>

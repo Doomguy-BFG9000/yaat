@@ -979,6 +979,11 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     public string? RunwayId { get; init; }
     public int? LastResolvedPreference { get; init; }
     public string? LastResolvedPreferenceTaxiway { get; init; }
+
+    // The side the arrival was expected to exit on (toward its parking, else the runway's default), the tiebreak for a bare
+    // EXIT <twy>. Not `required`: absent on older snapshots, which restored no side; null keeps that reading.
+    public int? InferredSideValue { get; init; }
+
     public List<int>? ExitWaypointNodeIds { get; init; }
     public int ExitWaypointIndex { get; init; }
     public required double ExitSpeed { get; init; }

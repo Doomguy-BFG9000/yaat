@@ -53,7 +53,7 @@ The table lists only the steps with a data *transform*; the authoritative full c
 
 `PhaseListDto.GivenUpExitTaxiways` (the taxiways the crew has said "unable" to on this landing — [landing-and-runway-exit.md](landing-and-runway-exit.md) § The given-up set) is `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`: written only when the set is non-empty, and then sorted (`StringComparer.OrdinalIgnoreCase`) so two runs holding the same set in a different hash order serialize identically; absent on read means none given up.
 
-No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. The same additive, no-bump pattern covers `LandingPhaseDto.UnableBroadcast` and `OriginalPreferenceIsRequestedExit` (false when absent) and `RunwayExitPhaseDto.TurnOffDecelRate` (null when absent: the taxi rate older builds turned off at).
+No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. The same additive, no-bump pattern covers `LandingPhaseDto.UnableBroadcast` and `OriginalPreferenceIsRequestedExit` (false when absent) and `RunwayExitPhaseDto.TurnOffDecelRate` (null when absent: the taxi rate older builds turned off at) and `RunwayExitPhaseDto.InferredSideValue` (the default exit side `ArrivalExitSide` resolved; null when absent, which restores no side).
 
 `TaxiingPhaseDto.PassedStartBarNodeId` is another such field: the node of the uncleared runway bar the route starts on whose marking the nose is past, which the phase is stopping for at the firm rate ([ground/navigator.md](ground/navigator.md) § Stopping at an uncleared bar). It is null whenever no such stop is under way, and null on older snapshots, which never carried one; no schema bump.
 

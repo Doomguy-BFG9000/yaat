@@ -210,12 +210,12 @@ public sealed class RunwayExitPhase : Phase
         _lastResolvedPreference = ctx.Aircraft.Phases?.RequestedExit;
         _coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
 
-        // Infer a side from runway layout. For default (no preference), merge directly.
-        // For taxiway-only (EXIT K), store separately — TryFindExitAhead uses it as
-        // a soft tiebreaker so taxiways that only exist on one side still work.
-        if ((_lastResolvedPreference?.Side is null) && (ctx.GroundLayout is not null) && (_runwayId is not null))
+        // Infer a side toward where the arrival parks, else from the runway layout (the same side LandingPhase infers). For
+        // default (no preference), merge directly. For taxiway-only (EXIT K), store separately — TryFindExitAhead uses it
+        // as a soft tiebreaker so taxiways that only exist on one side still work.
+        if ((_lastResolvedPreference?.Side is null) && (ctx.GroundLayout is not null) && (ctx.Aircraft.Phases?.AssignedRunway is { } assignedRunway))
         {
-            _inferredSide = ctx.GroundLayout.InferPreferredExitSide(_runwayId, _runwayHeading);
+            _inferredSide = ArrivalExitSide.Resolve(ctx.Aircraft, assignedRunway, ctx.GroundLayout, _runwayHeading);
             Log.LogDebug(
                 "[Exit] {Callsign}: inferred exit side for {Rwy} = {Side}",
                 ctx.Aircraft.Callsign,
@@ -1628,6 +1628,7 @@ public sealed class RunwayExitPhase : Phase
             RunwayId = _runwayId,
             LastResolvedPreference = (int?)_lastResolvedPreference?.Side,
             LastResolvedPreferenceTaxiway = _lastResolvedPreference?.Taxiway,
+            InferredSideValue = (int?)_inferredSide,
             ExitWaypointNodeIds = _exitPath?.Select(n => n.Id).ToList(),
             // Falls back to the restored index, not 0: a snapshot round-tripped before the first tick after a
             // restore has no route yet, and writing 0 there would lose the resume point all over again.
@@ -1683,6 +1684,7 @@ public sealed class RunwayExitPhase : Phase
             _lastResolvedPreference = dto.LastResolvedPreference.HasValue
                 ? new ExitPreference { Side = (ExitSide)dto.LastResolvedPreference.Value, Taxiway = dto.LastResolvedPreferenceTaxiway }
                 : null,
+            _inferredSide = (ExitSide?)dto.InferredSideValue,
             _coastSpeed = dto.ExitSpeed,
             _timeSinceLastLog = dto.TimeSinceLastLog,
             _turnStarted = dto.TurnStarted,

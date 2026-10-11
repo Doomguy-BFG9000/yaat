@@ -23,6 +23,11 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, List<BlockedTurn>> _blockedTurnsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<AdwWindow>> _adwByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, ExitSide>> _exitDirectionsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<(string Runway, ArrivalClass Class), ExitSide>> _classExitDirectionsByAirport = new(
+        StringComparer.OrdinalIgnoreCase
+    );
+    private readonly Dictionary<string, HashSet<string>> _cargoOperatorsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<ParkingAreaAlias>> _parkingAreasByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ExitCapacityRule>> _exitCapacityByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _movementAreaByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _nonMovementByAirport = new(StringComparer.OrdinalIgnoreCase);
@@ -48,6 +53,8 @@ public sealed class AirportSidecarCatalog
             MergeBlockedTurns(key, airport.BlockedTurns);
             MergeAdw(key, airport.Adw);
             MergeExitDirections(key, airport.ExitDirections);
+            MergeNames(_cargoOperatorsByAirport, key, airport.CargoOperators);
+            MergeParkingAreas(key, airport.ParkingAreas);
             MergeExitCapacity(key, airport.ExitCapacity);
             MergeNames(_movementAreaByAirport, key, airport.MovementAreaTaxiways);
             MergeNames(_nonMovementByAirport, key, airport.NonMovementTaxilanes);
@@ -169,17 +176,90 @@ public sealed class AirportSidecarCatalog
             return;
         }
 
-        if (!_exitDirectionsByAirport.TryGetValue(key, out Dictionary<string, ExitSide>? byRunway))
-        {
-            byRunway = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
-            _exitDirectionsByAirport[key] = byRunway;
-        }
-
-        // Last file wins on a per-runway clash, mirroring the loader's within-file rule.
+        // Last file wins on a per-runway (and per-class) clash, mirroring the loader's within-file rule.
         foreach (ExitDirectionOverride entry in overrides)
         {
+            if (entry.ArrivalClass is { } arrivalClass)
+            {
+                if (!_classExitDirectionsByAirport.TryGetValue(key, out Dictionary<(string Runway, ArrivalClass Class), ExitSide>? byClass))
+                {
+                    byClass = [];
+                    _classExitDirectionsByAirport[key] = byClass;
+                }
+
+                byClass[(entry.Runway.ToUpperInvariant(), arrivalClass)] = entry.Side;
+                continue;
+            }
+
+            if (!_exitDirectionsByAirport.TryGetValue(key, out Dictionary<string, ExitSide>? byRunway))
+            {
+                byRunway = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
+                _exitDirectionsByAirport[key] = byRunway;
+            }
+
             byRunway[entry.Runway] = entry.Side;
         }
+    }
+
+    private void MergeParkingAreas(string key, IReadOnlyList<ParkingAreaAlias> areas)
+    {
+        if (areas.Count == 0)
+        {
+            return;
+        }
+
+        if (!_parkingAreasByAirport.TryGetValue(key, out List<ParkingAreaAlias>? list))
+        {
+            list = [];
+            _parkingAreasByAirport[key] = list;
+        }
+
+        // Files concatenate in load order, so the first area matching a remark across them wins.
+        list.AddRange(areas);
+    }
+
+    /// <summary>
+    /// The upper-cased three-letter operators whose arrivals the airport's sidecar counts as cargo. Never null — returns an
+    /// empty set when the airport lists none. Read by <see cref="ArrivalExitSide"/>.
+    /// </summary>
+    public IReadOnlySet<string> GetCargoOperators(string airportId) => NamesFor(_cargoOperatorsByAirport, airportId);
+
+    /// <summary>
+    /// The parking areas a flight-plan remark may name at the airport, in load order, the first match winning. Never null —
+    /// returns an empty list when the airport has none. Read by <see cref="ArrivalExitSide"/>.
+    /// </summary>
+    public IReadOnlyList<ParkingAreaAlias> GetParkingAreas(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return [];
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _parkingAreasByAirport.TryGetValue(key, out List<ParkingAreaAlias>? list) ? list : [];
+    }
+
+    /// <summary>
+    /// Sidecar-authored default exit side for arrivals of <paramref name="arrivalClass"/> on one landing runway end, or null
+    /// when none is authored for that class (a class-less entry is not consulted: see
+    /// <see cref="GetExitDirection(string, string)"/>). Read by <see cref="ArrivalExitSide"/>. The designator is
+    /// zero-pad-normalized before lookup.
+    /// </summary>
+    public ExitSide? GetExitDirection(string airportId, string runwayDesignator, ArrivalClass arrivalClass)
+    {
+        if (string.IsNullOrWhiteSpace(airportId) || string.IsNullOrWhiteSpace(runwayDesignator))
+        {
+            return null;
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        if (!_classExitDirectionsByAirport.TryGetValue(key, out Dictionary<(string Runway, ArrivalClass Class), ExitSide>? byClass))
+        {
+            return null;
+        }
+
+        string runway = RunwayIdentifier.NormalizeDesignator(runwayDesignator.Trim().ToUpperInvariant());
+        return byClass.TryGetValue((runway, arrivalClass), out ExitSide side) ? side : null;
     }
 
     private void MergeExitCapacity(string key, IReadOnlyList<ExitCapacityRule> rules)
@@ -412,7 +492,7 @@ public sealed class AirportSidecarCatalog
 
     /// <summary>
     /// Sidecar-authored default exit (turn-off) side for one landing runway end, or null when none is
-    /// authored. Consulted by <see cref="Yaat.Sim.Data.Airport.AirportGroundLayout.InferPreferredExitSide"/>
+    /// authored without an arrival class. Consulted by <see cref="Yaat.Sim.Data.Airport.AirportGroundLayout.InferPreferredExitSide"/>
     /// ahead of the GeoJSON-authored turnoff and the layout heuristics. The designator is
     /// zero-pad-normalized before lookup, so "9" and "09" resolve identically.
     /// </summary>

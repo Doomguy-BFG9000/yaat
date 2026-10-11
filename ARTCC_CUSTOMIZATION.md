@@ -131,10 +131,19 @@ Draws the two ends of a published Arrival/Departure Window as reference marks in
 
 ### exitDirections
 
-Sets the default turn-off side for arrivals on one landing runway end, ahead of the map's `turnoff` and YAAT's own heuristics. An explicit `EL`, `ER` or `EXIT` command still wins, and if no exit on that side is reachable the aircraft falls back to the other side. Details: [`exitDirections`](src/Yaat.Sim/Data/ARTCCs/README.md#exitdirections).
+Sets the default turn-off side for arrivals on one landing runway end, ahead of the map's `turnoff` and YAAT's own heuristics. An explicit `EL`, `ER` or `EXIT` command still wins, and if no exit on that side is reachable the aircraft falls back to the other side. An entry can name an `arrivalClass` (`"ga"` for general aviation, `"cargo"` for operators listed in `cargoOperators`) so only those arrivals use it, and an arrival whose flight-plan remarks say where it parks (`/V/ GATE F14, 28R`) exits toward that parking first. Details: [`exitDirections`](src/Yaat.Sim/Data/ARTCCs/README.md#exitdirections).
 
 ```json
 "exitDirections": [ { "runway": "26R", "side": "left", "notes": "Facility request: 26R vacates left." } ]
+```
+
+### cargoOperators and parkingAreas
+
+`cargoOperators` lists the three-letter airline codes (`"FDX"`, `"UPS"`) whose arrivals count as cargo for an `exitDirections` entry. `parkingAreas` names the areas a flight-plan remark may give instead of a stand (`/V/ PARKING SIGNATURE, 28R`) and the stands each covers, so YAAT can tell which side of the runway the aircraft parks on. Details: [`cargoOperators`](src/Yaat.Sim/Data/ARTCCs/README.md#cargooperators), [`parkingAreas`](src/Yaat.Sim/Data/ARTCCs/README.md#parkingareas).
+
+```json
+"cargoOperators": [ "FDX", "UPS" ],
+"parkingAreas": [ { "area": "Signature", "stands": ["SIG*"] } ]
 ```
 
 ### exitCapacity

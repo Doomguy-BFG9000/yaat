@@ -104,8 +104,8 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
     /// <summary>Lands <paramref name="type"/> on 28R with EXIT T and ticks until it holds short of 28L at the segment's parallel-runway bar.</summary>
     private void LandOccupantOnT(SimulationEngine engine, AirportGroundLayout layout, ExitCapacitySegment segment, string type)
     {
-        AircraftState occupant = AddArrival(engine, layout, "OCC1", type);
-        CommandResult exit = engine.SendCommand("OCC1", "EXIT T");
+        AircraftState occupant = AddArrival(engine, layout, "UAL1", type);
+        CommandResult exit = engine.SendCommand("UAL1", "EXIT T");
         Assert.True(exit.Success, $"EXIT T failed: {exit.Message}");
 
         for (int t = 1; t <= 400; t++)
@@ -157,7 +157,7 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
         output.WriteLine($"28R/T segment: HS #{segment.ExitBarNodeId} → HS #{segment.ParallelBarNodeId} ({segment.ParallelRunwayId})");
 
         LandOccupantOnT(engine, layout, segment, occupantType);
-        AircraftState arrival = AddArrival(engine, layout, "ARR2", arrivalType);
+        AircraftState arrival = AddArrival(engine, layout, "UAL2", arrivalType);
         return RollOut(engine, arrival);
     }
 

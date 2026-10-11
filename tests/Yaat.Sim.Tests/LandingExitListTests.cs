@@ -84,7 +84,7 @@ public class LandingExitListTests
         LatLon position = GeoMath.ProjectPoint(LandingThreshold.Resolve(runway, layout), runway.TrueHeading, alongFt / GeoMath.FeetPerNm);
         var aircraft = new AircraftState
         {
-            Callsign = "TST463",
+            Callsign = "UAL463",
             AircraftType = aircraftType,
             Position = position,
             TrueHeading = runway.TrueHeading,
@@ -122,7 +122,7 @@ public class LandingExitListTests
     /// </summary>
     private static OnFinal? SpawnOnFinal(string airport, string designator, string aircraftType, double distNm, double ias)
     {
-        if (ShortFinalArrival.SpawnClearedToLand(airport, designator, aircraftType, "TST463", distNm) is not { } spawned)
+        if (ShortFinalArrival.SpawnClearedToLand(airport, designator, aircraftType, "UAL463", distNm) is not { } spawned)
         {
             return null;
         }
@@ -274,7 +274,7 @@ public class LandingExitListTests
     [InlineData("SFO", "28L")]
     public void RolloutList_AgreesWithTheNamedExitInstruction(string airport, string designator)
     {
-        if (ShortFinalArrival.SpawnClearedToLand(airport, designator, "B738", "TST463", 1.0) is not { } spawned)
+        if (ShortFinalArrival.SpawnClearedToLand(airport, designator, "B738", "UAL463", 1.0) is not { } spawned)
         {
             return;
         }
@@ -933,7 +933,7 @@ public class LandingExitListTests
     {
         var aircraft = new AircraftState
         {
-            Callsign = "TST463",
+            Callsign = "UAL463",
             AircraftType = "B738",
             IsOnGround = true,
         };

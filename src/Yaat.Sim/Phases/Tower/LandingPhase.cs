@@ -487,15 +487,11 @@ public sealed class LandingPhase : Phase
         _activePreference = _originalPreference;
         _exitResolutionEnabled = _originalPreference is not null;
 
-        // Infer a side preference from the runway's high-speed exit layout and parking
-        // proximity. Applied when no side is set (default selection or after unable-replan).
-        if (
-            (_activePreference?.Side is null)
-            && (ctx.GroundLayout is not null)
-            && (ctx.Aircraft.Phases?.AssignedRunway?.Designator is { } rwyDesignator)
-        )
+        // Infer a side preference toward where the arrival parks (its parking remark, its class's sidecar side), else from
+        // the runway's own default. Applied when no side is set (default selection or after unable-replan).
+        if ((_activePreference?.Side is null) && (ctx.GroundLayout is not null) && (ctx.Aircraft.Phases?.AssignedRunway is { } assignedRunway))
         {
-            _inferredSide = ctx.GroundLayout.InferPreferredExitSide(rwyDesignator, _plan.RunwayHeading);
+            _inferredSide = ArrivalExitSide.Resolve(ctx.Aircraft, assignedRunway, ctx.GroundLayout, _plan.RunwayHeading);
             if ((_inferredSide is not null) && (_activePreference?.Taxiway is null))
             {
                 _activePreference = new ExitPreference { Side = _inferredSide.Value };

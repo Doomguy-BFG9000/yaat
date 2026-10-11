@@ -143,7 +143,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
 
         var aircraft = new AircraftState
         {
-            Callsign = "TST738",
+            Callsign = "UAL738",
             AircraftType = "B738",
             Position = new LatLon(acLat, acLon),
             TrueHeading = runway28R.TrueHeading,
@@ -183,13 +183,13 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         };
 
         // Send cleared to land
-        CommandResult clearResult = engine.SendCommand("TST738", "CLAND");
+        CommandResult clearResult = engine.SendCommand("UAL738", "CLAND");
         Assert.True(clearResult.Success, $"CLAND failed: {clearResult.Message}");
 
         // Send exit command if specified
         if (exitCommand is not null)
         {
-            CommandResult exitResult = engine.SendCommand("TST738", exitCommand);
+            CommandResult exitResult = engine.SendCommand("UAL738", exitCommand);
             Assert.True(exitResult.Success, $"{exitCommand} failed: {exitResult.Message}");
         }
 

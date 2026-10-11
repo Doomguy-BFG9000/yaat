@@ -107,6 +107,8 @@ public static class AirportSidecarLoader
                 BlockedTurns = ParseBlockedTurns(file, filePath, result),
                 Adw = ParseAdw(file, filePath, result),
                 ExitDirections = ParseExitDirections(file, filePath, result),
+                CargoOperators = ParseCargoOperators(file, filePath, result),
+                ParkingAreas = ParseParkingAreas(file, filePath, result),
                 ExitCapacity = ParseExitCapacity(file, filePath, result),
                 MovementAreaTaxiways = ParsePavementClassNames(file.MovementAreaTaxiways, "movementAreaTaxiways", filePath, result),
                 NonMovementTaxilanes = ParsePavementClassNames(file.NonMovementTaxilanes, "nonMovementTaxilanes", filePath, result),
@@ -226,10 +228,15 @@ public static class AirportSidecarLoader
         return names;
     }
 
+    /// <summary>
+    /// The <c>exitDirections</c> section: each entry's runway end zero-pad-normalized, its side <c>left</c> or <c>right</c>
+    /// and its optional arrival class <c>ga</c> or <c>cargo</c> (both case-insensitive). An entry missing its runway, or with
+    /// another side or class, is warned and skipped; a second entry for the same runway and class warns and wins.
+    /// </summary>
     private static List<ExitDirectionOverride> ParseExitDirections(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
     {
         var overrides = new List<ExitDirectionOverride>();
-        var indexByRunway = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var indexByKey = new Dictionary<(string Runway, ArrivalClass? Class), int>();
         for (int i = 0; i < file.ExitDirections.Count; i++)
         {
             ExitDirectionEntry entry = file.ExitDirections[i];
@@ -253,20 +260,129 @@ public static class AirportSidecarLoader
                 continue;
             }
 
-            string runway = RunwayIdentifier.NormalizeDesignator(entry.Runway.Trim().ToUpperInvariant());
-            var parsed = new ExitDirectionOverride(runway, side.Value, entry.Notes);
-            if (indexByRunway.TryGetValue(runway, out int existing))
+            if (!TryParseArrivalClass(entry.ArrivalClass, out ArrivalClass? arrivalClass))
             {
-                result.Warnings.Add($"{location} ({runway}): duplicate runway in this file, last entry wins");
+                result.Warnings.Add($"{location} ({entry.Runway}): arrivalClass must be 'ga' or 'cargo', got '{entry.ArrivalClass}', skipping");
+                continue;
+            }
+
+            string runway = RunwayIdentifier.NormalizeDesignator(entry.Runway.Trim().ToUpperInvariant());
+            var parsed = new ExitDirectionOverride(runway, arrivalClass, side.Value, entry.Notes);
+            if (indexByKey.TryGetValue((runway, arrivalClass), out int existing))
+            {
+                string classText = arrivalClass switch
+                {
+                    ArrivalClass.GeneralAviation => "ga",
+                    ArrivalClass.Cargo => "cargo",
+                    _ => "none",
+                };
+                result.Warnings.Add($"{location}: duplicate runway {runway} (arrivalClass {classText}) in this file, last entry wins");
                 overrides[existing] = parsed;
                 continue;
             }
 
-            indexByRunway[runway] = overrides.Count;
+            indexByKey[(runway, arrivalClass)] = overrides.Count;
             overrides.Add(parsed);
         }
 
         return overrides;
+    }
+
+    /// <summary>
+    /// An authored arrival class: absent or blank is every arrival (null), else <c>ga</c> or <c>cargo</c>; false for another value.
+    /// </summary>
+    private static bool TryParseArrivalClass(string? value, out ArrivalClass? arrivalClass)
+    {
+        arrivalClass = null;
+        switch (value?.Trim().ToLowerInvariant())
+        {
+            case null or "":
+                return true;
+            case "ga":
+                arrivalClass = ArrivalClass.GeneralAviation;
+                return true;
+            case "cargo":
+                arrivalClass = ArrivalClass.Cargo;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// The <c>cargoOperators</c> section: trimmed, upper-cased, de-duplicated three-letter ICAO operator codes. Anything else
+    /// is warned and skipped.
+    /// </summary>
+    private static List<string> ParseCargoOperators(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var operators = new List<string>();
+        for (int i = 0; i < file.CargoOperators.Count; i++)
+        {
+            string code = (file.CargoOperators[i] ?? "").Trim().ToUpperInvariant();
+            if ((code.Length != 3) || !code.All(char.IsAsciiLetterUpper))
+            {
+                result.Warnings.Add(
+                    $"{filePath}: cargoOperators[{i}] must be a three-letter ICAO operator code, got '{file.CargoOperators[i]}', skipping"
+                );
+                continue;
+            }
+
+            if (!operators.Contains(code))
+            {
+                operators.Add(code);
+            }
+        }
+
+        return operators;
+    }
+
+    /// <summary>
+    /// The <c>parkingAreas</c> section, in file order: each area upper-cased with its whitespace removed, each stand pattern
+    /// trimmed and upper-cased. An entry with a blank area, no stands, a blank stand, a <c>*</c> anywhere but at a stand's end,
+    /// or a <c>{n}</c> in a stand its area does not carry is warned and skipped.
+    /// </summary>
+    private static List<ParkingAreaAlias> ParseParkingAreas(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var areas = new List<ParkingAreaAlias>();
+        for (int i = 0; i < file.ParkingAreas.Count; i++)
+        {
+            ParkingAreaEntry entry = file.ParkingAreas[i];
+            string area = string.Concat((entry.Area ?? "").Where(c => !char.IsWhiteSpace(c))).ToUpperInvariant();
+            List<string> stands = [.. (entry.Stands ?? []).Select(s => (s ?? "").Trim().ToUpperInvariant())];
+            if (ParkingAreaProblem(area, stands) is { } problem)
+            {
+                result.Warnings.Add($"{filePath}: parkingAreas[{i}] ({entry.Area}): {problem}, skipping");
+                continue;
+            }
+
+            areas.Add(new ParkingAreaAlias(area, stands, entry.Notes));
+        }
+
+        return areas;
+    }
+
+    /// <summary>What is wrong with a normalized parking area and its stand patterns, or null when they are usable.</summary>
+    private static string? ParkingAreaProblem(string area, List<string> stands)
+    {
+        if (area.Length == 0)
+        {
+            return "missing area";
+        }
+
+        if ((stands.Count == 0) || stands.Any(s => s.Length == 0))
+        {
+            return "needs at least one stand and no blank stand";
+        }
+
+        if (stands.Any(s => (s.IndexOf('*') >= 0) && (s.IndexOf('*') != s.Length - 1)))
+        {
+            return "a '*' may only end a stand pattern";
+        }
+
+        bool areaHasNumber = area.Contains(ParkingAreaAlias.NumberToken, StringComparison.Ordinal);
+        return !areaHasNumber && stands.Any(s => s.Contains(ParkingAreaAlias.NumberToken, StringComparison.Ordinal))
+            ? "a stand uses {n} but the area does not"
+            : null;
     }
 
     private static List<ExitCapacityRule> ParseExitCapacity(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)

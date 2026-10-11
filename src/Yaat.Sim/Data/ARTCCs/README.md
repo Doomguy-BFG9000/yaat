@@ -324,14 +324,50 @@ for a specific end without touching the other one.
 |-------|------|----------|-------------|
 | `exitDirections[].runway` | string | Yes | Landing runway end the override applies to, e.g. `"26R"`. Zero-pad-normalized at load, so `"9"` and `"09"` are the same end |
 | `exitDirections[].side` | string | Yes | `"left"` or `"right"`, relative to the landing aircraft's nose at rollout |
+| `exitDirections[].arrivalClass` | string | No | `"ga"` or `"cargo"`: the entry applies only to that class of arrival. Absent, it applies to every arrival. A classed entry beats a class-less one for the same end |
 | `exitDirections[].notes` | string | No | Facility rationale (SOP reference, request provenance). Informational only |
 
 An override beats both the map-authored `turnoff` and the layout heuristics (high-speed exits,
 parking proximity). It only sets the **default**: an explicit `EL`/`ER`/`EXIT` command on an
 aircraft still wins, and when no exit on the overridden side can be reached, the exit search still
-falls back to the other side rather than rolling out forever. An entry with a blank runway or a side
-other than `left`/`right` is skipped with a warning; a duplicate runway within one file warns and the
-last entry wins.
+falls back to the other side rather than rolling out forever. An entry with a blank runway, a side
+other than `left`/`right` or a class other than `ga`/`cargo` is skipped with a warning; a duplicate
+runway and class within one file warns and the last entry wins.
+
+An arrival's class is `ga` when it has no known operator (a registration such as `N377L`, or an operator absent from the fleet data, e.g. `EJA`, `LXJ`), and `cargo` when its three-letter operator is in the file's `cargoOperators`. A classed entry's side is a rule, not a preference: the aircraft slows and takes a 90° exit on that side even where the only high-speed exits are on the other (SFO 28R heavy cargo takes D).
+
+An arrival whose flight-plan remarks name where it parks (`/V/ GATE F14, 28R`, `/V/ PARKING SIGNATURE, 28R`, `PARKING AT CUTTER`) exits toward that parking instead, ahead of every `exitDirections` entry. The side is the side of the landing runway the stand (any airport) or `parkingAreas` area lies on, measured from the threshold along the true heading; an area is the centroid of its stands, and parking within 250 ft of the extended centreline gives no side. An unknown stand falls to the area, then to the class entry, then to the runway default.
+
+### `cargoOperators`
+
+Three-letter ICAO operator codes whose arrivals count as `cargo` for an `exitDirections` entry.
+
+```json
+"cargoOperators": [ "FDX", "UPS", "DHK" ]
+```
+
+Codes are trimmed, upper-cased and de-duplicated; an entry that is not three letters warns and is skipped.
+
+### `parkingAreas`
+
+Parking areas a flight-plan remark may name instead of a stand (`/V/ PARKING SIGNATURE, 28R`), each with the layout stands it covers.
+
+```json
+"parkingAreas": [
+  { "area": "Signature", "stands": ["SIG*"], "notes": "Signature FBO ramp." },
+  { "area": "Plot {n}", "stands": ["{n}-*"], "notes": "Plot 9 is 9-3 to 9-9B." }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `parkingAreas[].area` | string | Yes | The area as remarks name it; case and spaces are ignored. `{n}` stands for a number the remark gives (`Plot {n}` matches `PLOT 9`) |
+| `parkingAreas[].stands` | string[] | Yes | Layout stand names the area covers: exact names, or a prefix ending in `*`. `{n}` carries the remark's number into the pattern |
+| `parkingAreas[].notes` | string | No | Informational only |
+
+An entry with a blank area, no stands, a blank stand, a `*` anywhere but at a stand's end, or a `{n}` in a stand whose area has none warns and is skipped. The first matching area wins; an area no entry matches gives no side.
+
+SFO sets 28R GA and cargo arrivals to exit right. West-field cargo plots (2, 6, 9, 11, 12) lie left of 28R, so scenario authors give those flights a parking remark.
 
 ### `exitCapacity`
 

@@ -160,10 +160,23 @@ public static class ArrivalParkingPicker
         return names;
     }
 
+    /// <summary>
+    /// An airline-style callsign: three upper-case letters, the ICAO operator, then a digit (<c>ATN3303</c>). A registration
+    /// (<c>N377L</c>) is not one.
+    /// </summary>
+    public static bool IsAirlineStyleCallsign(string callsign) =>
+        (callsign.Length >= 4) && callsign[..3].All(char.IsAsciiLetterUpper) && char.IsAsciiDigit(callsign[3]);
+
+    /// <summary>
+    /// A general-aviation arrival as the picker judges it: no operator the fleet data knows (a registration, or a business-jet
+    /// operator such as <c>EJA</c>), so it parks in the non-gate pool.
+    /// </summary>
+    public static bool IsGeneralAviation(string callsign) => OperatorCode(callsign) is null;
+
     /// <summary>The three-letter ICAO operator of an airline-style callsign (letters then digits) the fleet data knows; null for a registration.</summary>
     private static string? OperatorCode(string callsign)
     {
-        if ((callsign.Length < 4) || !callsign[..3].All(char.IsAsciiLetterUpper) || !char.IsAsciiDigit(callsign[3]))
+        if (!IsAirlineStyleCallsign(callsign))
         {
             return null;
         }

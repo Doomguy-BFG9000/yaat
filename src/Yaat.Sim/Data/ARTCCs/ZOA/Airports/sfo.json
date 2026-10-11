@@ -65,6 +65,54 @@
       ]
     }
   ],
+  "exitDirections": [
+    {
+      "runway": "28R",
+      "side": "right",
+      "arrivalClass": "ga",
+      "notes": "GA arrivals park north of 28R (Signature and the north ramps), so they vacate right instead of toward the terminal."
+    },
+    {
+      "runway": "28R",
+      "side": "right",
+      "arrivalClass": "cargo",
+      "notes": "Cargo without a parking remark vacates right; west-field cargo plots (2, 6, 9, 11, 12) lie left of 28R, so scenario authors give those flights a parking remark."
+    }
+  ],
+  "cargoOperators": [
+    "FDX",
+    "UPS",
+    "DHK",
+    "BCS",
+    "DAE",
+    "DHX",
+    "GTI",
+    "ABX",
+    "ATN",
+    "CLX",
+    "BOX",
+    "GEC",
+    "CKS",
+    "PAC",
+    "NCA",
+    "KFS",
+    "CAO",
+    "CKK",
+    "ABW",
+    "SQC"
+  ],
+  "parkingAreas": [
+    {
+      "area": "Signature",
+      "stands": ["SIG*"],
+      "notes": "The Signature FBO ramp, as scenario remarks name it: /V/ PARKING SIGNATURE, 28R."
+    },
+    {
+      "area": "Plot {n}",
+      "stands": ["{n}-*"],
+      "notes": "A numbered plot covers the stands named after it: Plot 9 is 9-3 to 9-9B."
+    }
+  ],
   "exitCapacity": [
     {
       "runway": "28R",

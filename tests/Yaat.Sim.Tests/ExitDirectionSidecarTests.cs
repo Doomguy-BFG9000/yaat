@@ -108,7 +108,7 @@ public class ExitDirectionSidecarTests
     public void Catalog_GetExitDirection_NormalizesAirportAndDesignatorForms()
     {
         var catalog = new AirportSidecarCatalog([
-            new AirportSidecar("KMIA") { ExitDirections = [new ExitDirectionOverride("26R", ExitSide.Left, null)] },
+            new AirportSidecar("KMIA") { ExitDirections = [new ExitDirectionOverride("26R", null, ExitSide.Left, null)] },
         ]);
 
         Assert.Equal(ExitSide.Left, catalog.GetExitDirection("KMIA", "26R"));
@@ -123,19 +123,78 @@ public class ExitDirectionSidecarTests
     public void Catalog_GetExitDirection_NormalizesSingleDigitDesignators()
     {
         var catalog = new AirportSidecarCatalog([
-            new AirportSidecar("KTST") { ExitDirections = [new ExitDirectionOverride("09", ExitSide.Left, null)] },
+            new AirportSidecar("KTST") { ExitDirections = [new ExitDirectionOverride("09", null, ExitSide.Left, null)] },
         ]);
 
         Assert.Equal(ExitSide.Left, catalog.GetExitDirection("KTST", "9"));
         Assert.Equal(ExitSide.Left, catalog.GetExitDirection("KTST", "09"));
     }
 
+    [Theory]
+    [InlineData(""" "exitDirections": [ { "runway": "28R", "side": "right", "arrivalClass": "bizjet" } ] """, "arrivalClass must be 'ga' or 'cargo'")]
+    [InlineData(""" "cargoOperators": ["FX"] """, "three-letter ICAO operator code")]
+    [InlineData(""" "cargoOperators": ["FDX1"] """, "three-letter ICAO operator code")]
+    [InlineData(""" "parkingAreas": [ { "area": " ", "stands": ["SIG*"] } ] """, "missing area")]
+    [InlineData(""" "parkingAreas": [ { "area": "Signature", "stands": [] } ] """, "needs at least one stand")]
+    [InlineData(""" "parkingAreas": [ { "area": "Signature", "stands": [" "] } ] """, "no blank stand")]
+    [InlineData(""" "parkingAreas": [ { "area": "Signature", "stands": ["S*G"] } ] """, "may only end a stand pattern")]
+    [InlineData(""" "parkingAreas": [ { "area": "Signature", "stands": ["{n}-*"] } ] """, "uses {n} but the area does not")]
+    public void LoadAll_InvalidArrivalSection_WarnsAndSkips(string section, string expectedWarningFragment)
+    {
+        AirportSidecarLoadResult result = LoadSidecar(
+            $$"""
+            { "airportId": "KTST", {{section}} }
+            """
+        );
+
+        AirportSidecar airport = Assert.Single(result.Airports);
+        Assert.Empty(airport.ExitDirections);
+        Assert.Empty(airport.CargoOperators);
+        Assert.Empty(airport.ParkingAreas);
+        Assert.Contains(result.Warnings, w => w.Contains(expectedWarningFragment, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void LoadAll_ReadsTheArrivalSections_Normalized()
+    {
+        AirportSidecarLoadResult result = LoadSidecar(
+            """
+            {
+              "airportId": "KTST",
+              "exitDirections": [ { "runway": "28R", "side": "right", "arrivalClass": "Cargo" } ],
+              "cargoOperators": [" atn ", "ATN"],
+              "parkingAreas": [ { "area": "Plot {n}", "stands": ["{n}-*"] } ]
+            }
+            """
+        );
+
+        Assert.Empty(result.Warnings);
+        AirportSidecar airport = Assert.Single(result.Airports);
+        Assert.Equal(new ExitDirectionOverride("28R", ArrivalClass.Cargo, ExitSide.Right, null), Assert.Single(airport.ExitDirections));
+        Assert.Equal(["ATN"], airport.CargoOperators);
+        ParkingAreaAlias area = Assert.Single(airport.ParkingAreas);
+        Assert.Equal(("PLOT{N}", "{N}-*"), (area.Area, Assert.Single(area.Stands)));
+    }
+
+    [Fact]
+    public void Catalog_ClassEntries_CrossFileMerge_LastWins_AndStayOutOfTheClassLessLookup()
+    {
+        var catalog = new AirportSidecarCatalog([
+            new AirportSidecar("KSFO") { ExitDirections = [new ExitDirectionOverride("28R", ArrivalClass.Cargo, ExitSide.Left, null)] },
+            new AirportSidecar("SFO") { ExitDirections = [new ExitDirectionOverride("28R", ArrivalClass.Cargo, ExitSide.Right, null)] },
+        ]);
+
+        Assert.Equal(ExitSide.Right, catalog.GetExitDirection("KSFO", "28R", ArrivalClass.Cargo));
+        Assert.Null(catalog.GetExitDirection("KSFO", "28R", ArrivalClass.GeneralAviation));
+        Assert.Null(catalog.GetExitDirection("KSFO", "28R"));
+    }
+
     [Fact]
     public void Catalog_GetExitDirection_CrossFileMerge_LastWins()
     {
         var catalog = new AirportSidecarCatalog([
-            new AirportSidecar("KMIA") { ExitDirections = [new ExitDirectionOverride("26R", ExitSide.Right, null)] },
-            new AirportSidecar("MIA") { ExitDirections = [new ExitDirectionOverride("26R", ExitSide.Left, null)] },
+            new AirportSidecar("KMIA") { ExitDirections = [new ExitDirectionOverride("26R", null, ExitSide.Right, null)] },
+            new AirportSidecar("MIA") { ExitDirections = [new ExitDirectionOverride("26R", null, ExitSide.Left, null)] },
         ]);
 
         Assert.Equal(ExitSide.Left, catalog.GetExitDirection("KMIA", "26R"));

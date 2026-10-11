@@ -11,6 +11,7 @@
 ### Changed
 
 - YAAT1 now deletes opt-in speech recordings after 12 months, restart snapshots once restored (7 days at most), and server log lines after 90 days.
+- On SFO 28R, GA and cargo arrivals exit right, and an arrival whose remarks name its gate or parking area exits toward it.
 
 ### Fixed
 

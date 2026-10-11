@@ -95,6 +95,8 @@ public static class FinalApproachExitForecast
             touchdown,
             requested?.Side,
             requested?.Taxiway,
+            aircraft.Callsign,
+            aircraft.FlightPlan.Remarks,
             query.LahsoStopLimitNm
         );
         if (LastForecasts.TryGetValue(aircraft, out CachedForecast? cached) && (cached.Key == key))
@@ -102,7 +104,10 @@ public static class FinalApproachExitForecast
             return cached.List;
         }
 
-        ResolvedExitInfo? planned = RequestedExitAhead(query, requested);
+        ExitSide? expectedSide = requested is { Taxiway: not null, Side: null }
+            ? ArrivalExitSide.Resolve(aircraft, runway, layout, plan.RunwayHeading)
+            : null;
+        ResolvedExitInfo? planned = RequestedExitAhead(query, requested, expectedSide);
         IReadOnlyList<ExitAheadDto> list = LandingPhase.ListExitsAhead(
             query,
             new LatLon(plan.ThresholdLat, plan.ThresholdLon),
@@ -117,7 +122,8 @@ public static class FinalApproachExitForecast
 
     /// <summary>
     /// Everything the forecast list is a function of, once the window and phase gates have passed: the layout and runway, the type,
-    /// the projected touchdown (which carries the surface wind), the controller's exit instruction and the LAHSO stop limit. The
+    /// the projected touchdown (which carries the surface wind), the controller's exit instruction, the callsign and remarks the
+    /// side the crew expects to turn off on is resolved from (<see cref="ArrivalExitSide"/>) and the LAHSO stop limit. The
     /// aircraft's position on final is not among them, so the list holds still down the final until one of these changes.
     /// </summary>
     private readonly record struct ForecastKey(
@@ -127,6 +133,8 @@ public static class FinalApproachExitForecast
         TouchdownForecast Touchdown,
         ExitSide? RequestedSide,
         string? RequestedTaxiway,
+        string Callsign,
+        string Remarks,
         double? LahsoStopLimitNm
     );
 
@@ -163,18 +171,17 @@ public static class FinalApproachExitForecast
     /// <summary>
     /// The exit the controller's instruction (<paramref name="requested"/>) would have the crew take, judged from the projected
     /// touchdown by the search the rollout judges a named exit with: a bare <c>EXIT &lt;twy&gt;</c> on the side the crew expects to
-    /// turn off (<see cref="AirportGroundLayout.InferPreferredExitSide(string, TrueHeading)"/>), the other side only when the taxiway
-    /// has no makeable connection there. Null without an instruction naming a taxiway, or when none of its connections is makeable.
+    /// turn off (<paramref name="expectedSide"/>, resolved by <see cref="ArrivalExitSide"/> as the landing resolves it), the other side only when the taxiway has no makeable connection there. Null without an
+    /// instruction naming a taxiway, or when none of its connections is makeable.
     /// </summary>
-    private static ResolvedExitInfo? RequestedExitAhead(LandingPhase.ExitCandidateQuery query, ExitPreference? requested)
+    private static ResolvedExitInfo? RequestedExitAhead(LandingPhase.ExitCandidateQuery query, ExitPreference? requested, ExitSide? expectedSide)
     {
         if (requested is not { Taxiway: not null })
         {
             return null;
         }
 
-        ExitSide? inferred = requested.Side is null ? query.Layout.InferPreferredExitSide(query.RwyDesignator, query.Plan.RunwayHeading) : null;
-        return LandingPhase.FindWithInferredSide(query with { SearchPref = requested, SidePref = requested.Side ?? inferred }, inferred);
+        return LandingPhase.FindWithInferredSide(query with { SearchPref = requested, SidePref = requested.Side ?? expectedSide }, expectedSide);
     }
 
     /// <summary>

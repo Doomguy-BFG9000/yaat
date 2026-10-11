@@ -48,7 +48,7 @@ public class Issue405ExitDirectionOverrideTests(ITestOutputHelper output)
         Assert.NotNull(rwy8L);
 
         var catalog = new AirportSidecarCatalog([
-            new AirportSidecar("KMIA") { ExitDirections = [new ExitDirectionOverride("26R", ExitSide.Left, null)] },
+            new AirportSidecar("KMIA") { ExitDirections = [new ExitDirectionOverride("26R", null, ExitSide.Left, null)] },
         ]);
 
         // Baseline sanity: the GeoJSON authors "turnoff": "left" on "8L - 26R", so without the
