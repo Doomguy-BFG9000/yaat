@@ -157,6 +157,7 @@ public class PushmHintE2ETests(ITestOutputHelper output)
         {
             Start = new PushbackPose(ac.Position, ac.TrueHeading.Degrees),
             StartsAtStand = true,
+            StandName = null,
             Footprint = AircraftFootprint.FromType(AircraftType),
             MovementArea = MovementAreaClassification.For(layout),
             Goals = goals,

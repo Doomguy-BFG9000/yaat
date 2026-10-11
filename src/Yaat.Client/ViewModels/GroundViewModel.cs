@@ -3742,6 +3742,7 @@ public partial class GroundViewModel : ObservableObject
         {
             Start = new PushbackPose(aircraft.Position, aircraft.Heading.Degrees),
             StartsAtStand = aircraft.CurrentPhase == "At Parking",
+            StandName = null,
             Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
             MovementArea = MovementAreaClassification.For(layout),
             Goals = goals,

@@ -167,6 +167,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
         {
             Start = new PushbackPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
+            StandName = null,
             Footprint = AircraftFootprint.FromType(aircraftType),
             MovementArea = MovementAreaClassification.For(layout),
             Goals = [goal],

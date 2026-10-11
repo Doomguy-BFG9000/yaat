@@ -406,6 +406,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
         {
             Start = new PushbackPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
+            StandName = null,
             Footprint = AircraftFootprint.FromType(Narrowbody),
             MovementArea = null,
             Goals = [goal],
@@ -420,6 +421,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
         {
             Start = start,
             StartsAtStand = false,
+            StandName = null,
             Footprint = AircraftFootprint.FromType(Narrowbody),
             MovementArea = null,
             Goals = [goal],

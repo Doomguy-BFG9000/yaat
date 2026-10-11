@@ -259,6 +259,12 @@ public sealed record TugRequest
     /// <summary>The aircraft is parked on a stand, so the plan starts with a straight push-off.</summary>
     public required bool StartsAtStand { get; init; }
 
+    /// <summary>
+    /// The stand the aircraft is parked on, by name (<see cref="AircraftGroundOps.ParkingSpot"/>), or null when it is on
+    /// none or the caller does not know it: a plan that needs the stand then finds it by position.
+    /// </summary>
+    public required string? StandName { get; init; }
+
     /// <summary>The aircraft's dimensions; they set the turn radius and the outline.</summary>
     public required AircraftFootprint Footprint { get; init; }
 
@@ -498,7 +504,11 @@ public enum TugTaxiwayApproach
 /// aircraft within the corridor of the taxiway's extent (<see cref="TugPlanBuilder.OnTaxiwayCorridorFt"/> of a
 /// straight centreline edge, between that edge's ends); when the capture ends outside that corridor, the push carries
 /// on along the line until it reaches the edge's point nearest the aircraft. Either way it ends on the taxiway.
-/// Otherwise the taxiway is not behind the aircraft and the push is refused.</para>
+/// Filleted end: neither holds, but the stand's own ramp lead-in turns onto the taxiway's end through a fillet, the
+/// taxiway's straight edge there runs 45° or more across the push, and the push ray meets that edge's line extended
+/// past its end within the fillet's corner and on the lead-in's pavement; the aircraft pushes straight back until the
+/// reference point reaches that line, read back as across. Otherwise the taxiway is not behind the aircraft and the
+/// push is refused.</para>
 ///
 /// <para><b>Off a stand onto a spot's lane.</b> Besides the three templates, a spot goal off a stand gets a
 /// straight-then-line candidate per side: the push-off, a straight push along the stand's lead-in line to where a
@@ -1276,10 +1286,11 @@ internal sealed class TugPlanBuilder
     /// <summary>
     /// The one angle that splits a bare <c>PUSH &lt;taxiway&gt;</c> in two: the acute angle between the push ray and a
     /// taxiway edge, 0° to 90°. At or above it the taxiway runs across the push and is reached by pushing straight back
-    /// onto it (<see cref="StraightBackCandidate"/>); below it the taxiway runs alongside the push and is captured in
-    /// an S-curve (<see cref="AlongsideCandidate"/>). A judgement call (user, 2026-09-16), measured against the two
-    /// cases that set it: OAK gate 25's <c>PUSH TE</c> meets TE 645 ft back at 31.5° down an angled stand row —
-    /// alongside, so the S-curve keeps it clear of the aircraft at gate 26 — while SFO B12's <c>PUSH A</c> meets A
+    /// onto it (<see cref="StraightBackCandidate"/>, or <see cref="FilletEndCandidate"/> where the push meets the
+    /// taxiway's end in its lead-in fillet's corner, measured against the straight edge at that end); below it the
+    /// taxiway runs alongside the push and is captured in an S-curve (<see cref="AlongsideCandidate"/>). A judgement
+    /// call (user, 2026-09-16), measured against the two cases that set it: OAK gate 25's <c>PUSH TE</c> meets TE
+    /// 645 ft back at 31.5° down an angled stand row — alongside, so the S-curve keeps it clear of the aircraft at gate 26 — while SFO B12's <c>PUSH A</c> meets A
     /// 417 ft back at 76°, a square crossing the ZOA technique pushes straight onto.
     /// </summary>
     internal const double AcrossAngleDeg = 45.0;
@@ -1297,6 +1308,28 @@ internal sealed class TugPlanBuilder
     /// on TE, though not on the line it captured.
     /// </summary>
     internal const double OnTaxiwayCorridorFt = 25.0;
+
+    /// <summary>
+    /// How far from a parking node a stand start may lie and still be on that stand, feet, for finding the stand's own
+    /// lead-in (<see cref="FilletEndCandidate"/>): an aircraft at a stand sits on its node.
+    /// </summary>
+    private const double StandAtStartFt = 5.0;
+
+    /// <summary>
+    /// The longest path of ramp edges from a stand that still counts as its lead-in, feet, when looking for the fillet
+    /// that lead-in turns onto a taxiway's end through (<see cref="FilletEndCandidate"/>). A judgement call: SFO F5's
+    /// lead-in is 189 ft.
+    /// </summary>
+    private const double LeadInWalkFt = 400.0;
+
+    /// <summary>
+    /// The furthest past a taxiway's end a push onto its filleted end may stop, feet, however wide the fillet's corner
+    /// measures (<see cref="FilletCornerReachFt"/>). A judgement call.
+    /// </summary>
+    private const double MaxFilletCornerReachFt = 100.0;
+
+    /// <summary>The name the layout gives ramp pavement: lead-ins and other connectors off the movement area.</summary>
+    private const string RampName = "RAMP";
 
     /// <summary>How far a move onto a stop point, push or pull, may run past it.</summary>
     private const double StopOvershootToleranceFt = 3.0;
@@ -3574,15 +3607,16 @@ internal sealed class TugPlanBuilder
 
     /// <summary>
     /// A bare <c>PUSH &lt;taxiway&gt;</c>, onto a straight centreline edge of the goal's taxiway (fillet and junction
-    /// arcs are not the taxiway's centreline), in this order: a straight push until the reference point reaches the
-    /// first such edge the push ray crosses at <see cref="AcrossAngleDeg"/> or more
+    /// arcs are not the taxiway's centreline) or, failing that, onto its filleted end, in this order: a straight push
+    /// until the reference point reaches the first such edge the push ray crosses at <see cref="AcrossAngleDeg"/> or more
     /// (<see cref="StraightBackCandidate"/>); else, when such an edge runs closer than
     /// <see cref="AcrossAngleDeg"/> to the push direction with its nearest point behind the aircraft, a push onto the
     /// nearest one's line, stopping at the capture when that already puts the aircraft within the corridor of the
     /// taxiway's extent and carrying on along the line to the edge's nearest point when it does not
-    /// (<see cref="AlongsideCandidate"/>); else refused. A
-    /// crossing too shallow to be across the push falls through to the alongside candidate exactly as no crossing at
-    /// all does.
+    /// (<see cref="AlongsideCandidate"/>); else, when the stand's own lead-in fillets onto the taxiway's end, the straight
+    /// edge at that end runs across the push and the push ray meets its line extended into the fillet's corner, a
+    /// straight push onto that line, read back as across (<see cref="FilletEndCandidate"/>); else refused. A crossing
+    /// too shallow to be across the push falls through to the alongside candidate exactly as no crossing at all does.
     /// </summary>
     private bool TryStraightBackCandidate(ResolvedTugGoal goal, TugMove? standPushOff, out List<TugCandidate> candidates, out string refusal)
     {
@@ -3601,6 +3635,13 @@ internal sealed class TugPlanBuilder
         {
             alongside.TaxiwayApproach = TugTaxiwayApproach.Alongside;
             candidates = [alongside];
+            return true;
+        }
+
+        if (FilletEndCandidate(goal, taxiway, pushTravelDeg, standPushOff) is { } filleted)
+        {
+            filleted.TaxiwayApproach = TugTaxiwayApproach.Across;
+            candidates = [filleted];
             return true;
         }
 
@@ -3640,6 +3681,217 @@ internal sealed class TugPlanBuilder
         candidate.Add(TugMove.Straight(PushbackLegKind.Push, behind.DistanceFt));
         return candidate;
     }
+
+    /// <summary>
+    /// For a taxiway whose end is filleted into the stand's own lead-in, so the push ray meets the taxiway in that
+    /// fillet's corner rather than on a straight centreline edge: a straight push until the reference point reaches the
+    /// line of the taxiway's straight edge at the fillet's end, extended past that end — the junction corner of the
+    /// lead-in and taxiway centrelines — keeping the nose on the stand heading. Only while the aircraft is on its stand
+    /// (<paramref name="standPushOff"/> is set). The fillet is an arc named for the taxiway and the ramp, reached from the
+    /// stand by ramp edges alone (<see cref="LeadInFillets"/>), whose taxiway-side node is the taxiway's end, carrying
+    /// exactly one straight edge of it; that edge must run across the push at <see cref="AcrossAngleDeg"/> or more, and
+    /// the crossing must lie in the fillet's corner (<see cref="CornerCrossing"/>). Of several such crossings the nearest
+    /// wins; a crossing inside one simulation step is the aircraft already on the line. Null when no crossing qualifies.
+    /// </summary>
+    private TugCandidate? FilletEndCandidate(ResolvedTugGoal goal, string taxiway, double pushTravelDeg, TugMove? standPushOff)
+    {
+        if ((standPushOff is null) || (StandAtStart() is not { } stand))
+        {
+            return null;
+        }
+
+        (GroundArc Arc, double AlongRayFt, double PastEndFt)? nearest = null;
+        foreach ((GroundArc arc, GroundNode end) in LeadInFillets(stand, taxiway))
+        {
+            if ((TaxiwayEndEdge(goal.Subject, arc, end, taxiway) is not { } edge) || !RunsAcrossThePush(goal, edge, pushTravelDeg))
+            {
+                continue;
+            }
+
+            if (
+                (CornerCrossing(goal, arc, end, edge, pushTravelDeg) is { } crossing)
+                && ((nearest is not { } held) || (crossing.AlongRayFt < held.AlongRayFt))
+            )
+            {
+                nearest = (arc, crossing.AlongRayFt, crossing.PastEndFt);
+            }
+        }
+
+        if (nearest is not { } behind)
+        {
+            return null;
+        }
+
+        Log.LogDebug(
+            "Tug {Subject}: the push ray crosses no straight {Taxiway} edge and none runs alongside; it reaches the taxiway's line in the "
+                + "corner of the lead-in fillet {NodeA}-{NodeB}, {PastEndFt:F1} ft past the taxiway's end and {AlongRayFt:F1} ft behind the aircraft",
+            goal.Subject,
+            taxiway,
+            behind.Arc.Nodes[0].Id,
+            behind.Arc.Nodes[1].Id,
+            behind.PastEndFt,
+            behind.AlongRayFt
+        );
+        TugCandidate candidate = NewCandidate("straight back, onto the filleted end", pushOff: null);
+        candidate.Add(TugMove.Straight(PushbackLegKind.Push, behind.AlongRayFt));
+        return candidate;
+    }
+
+    /// <summary>
+    /// The straight edge of <paramref name="taxiway"/> at <paramref name="end"/>, the taxiway-side node of the lead-in
+    /// fillet <paramref name="arc"/>, when that node is the taxiway's end: it carries exactly one straight edge of the
+    /// taxiway. Null at a node partway along the taxiway, which carries two.
+    /// </summary>
+    internal static GroundEdge? TaxiwayEndEdge(string subject, GroundArc arc, GroundNode end, string taxiway)
+    {
+        List<GroundEdge> straight = [.. end.Edges.OfType<GroundEdge>().Where(e => e.MatchesTaxiway(taxiway))];
+        if (straight.Count == 1)
+        {
+            return straight[0];
+        }
+
+        Log.LogDebug(
+            "Tug {Subject}: the lead-in fillet {NodeA}-{NodeB} meets {Taxiway} at node {Node}, which carries {Count} straight edges of it — "
+                + "not the taxiway's end",
+            subject,
+            arc.Nodes[0].Id,
+            arc.Nodes[1].Id,
+            taxiway,
+            end.Id,
+            straight.Count
+        );
+        return null;
+    }
+
+    /// <summary>
+    /// Where the push ray crosses the line of <paramref name="edge"/>, the taxiway's straight edge ending at
+    /// <paramref name="end"/>, when that crossing lies behind the aircraft within the goal distance, in the corner of
+    /// <paramref name="arc"/> — at or past <paramref name="end"/>, by no more than <see cref="FilletCornerReachFt"/> —
+    /// and on the lead-in's pavement, within <see cref="OnTaxiwayCorridorFt"/> of the line of a straight ramp edge at the
+    /// fillet's ramp-side node. Null otherwise.
+    /// </summary>
+    private (double AlongRayFt, double PastEndFt)? CornerCrossing(
+        ResolvedTugGoal goal,
+        GroundArc arc,
+        GroundNode end,
+        GroundEdge edge,
+        double pushTravelDeg
+    )
+    {
+        GroundNode inward = edge.OtherNode(end);
+        GroundNode rampSide = arc.OtherNode(end);
+        if (_pathCheck!.ExtensionCrossing(_end.Position, pushTravelDeg, end.Position, inward.Position) is not { } crossing)
+        {
+            return null;
+        }
+
+        double reachFt = FilletCornerReachFt(arc, rampSide, end, inward);
+        double offLeadInFt = rampSide
+            .Edges.OfType<GroundEdge>()
+            .Where(e => e.IsRamp)
+            .Select(e => _pathCheck.RayPointOffLineFt(_end.Position, pushTravelDeg, crossing.AlongRayFt, e.Nodes[0].Position, e.Nodes[1].Position))
+            .DefaultIfEmpty(double.PositiveInfinity)
+            .Min();
+        bool behind = (crossing.AlongRayFt >= TugMovePlanner.StepFt) && (crossing.AlongRayFt <= TugMovePlanner.MaxGoalDistanceFt);
+        bool inCorner = (crossing.PastEndFt >= 0.0) && (crossing.PastEndFt <= reachFt) && (offLeadInFt <= OnTaxiwayCorridorFt);
+        Log.LogDebug(
+            "Tug {Subject}: the push ray meets the line of {Taxiway} edge {NodeA}-{NodeB} {AlongRayFt:F1} ft back, {PastEndFt:F1} ft past "
+                + "its end at the lead-in fillet {ArcA}-{ArcB} (the corner reaches {ReachFt:F1} ft) and {OffLeadInFt:F1} ft off "
+                + "the lead-in — {Verdict}",
+            goal.Subject,
+            goal.Goal.TaxiwayName,
+            inward.Id,
+            end.Id,
+            crossing.AlongRayFt,
+            crossing.PastEndFt,
+            arc.Nodes[0].Id,
+            arc.Nodes[1].Id,
+            reachFt,
+            offLeadInFt,
+            (behind && inCorner) ? "in the fillet's corner" : "outside it"
+        );
+        return (behind && inCorner) ? crossing : null;
+    }
+
+    /// <summary>
+    /// How far past the taxiway's end <paramref name="end"/> a crossing of its extended line still lies in
+    /// <paramref name="arc"/>'s corner, feet: the fillet's taxiway-side tangent length — how far past
+    /// <paramref name="end"/> the fillet's construction bearing from its ramp-side node meets that line, which is where
+    /// the two centrelines it joins meet — plus <see cref="OnTaxiwayCorridorFt"/>, and never more than
+    /// <see cref="MaxFilletCornerReachFt"/>. Zero when that bearing never meets the line.
+    /// </summary>
+    private double FilletCornerReachFt(GroundArc arc, GroundNode rampSide, GroundNode end, GroundNode inward)
+    {
+        double bearingDeg = arc.Nodes[0].Id == rampSide.Id ? arc.EdgeBearingAtNode0Deg : arc.EdgeBearingAtNode1Deg;
+        if (_pathCheck!.ExtensionCrossing(rampSide.Position, bearingDeg, end.Position, inward.Position) is not { } corner)
+        {
+            return 0.0;
+        }
+
+        return Math.Min(corner.PastEndFt + OnTaxiwayCorridorFt, MaxFilletCornerReachFt);
+    }
+
+    /// <summary>
+    /// The stand the aircraft is on: the parking node the request names (<see cref="TugRequest.StandName"/>) when it
+    /// names one, else the parking node within <see cref="StandAtStartFt"/> of where the plan has reached, nearest first;
+    /// null when there is none.
+    /// </summary>
+    private GroundNode? StandAtStart()
+    {
+        if (_layout is null)
+        {
+            return null;
+        }
+
+        if (_request.StandName is { } name)
+        {
+            return _layout.FindParkingByName(name);
+        }
+
+        LatLon at = _end.Position;
+        return _layout
+            .Nodes.Values.Where(n => n.Type == GroundNodeType.Parking)
+            .Select(n => (Node: n, Ft: GeoMath.DistanceNm(at, n.Position) * GeoMath.FeetPerNm))
+            .Where(n => n.Ft <= StandAtStartFt)
+            .OrderBy(n => n.Ft)
+            .Select(n => n.Node)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// The stand's own lead-in fillets onto <paramref name="taxiway"/>, each with its node on the taxiway side: the arcs
+    /// named for both the taxiway and the ramp met at a node reached from <paramref name="stand"/> by ramp edges alone,
+    /// within <see cref="LeadInWalkFt"/> of path, through no other stand and no other taxiway.
+    /// </summary>
+    private static IEnumerable<(GroundArc Arc, GroundNode TaxiwaySide)> LeadInFillets(GroundNode stand, string taxiway)
+    {
+        var settled = new HashSet<int>();
+        var queue = new PriorityQueue<GroundNode, double>();
+        queue.Enqueue(stand, 0.0);
+        while (queue.TryDequeue(out GroundNode? node, out double pathFt))
+        {
+            if ((pathFt > LeadInWalkFt) || !settled.Add(node.Id))
+            {
+                continue;
+            }
+
+            foreach (IGroundEdge edge in node.Edges)
+            {
+                GroundNode other = edge.OtherNode(node);
+                if ((edge is GroundArc arc) && arc.MatchesTaxiway(taxiway) && arc.MatchesTaxiway(RampName))
+                {
+                    yield return (arc, other);
+                }
+                else if (IsRampOnly(edge) && (other.Type != GroundNodeType.Parking))
+                {
+                    queue.Enqueue(other, pathFt + (edge.DistanceNm * GeoMath.FeetPerNm));
+                }
+            }
+        }
+    }
+
+    private static bool IsRampOnly(IGroundEdge edge) =>
+        edge is GroundArc arc ? arc.TaxiwayNames.All(n => string.Equals(n, RampName, StringComparison.OrdinalIgnoreCase)) : edge.IsRamp;
 
     /// <summary>
     /// Whether an edge meets a push travelling <paramref name="pushTravelDeg"/> at <see cref="AcrossAngleDeg"/> or

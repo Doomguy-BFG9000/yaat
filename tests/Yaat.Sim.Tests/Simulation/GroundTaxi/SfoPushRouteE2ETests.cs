@@ -935,6 +935,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         {
             Start = new PushbackPose(ac.Position, ac.TrueHeading.Degrees),
             StartsAtStand = false,
+            StandName = null,
             Footprint = AircraftFootprint.FromType(ac.AircraftType),
             MovementArea = MovementAreaClassification.For(layout),
             Goals = [TugGoal.Spot(Spot(layout, AlleySpot)), TugGoal.Spot(Spot(layout, EndSpot))],

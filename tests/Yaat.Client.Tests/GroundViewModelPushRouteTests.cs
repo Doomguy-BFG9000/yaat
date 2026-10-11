@@ -801,6 +801,7 @@ public class GroundViewModelPushRouteTests
         {
             Start = new PushbackPose(ac.Position, ac.Heading.Degrees),
             StartsAtStand = ac.CurrentPhase == "At Parking",
+            StandName = null,
             Footprint = AircraftFootprint.FromType(ac.AircraftType),
             MovementArea = MovementAreaClassification.For(layout),
             Goals = goals,

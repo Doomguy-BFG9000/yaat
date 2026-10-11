@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- `PUSH` onto a taxiway whose end joins the stand's lead-in through a curve, such as SFO F5's `PUSH T7A`, pushes straight back instead of being refused.
 - Pilot position reports and terrain-height checks no longer miss a nearby airport lying due east or west of the aircraft.
 - `HFROFF` releases held departures that had not spawned yet, so an untowered IFR runway departure no longer asks for release again and waits.
 

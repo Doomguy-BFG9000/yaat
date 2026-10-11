@@ -55,7 +55,7 @@ The reference point travels along the aircraft's own axis: the main gear cannot 
 | `Stand(node)` | `PUSH @gate`, `PUSHM @gate`, `#parking/helipad node` | the stand's own heading; **takes no facing** | the node |
 | `AtNode(node, facing?)` | `PUSHM #node` | as given, or whatever the move leaves | the node |
 | `TaxiwayLine(exit, twy, facing)` | `PUSH <twy> <facing-twy>`, `PUSH <twy> FACE/TAIL` | `<facing-twy>`: along the taxiway, nose toward its junction with the facing taxiway (`FacingTaxiwayName`), either direction; `FACE/TAIL`: the taxiway's edge direction nearest the hint | `<facing-twy>` with the junction near: nose tip one routine turn radius short of the junction; otherwise floating — stops once lined up (rule 7) |
-| `StraightBackTo(exit, twy)` | bare `PUSH <twy>` | the stand heading (across) or along the taxiway (alongside) | see below |
+| `StraightBackTo(exit, twy)` | bare `PUSH <twy>` | the stand heading (across, or filleted end) or along the taxiway (alongside) | see below |
 | `Facing(deg)` | `PUSH FACE/TAIL` | as given | — |
 | `Clear()` | bare `PUSH` | the stand heading | `SimplePushbackDistanceNm` back |
 
@@ -116,6 +116,13 @@ SFO C9 `PUSHM $5A $5B` takes the fallback, since `PUSH $5B` comes no closer than
      When the capture completes short of the taxiway it carries on along the line to the taxiway's nearest point (SFO B2 `PUSH M4`, issue #172: M4 runs 87 ft to the side of the push and starts 200 ft further back).
 
      Either way the aircraft ends **on** the taxiway with the nose along it.
+   - **Filleted end**: neither of those holds, but the stand's own `RAMP` lead-in turns onto the taxiway's end through a fillet → push straight back and stop on the extension of the taxiway's end edge, nose on the stand heading, read back as across (`Push straight back to taxiway X`). It is tried only after Across and Alongside fail, so it never pre-empts a straight crossing. All of these must hold:
+     - the aircraft is on its stand (the `ParkingSpot` stand, else the parking node within 5 ft), and the lead-in is followed over `RAMP` edges only, at most 400 ft, through no other stand;
+     - the end node carries exactly one straight edge of X, and that edge runs ≥ 45° across the push;
+     - the push ray meets that edge's line extended past the end node inside the fillet's corner: at most the measured taxiway-side tangent length plus `OnTaxiwayCorridorFt` past the end, capped at 100 ft;
+     - the end point lies within `OnTaxiwayCorridorFt` of the lead-in's `RAMP` centreline.
+
+     The aircraft ends past the end node, not on a taxiway edge, and `CurrentTaxiway` is X. There is no tail swing; `PUSH X FACE <dir>` does that. SFO F5 `PUSH T7A` (225 ft back, 45 ft past T7A's end), D3 `PUSH T5A` and UB5 `PUSH UB1` are accepted; C3 `PUSH T5B` stays refused.
    - Otherwise: `Unable, taxiway X is not behind the aircraft`.
 7. **`TaxiwayLine`.**
    - **`PUSH <X> <facing-twy>`**: the junction is the node joining X and the facing taxiway nearest the exit. The stop distance is one routine turn radius plus half a fuselage.
@@ -492,7 +499,7 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 - **A plan exists.** "Unable, cannot line up on X from here" is a legal outcome for a spot or lane goal; a stand whose lead-in does not line up with its lane needs T0, T4 or T5, or has no plan.
 - **The planner routes round a neighbour.** Only faced goals are swept at plan time (the plan-time sweep under [The planner](#the-planner--tugmoveplanner)); bare `PUSH`, `PUSH <twy>` and `PUSH FACE` stop short of the neighbour at fly time with it shown as the yield target.
 - **`PUSH <X> <facing-twy>` tows to the junction.** It stops one routine radius plus half a fuselage short of a near junction, and lined up at the exit when the junction is farther (rule 7).
-- **`PUSH <X>` ends lined up on X.** Across (≥ 45° crossing) stops on the centreline across it; a crossing just over 45° ends across the lane (rule 6).
+- **`PUSH <X>` ends lined up on X.** Across (≥ 45° crossing) stops on the centreline across it; a crossing just over 45° ends across the lane; a filleted end stops past the taxiway's end node on the stand heading, not lined up on X (rule 6).
 - **Spots abeam on parallel sub-lanes are reached without a reversal** (SFO 6A/6B always reverse; their two best plans differ by 1 ft).
 - **The fuselage may cross any taxiway behind.** The flown-path check refuses movement-area pavement outside the 300 ft behind-stand exemption and the leaving/arriving exemption.
 - **A plain plan's "as stored" means clear of neighbours.** For a `PUSH <twy>` goal `TugMovePlanner.NeighbourRefusal` sweeps no neighbour, so a plain acceptance says nothing about parked aircraft: cross-check a taxilane target with the forced plan's `TugForcedPassesNeighbour` note, `PushTargetLiveCheck` or a sim run.
@@ -509,7 +516,7 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 | `Cannot find taxiway '<X>' near aircraft` | `GroundCommandHandler.ResolvePushToTaxiway` |
 | `Cannot find facing taxiway '<F>' near <X>` | `GroundCommandHandler.ResolvePushToTaxiway` |
 | `Cannot find spot '<name>'` / `Cannot find parking '<name>'` | `GroundCommandHandler` stand and spot goal resolution |
-| `Unable, taxiway X is not behind the aircraft` | `TugMovePlanner` (`TryStraightBackCandidate`), rule 6 |
+| `Unable, taxiway X is not behind the aircraft` | `TugMovePlanner` (`TryStraightBackCandidate`: no Across, Alongside or filleted-end candidate), rule 6 |
 | `Unable, <goal> is ahead of the nose — the aircraft has to be pushed back off the stand first` | `TugMovePlanner`, a node goal off a stand |
 | `Unable, cannot line up on <goal> from here` | `TugMovePlanner`, no candidate survives |
 | `Unable, <hint> is passed through; only the last point takes a facing` | `TugMovePlanner`, a `PUSHM` hint with a facing |

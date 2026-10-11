@@ -1009,6 +1009,170 @@ public class TugMovePlannerTests
     }
 
     /// <summary>
+    /// A bare <c>PUSH T7A</c> off SFO stand F5 with an E75L (YAAT-599): F5's lead-in meets T7A only through the fillet
+    /// joining the ramp to T7A's end, so the push ray crosses no straight T7A edge and none runs alongside the push. The
+    /// push goes straight back into that fillet's corner, stopping on T7A's centreline extended past its end with the
+    /// nose on the stand heading, and is read back as across T7A.
+    /// </summary>
+    [Fact]
+    public void F5StraightBackToT7A_PushLandsOnTheFilletedEnd_Accepted()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = Parking(layout, "F5");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "T7A") ?? throw new InvalidOperationException("no taxiway T7A exit near F5");
+
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, "E75L", TugGoal.StraightBackTo(exit, "T7A")));
+
+        AssertKinds(plan, PushbackLegKind.Push);
+        Assert.Equal(TugMoveShape.Straight, plan.Moves[0].Move.Shape);
+        Assert.Equal(TugTaxiwayApproach.Across, plan.TaxiwayApproach);
+        double standDeg = stand.TrueHeading!.Value.Degrees;
+        double noseOffStandDeg = GeoMath.AbsBearingDifference(plan.End.NoseTrueDeg, standDeg);
+        (GroundArc fillet, double offFilletFt) = NearestArc(layout, plan.End.Position, "T7A");
+        GroundNode end = fillet.Nodes.Single(n => HasStraightEdge(n, "T7A"));
+        GroundEdge endEdge = end.Edges.OfType<GroundEdge>().Single(e => e.MatchesTaxiway("T7A"));
+        double lineDeg = GeoMath.BearingTo(endEdge.Nodes[0].Position, endEdge.Nodes[1].Position);
+        double fromEndFt = FeetBetween(end.Position, plan.End.Position);
+        double offLineFt = Math.Abs(fromEndFt * Math.Sin((GeoMath.BearingTo(end.Position, plan.End.Position) - lineDeg) * Math.PI / 180.0));
+        _output.WriteLine(
+            $"ended {offLineFt:F2} ft off the line of T7A edge {endEdge.Nodes[0].Id}-{endEdge.Nodes[1].Id} ({lineDeg:F1}°), {fromEndFt:F1} ft "
+                + $"from its end, {offFilletFt:F1} ft off the {fillet.TaxiwayName} fillet {fillet.Nodes[0].Id}-{fillet.Nodes[1].Id}, "
+                + $"nose {noseOffStandDeg:F2}° off the stand heading {standDeg:F1}°"
+        );
+        Assert.True(fillet.MatchesTaxiway("RAMP"), $"the fillet nearest the end, {fillet.TaxiwayName}, is not the ramp lead-in's");
+        Assert.True(fillet.Nodes.Any(n => n.Edges.Any(e => (e is GroundEdge) && e.IsRamp)), "the fillet nearest the end does not reach the ramp");
+        Assert.True(offLineFt <= EndPositionToleranceFt, $"ended {offLineFt:F2} ft off T7A's extended centreline");
+        Assert.True(offFilletFt <= CorridorFt, $"ended {offFilletFt:F1} ft off T7A's lead-in fillet, outside its corner");
+        Assert.True(noseOffStandDeg <= 2.0, $"ended with the nose {noseOffStandDeg:F2}° off the stand heading");
+    }
+
+    /// <summary>
+    /// A bare <c>PUSH T5B</c> off SFO stand C3: C3's lead-in turns onto T5B's end through a fillet, but the push ray meets
+    /// T5B's line extended past that end about 116 ft out, beyond the fillet's corner (about 57 ft) and well off the
+    /// lead-in's pavement — not the filleted end, so T5B is still not behind the aircraft.
+    /// </summary>
+    [Fact]
+    public void C3StraightBackToT5B_ExtendedLineMetBeyondTheFilletCorner_Refused()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = Parking(layout, "C3");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "T5B") ?? throw new InvalidOperationException("no taxiway T5B exit near C3");
+
+        string refusal = Refusal(layout, StandStart(stand, TugGoal.StraightBackTo(exit, "T5B")));
+
+        Assert.Equal("Unable, taxiway T5B is not behind the aircraft", refusal);
+    }
+
+    /// <summary>
+    /// A lead-in fillet's taxiway-side node is the taxiway's end only when it carries exactly one straight edge of the
+    /// taxiway: F5's fillet onto T7A ends on T7A's southern end, while the T7A/ramp fillets further along T7A meet it at
+    /// nodes partway along, between two straight T7A edges, and never count as its end.
+    /// </summary>
+    [Fact]
+    public void TaxiwayEndEdge_OnlyAtTheTaxiwaysEnd()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = Parking(layout, "F5");
+        GroundNode rampSide = stand.Edges.Single(e => e.IsRamp).OtherNode(stand);
+        GroundArc fillet = rampSide.Edges.OfType<GroundArc>().Single(a => a.MatchesTaxiway("T7A"));
+        GroundNode end = fillet.OtherNode(rampSide);
+        (GroundArc Arc, GroundNode Node) partway = layout
+            .AllEdges.OfType<GroundArc>()
+            .Where(a => a.MatchesTaxiway("T7A") && a.MatchesTaxiway("RAMP"))
+            .SelectMany(a => a.Nodes.Select(n => (Arc: a, Node: n)))
+            .First(p => p.Node.Edges.OfType<GroundEdge>().Count(e => e.MatchesTaxiway("T7A")) == 2);
+
+        GroundEdge? atEnd = TugPlanBuilder.TaxiwayEndEdge("F5", fillet, end, "T7A");
+        GroundEdge? atPartway = TugPlanBuilder.TaxiwayEndEdge("F5", partway.Arc, partway.Node, "T7A");
+
+        Assert.NotNull(atEnd);
+        Assert.True(atEnd.MatchesTaxiway("T7A") && (atEnd.Nodes[0].Id == end.Id || atEnd.Nodes[1].Id == end.Id));
+        Assert.Null(atPartway);
+    }
+
+    /// <summary>
+    /// <see cref="TugPathCheck.ExtensionCrossing"/> on a north-south edge 100 ft east of the start: a ray east meets the
+    /// line 100 ft out, past the edge's end when the edge stops short of the ray (positive) and back along the edge when
+    /// it runs across the ray (negative); a ray along the line never meets it, and one west meets it only behind the start.
+    /// </summary>
+    [Theory]
+    [InlineData(90.0, -50.0, -20.0, 100.0, 20.0)]
+    [InlineData(90.0, -50.0, 20.0, 100.0, -20.0)]
+    [InlineData(0.0, -50.0, -20.0, double.NaN, double.NaN)]
+    [InlineData(270.0, -50.0, -20.0, double.NaN, double.NaN)]
+    public void ExtensionCrossing_MeasuresAlongTheRayAndPastTheEnd(
+        double travelDeg,
+        double inwardNorthFt,
+        double endNorthFt,
+        double alongFt,
+        double pastFt
+    )
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        LatLon origin = Parking(layout, "F5").Position;
+        var check = new TugPathCheck(layout, MovementAreaClassification.For(layout), AircraftFootprint.FromType(Narrowbody), origin);
+
+        (double AlongRayFt, double PastEndFt)? crossing = check.ExtensionCrossing(
+            origin,
+            travelDeg,
+            Offset(origin, 100.0, endNorthFt),
+            Offset(origin, 100.0, inwardNorthFt)
+        );
+
+        _output.WriteLine(
+            $"ray {travelDeg:F0}°: {(crossing is { } c ? $"{c.AlongRayFt:F2} ft along, {c.PastEndFt:F2} ft past the end" : "no crossing")}"
+        );
+        if (double.IsNaN(alongFt))
+        {
+            Assert.Null(crossing);
+            return;
+        }
+
+        Assert.NotNull(crossing);
+        Assert.InRange(crossing.Value.AlongRayFt, alongFt - 0.5, alongFt + 0.5);
+        Assert.InRange(crossing.Value.PastEndFt, pastFt - 0.5, pastFt + 0.5);
+    }
+
+    /// <summary>The point <paramref name="eastFt"/> east and <paramref name="northFt"/> north of <paramref name="origin"/>.</summary>
+    private static LatLon Offset(LatLon origin, double eastFt, double northFt)
+    {
+        LatLon east = GeoMath.ProjectPoint(origin, new TrueHeading(eastFt >= 0.0 ? 90.0 : 270.0), Math.Abs(eastFt) / GeoMath.FeetPerNm);
+        return GeoMath.ProjectPoint(east, new TrueHeading(northFt >= 0.0 ? 0.0 : 180.0), Math.Abs(northFt) / GeoMath.FeetPerNm);
+    }
+
+    /// <summary>The arc of <paramref name="taxiway"/> nearest <paramref name="point"/>, and how far off its curve the point lies, feet.</summary>
+    private static (GroundArc Arc, double OffFt) NearestArc(AirportGroundLayout layout, LatLon point, string taxiway) =>
+        layout
+            .AllEdges.OfType<GroundArc>()
+            .Where(a => a.MatchesTaxiway(taxiway))
+            .Select(a => (Arc: a, OffFt: OffCurveFt(a, point)))
+            .MinBy(a => a.OffFt);
+
+    /// <summary>How far <paramref name="point"/> lies off <paramref name="arc"/>'s curve, feet: to the curve's closest point.</summary>
+    private static double OffCurveFt(GroundArc arc, LatLon point)
+    {
+        CubicBezier curve = arc.ToBezier();
+        (double Lat, double Lon) closest = curve.Evaluate(curve.ClosestT(point, 20));
+        return FeetBetween(point, new LatLon(closest.Lat, closest.Lon));
+    }
+
+    /// <summary>
     /// A bare <c>PUSH TE</c> off OAK gate 25 with issue #222's B737: the stand row is angled, so the push ray meets a
     /// TE edge almost end-on and far behind the stand. That is a taxiway running alongside the push, not one across
     /// it, so the plan is the push-off and a capture of TE's centreline, not one long straight push down the row.
@@ -1856,6 +2020,7 @@ public class TugMovePlannerTests
         {
             Start = new PushbackPose(stand.Position, stand.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
+            StandName = null,
             Footprint = AircraftFootprint.FromType(aircraftType),
             MovementArea = null,
             Goals = goals,
@@ -1871,6 +2036,7 @@ public class TugMovePlannerTests
         {
             Start = start,
             StartsAtStand = false,
+            StandName = null,
             Footprint = AircraftFootprint.FromType(Narrowbody),
             MovementArea = null,
             Goals = [goal],

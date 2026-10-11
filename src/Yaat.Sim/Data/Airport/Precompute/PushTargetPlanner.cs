@@ -138,6 +138,7 @@ public static class PushTargetPlanner
         {
             Start = start,
             StartsAtStand = startsAtStand,
+            StandName = null,
             Footprint = footprint,
             MovementArea = movementArea,
             Goals = [goal],

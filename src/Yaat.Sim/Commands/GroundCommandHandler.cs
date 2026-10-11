@@ -3472,6 +3472,7 @@ public static class GroundCommandHandler
         {
             Start = start,
             StartsAtStand = atStand,
+            StandName = atStand ? aircraft.Ground.ParkingSpot : null,
             Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
             MovementArea = groundLayout is null ? null : MovementAreaClassification.For(groundLayout),
             Goals = [target.Goal],
@@ -4396,6 +4397,7 @@ public static class GroundCommandHandler
         {
             Start = amendment.StandStart,
             StartsAtStand = true,
+            StandName = aircraft.Ground.ParkingSpot,
             Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
             MovementArea = groundLayout is null ? null : MovementAreaClassification.For(groundLayout),
             Goals = [amended.Goal],
@@ -4530,6 +4532,7 @@ public static class GroundCommandHandler
         {
             Start = PoseOf(aircraft),
             StartsAtStand = atStand,
+            StandName = atStand ? aircraft.Ground.ParkingSpot : null,
             Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
             MovementArea = groundLayout is null ? null : MovementAreaClassification.For(groundLayout),
             Goals = goals,

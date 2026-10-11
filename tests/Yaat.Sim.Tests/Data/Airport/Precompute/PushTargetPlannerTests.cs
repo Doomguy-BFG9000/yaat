@@ -275,6 +275,7 @@ public class PushTargetPlannerTests
         {
             Start = new PushbackPose(gate.Position, gate.TrueHeading!.Value.Degrees),
             StartsAtStand = true,
+            StandName = null,
             Footprint = DesignGroupEnvelopes.LoadShipped().FootprintOf(AirplaneDesignGroup.IV),
             MovementArea = Classification(layout),
             Goals = [StraightBack(layout, gate, "TE")],

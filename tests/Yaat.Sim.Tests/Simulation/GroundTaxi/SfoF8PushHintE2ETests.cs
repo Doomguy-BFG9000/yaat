@@ -297,6 +297,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         {
             Start = new PushbackPose(ac.Position, ac.TrueHeading.Degrees),
             StartsAtStand = true,
+            StandName = null,
             Footprint = AircraftFootprint.FromType(AircraftType),
             MovementArea = MovementAreaClassification.For(layout),
             Goals = [TugGoal.Spot(Spot(layout, spotName))],
@@ -842,6 +843,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         {
             Start = standPose,
             StartsAtStand = true,
+            StandName = null,
             Footprint = AircraftFootprint.FromType(pusherType),
             MovementArea = MovementAreaClassification.For(layout),
             Goals = [TugGoal.Spot(Spot(layout, spotName))],

@@ -242,6 +242,54 @@ public sealed class TugPathCheck
     }
 
     /// <summary>
+    /// Where the straight ray from <paramref name="from"/> along <paramref name="travelTrueDeg"/> crosses the line of a
+    /// straight edge running from <paramref name="inward"/> to its end <paramref name="end"/>, extended past that end:
+    /// how far along the ray, feet, and how far past <paramref name="end"/> along the extension, feet (negative when the
+    /// crossing is back along the edge's own line). Null when the ray runs parallel to the line or meets it behind
+    /// <paramref name="from"/>.
+    /// </summary>
+    internal (double AlongRayFt, double PastEndFt)? ExtensionCrossing(LatLon from, double travelTrueDeg, LatLon end, LatLon inward)
+    {
+        Pt start = Local(from);
+        double travelRad = travelTrueDeg * DegToRad;
+        var travel = new Pt(Math.Sin(travelRad), Math.Cos(travelRad));
+        Pt endPoint = Local(end);
+        Pt outward = endPoint - Local(inward);
+        double lengthFt = Distance(outward, default);
+        if (lengthFt <= Epsilon)
+        {
+            return null;
+        }
+
+        var unit = new Pt(outward.X / lengthFt, outward.Y / lengthFt);
+        double denominator = Cross(travel, unit);
+        if (Math.Abs(denominator) <= Epsilon)
+        {
+            return null;
+        }
+
+        Pt offset = endPoint - start;
+        double alongRayFt = Cross(offset, unit) / denominator;
+        double pastEndFt = Cross(offset, travel) / denominator;
+        return (alongRayFt >= 0.0) ? (alongRayFt, pastEndFt) : null;
+    }
+
+    /// <summary>
+    /// How far the point <paramref name="alongFt"/> along the straight ray from <paramref name="from"/> on
+    /// <paramref name="travelTrueDeg"/> lies off the line through <paramref name="lineA"/> and <paramref name="lineB"/>,
+    /// extended both ways, feet; the distance to <paramref name="lineA"/> when the two coincide.
+    /// </summary>
+    internal double RayPointOffLineFt(LatLon from, double travelTrueDeg, double alongFt, LatLon lineA, LatLon lineB)
+    {
+        double travelRad = travelTrueDeg * DegToRad;
+        Pt point = Local(from) + new Pt(Math.Sin(travelRad) * alongFt, Math.Cos(travelRad) * alongFt);
+        Pt a = Local(lineA);
+        Pt direction = Local(lineB) - a;
+        double lengthFt = Distance(direction, default);
+        return (lengthFt <= Epsilon) ? Distance(point, a) : Math.Abs(Cross(direction, point - a)) / lengthFt;
+    }
+
+    /// <summary>
     /// The nearest edge, among those <paramref name="match"/> accepts, that runs within the window's
     /// <c>MaxAngleDeg</c> of <paramref name="travelTrueDeg"/> (either way along the edge) and whose point nearest
     /// <paramref name="from"/> lies ahead along that travel, past zero, with both that distance ahead and the
