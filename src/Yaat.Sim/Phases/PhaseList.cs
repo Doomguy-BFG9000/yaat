@@ -10,6 +10,14 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases;
 
 /// <summary>
+/// The pattern altitude an option clearance's modifier gives the runway it names (<c>COPT MLT 28L 20</c> on
+/// the 28R final): on the runway-transition circuit, <see cref="AircraftPattern.AltitudeOverrideFt"/> becomes
+/// <see cref="AltitudeFt"/>. A null <see cref="AltitudeFt"/> is the runway change's own clear — different
+/// runway, different TPA.
+/// </summary>
+public sealed record DeferredPatternAltitude(double? AltitudeFt);
+
+/// <summary>
 /// LAHSO hold-short point data: the location where the aircraft must stop
 /// before the intersecting runway, and the ID of that runway.
 /// </summary>
@@ -215,6 +223,17 @@ public sealed class PhaseList
     /// was told to leave.
     /// </summary>
     public RunwayInfo? PatternRunway { get; set; }
+
+    /// <summary>
+    /// The altitude change an option clearance's modifier made for a <see cref="PatternRunway"/> other than the
+    /// runway being flown. The modifier describes the pattern after this approach, so this circuit keeps its
+    /// altitude; <c>PhaseRunner</c> applies this to <see cref="AircraftPattern.AltitudeOverrideFt"/> when it
+    /// builds the runway-transition circuit, and clears it. An entry to the armed runway itself uses it up the
+    /// same way (<c>PatternCommandHandler.TryEnterPattern</c>). Null when none is armed. It is voided by a
+    /// go-around, a closed-traffic takeoff, a pattern runway change, a plain altitude command, a runway-less
+    /// modifier's altitude and a runway-less <c>MLT</c>/<c>MRT</c> with an altitude.
+    /// </summary>
+    public DeferredPatternAltitude? TransitionPatternAltitude { get; set; }
 
     /// <summary>
     /// When set, the lineup/takeoff phases use this runway instead of
@@ -430,6 +449,7 @@ public sealed class PhaseList
                     : null,
             TrafficDirection = dto.TrafficDirection.HasValue ? (PatternDirection)dto.TrafficDirection.Value : null,
             PatternRunway = dto.PatternRunway is not null ? RunwayInfo.FromSnapshot(dto.PatternRunway) : null,
+            TransitionPatternAltitude = dto.TransitionPatternAltitude is { } deferred ? new DeferredPatternAltitude(deferred.AltitudeFt) : null,
             DepartureRunway = dto.DepartureRunway is not null ? RunwayInfo.FromSnapshot(dto.DepartureRunway) : null,
             ActiveApproach = dto.ActiveApproach is not null ? ApproachClearance.FromSnapshot(dto.ActiveApproach) : null,
             LahsoHoldShort = dto.LahsoHoldShort is not null ? LahsoTarget.FromSnapshot(dto.LahsoHoldShort) : null,
@@ -569,6 +589,9 @@ public sealed class PhaseList
             ForcedRollout = ForcedRollout,
             TrafficDirection = TrafficDirection.HasValue ? (int)TrafficDirection.Value : null,
             PatternRunway = PatternRunway?.ToSnapshot(),
+            TransitionPatternAltitude = TransitionPatternAltitude is { } deferred
+                ? new DeferredPatternAltitudeDto { AltitudeFt = deferred.AltitudeFt }
+                : null,
             DepartureRunway = DepartureRunway?.ToSnapshot(),
             RequestedExit = RequestedExit?.Side is not null ? (int)RequestedExit.Side.Value : null,
             RequestedExitTaxiway = RequestedExit?.Taxiway,

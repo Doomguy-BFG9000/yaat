@@ -372,6 +372,42 @@ public class SnapshotRoundTripTests
         Assert.Equal("B2", restored.RequestedExit.Taxiway);
     }
 
+    /// <summary>
+    /// The pattern-altitude change an option modifier deferred to the runway-transition circuit survives a snapshot,
+    /// including the runway change's clear (a deferral whose altitude is null), which is not the same as none armed.
+    /// </summary>
+    [Theory]
+    [InlineData(2000.0)]
+    [InlineData(null)]
+    public void PhaseList_TransitionPatternAltitude_RoundTrips(double? altitudeFt)
+    {
+        var phases = new PhaseList
+        {
+            AssignedRunway = TestRunwayFactory.Make(designator: "28R", heading: 292),
+            PatternRunway = TestRunwayFactory.Make(designator: "28L", heading: 292),
+            TransitionPatternAltitude = new DeferredPatternAltitude(altitudeFt),
+        };
+
+        string json = JsonSerializer.Serialize(phases.ToSnapshot(), RecordingJsonOptions.Default);
+        PhaseListDto back = JsonSerializer.Deserialize<PhaseListDto>(json, RecordingJsonOptions.Default)!;
+        var restored = PhaseList.FromSnapshot(back, null);
+
+        Assert.Equal(new DeferredPatternAltitude(altitudeFt), restored.TransitionPatternAltitude);
+    }
+
+    /// <summary>None armed is not written at all, so a snapshot without one serializes as it did before the field existed.</summary>
+    [Fact]
+    public void PhaseList_TransitionPatternAltitude_NoneArmed_IsNotWritten()
+    {
+        var phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: "28", heading: 280) };
+
+        string json = JsonSerializer.Serialize(phases.ToSnapshot(), RecordingJsonOptions.Default);
+        var restored = PhaseList.FromSnapshot(JsonSerializer.Deserialize<PhaseListDto>(json, RecordingJsonOptions.Default)!, null);
+
+        Assert.DoesNotContain(nameof(PhaseListDto.TransitionPatternAltitude), json, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(restored.TransitionPatternAltitude);
+    }
+
     [Fact]
     public void PhaseList_RequestedExit_Null_RoundTrips()
     {

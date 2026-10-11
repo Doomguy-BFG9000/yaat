@@ -237,6 +237,19 @@ public static class PhaseRunner
         // default TPA and flies a long, climb-bound upwind (issue #210).
         AirportGroundLayout? patternLayout = ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout;
         GroundRunway? authoredRunway = patternLayout?.FindRunway(runway.Designator);
+
+        // A pattern runway that is not the one just flown (an option clearance's `COPT MLT 28L`
+        // on the 28R final) makes this circuit the runway transition: the aircraft climbs out on
+        // the runway it just used and joins the named runway's pattern (AIM 4-3-2). Every later
+        // circuit belongs to the new runway, so the assignment moves with it. A cross-runway CTO
+        // has already moved AssignedRunway to the pattern runway at clearance time, so its
+        // designators match here and it takes the plain next circuit.
+        bool runwayTransition = !string.Equals(flownRunway.Designator, runway.Designator, StringComparison.OrdinalIgnoreCase);
+        if (runwayTransition)
+        {
+            ApplyDeferredTransitionAltitude(ctx.Aircraft, phases);
+        }
+
         (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             authoredRunway,
@@ -249,13 +262,6 @@ public static class PhaseRunner
         // cycle terminator the aircraft was already cycling, so keep cycling with TG.
         bool nextTouchAndGo = current is not GoAroundPhase ga || !ga.NextLandingFullStop;
 
-        // A pattern runway that is not the one just flown (an option clearance's `COPT MLT 28L`
-        // on the 28R final) makes this circuit the runway transition: the aircraft climbs out on
-        // the runway it just used and joins the named runway's pattern (AIM 4-3-2). Every later
-        // circuit belongs to the new runway, so the assignment moves with it. A cross-runway CTO
-        // has already moved AssignedRunway to the pattern runway at clearance time, so its
-        // designators match here and it takes the plain next circuit.
-        bool runwayTransition = !string.Equals(flownRunway.Designator, runway.Designator, StringComparison.OrdinalIgnoreCase);
         List<Phase> nextCircuit = runwayTransition
             ? PatternBuilder.BuildRunwayTransitionCircuit(
                 flownRunway,
@@ -293,6 +299,22 @@ public static class PhaseRunner
         }
 
         return nextCircuit;
+    }
+
+    /// <summary>
+    /// Applies the pattern altitude an option clearance's modifier deferred to the runway-transition circuit
+    /// (<see cref="PhaseList.TransitionPatternAltitude"/>) — its own altitude, or the runway change's clear —
+    /// and disarms it. Nothing changes when none is armed.
+    /// </summary>
+    private static void ApplyDeferredTransitionAltitude(AircraftState aircraft, PhaseList phases)
+    {
+        if (phases.TransitionPatternAltitude is not { } deferred)
+        {
+            return;
+        }
+
+        aircraft.Pattern.AltitudeOverrideFt = deferred.AltitudeFt;
+        phases.TransitionPatternAltitude = null;
     }
 
     /// <summary>
@@ -351,6 +373,8 @@ public static class PhaseRunner
         }
 
         phases.PatternRunway = assignedRunway;
+        // The altitude the modifier deferred to the armed runway rode on the same clearance.
+        phases.TransitionPatternAltitude = null;
         string directionWord = direction == PatternDirection.Left ? "left" : "right";
         ctx.Aircraft.PendingWarnings.Add(
             $"{ctx.Aircraft.Callsign} went around — {directionWord} traffic runway {Data.Airport.RunwayIdentifier.ToDisplayDesignator(armedRunway.Designator)} cancelled, re-issue"

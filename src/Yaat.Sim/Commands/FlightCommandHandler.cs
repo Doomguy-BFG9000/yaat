@@ -127,13 +127,25 @@ internal static class FlightCommandHandler
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
-
-        if (aircraft.Phases?.TrafficDirection is not null)
-        {
-            aircraft.Pattern.AltitudeOverrideFt = cmd.Altitude;
-        }
+        SetPatternAltitudeOverride(aircraft, cmd.Altitude);
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
+    }
+
+    /// <summary>
+    /// An altitude assigned in the pattern becomes the standing pattern altitude. It is the most recent assignment
+    /// (AIM 4-4-10.a), so it also replaces any altitude an option clearance deferred to the next runway's pattern
+    /// (<see cref="PhaseList.TransitionPatternAltitude"/>).
+    /// </summary>
+    private static void SetPatternAltitudeOverride(AircraftState aircraft, int altitude)
+    {
+        if (aircraft.Phases is not { TrafficDirection: not null } phases)
+        {
+            return;
+        }
+
+        aircraft.Pattern.AltitudeOverrideFt = altitude;
+        phases.TransitionPatternAltitude = null;
     }
 
     private static CommandResult ApplyVfrAltitudeRestriction(ClimbMaintainCommand cmd, AircraftState aircraft)
@@ -174,11 +186,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
-
-        if (aircraft.Phases?.TrafficDirection is not null)
-        {
-            aircraft.Pattern.AltitudeOverrideFt = cmd.Altitude;
-        }
+        SetPatternAltitudeOverride(aircraft, cmd.Altitude);
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
     }

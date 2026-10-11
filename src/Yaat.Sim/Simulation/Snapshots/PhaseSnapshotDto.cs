@@ -17,6 +17,12 @@ public sealed class PhaseListDto
     public bool ForcedRollout { get; init; }
     public int? TrafficDirection { get; init; }
     public RunwayInfoDto? PatternRunway { get; init; }
+
+    // The option modifier's altitude change deferred to the runway-transition circuit (PhaseList.TransitionPatternAltitude). Not
+    // `required`: absent on older snapshots, where none is armed; and not written while null, so a snapshot with none armed — every
+    // snapshot 0 — serializes exactly as it did before the field existed (yaat-server pins snapshot 0's hash).
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DeferredPatternAltitudeDto? TransitionPatternAltitude { get; init; }
     public RunwayInfoDto? DepartureRunway { get; init; }
     public int? RequestedExit { get; init; }
     public string? RequestedExitTaxiway { get; init; }
@@ -31,6 +37,12 @@ public sealed class PhaseListDto
     public List<string>? GivenUpExitTaxiways { get; init; }
     public required int CurrentIndex { get; init; }
     public required List<PhaseDto> Phases { get; init; }
+}
+
+/// <summary>A <see cref="Yaat.Sim.Phases.DeferredPatternAltitude"/>; a null <see cref="AltitudeFt"/> is the runway change's clear.</summary>
+public sealed class DeferredPatternAltitudeDto
+{
+    public double? AltitudeFt { get; init; }
 }
 
 public sealed class RunwayInfoDto

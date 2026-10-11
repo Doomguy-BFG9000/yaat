@@ -200,8 +200,7 @@ picks one of two shapes by `RunwayGeometry.AreCloseParallels` (same airport, hea
   runway, `CrossAtPatternAltitude` — a departure never left the pattern, so AIM 4-3-3.a's entry height does not apply →
   `DownwindPhase` with `RejoinTrack`) / `BasePhase` / `FinalApproachPhase` / terminator (pattern runway). The same prefix
   serves `TryEnterPattern`'s wrong-side entry and the MLT/MRT wrong-side switch, where it inserts `TeardropReentryPhase`
-  only when the crossing altitude is actually above the pattern altitude (a jet entering at field + 1,500 ft; never with
-  a controller-assigned pattern altitude). Per
+  only when the crossing altitude is actually above the pattern altitude (a jet entering at field + 1,500 ft; never with a controller-assigned pattern altitude, including one a pre-issued clearance carries for this circuit: `TryEnterPattern` builds the wrong-side join after `ConsumePendingLandingClearance` has installed it). Per
   AIM 4-3-2 the departure/upwind leg belongs to the departure runway; downwind/base/final belong to the landing runway.
 
 For a takeoff clearance the departure runway is carried on `PhaseList.DepartureRunway` (read by
@@ -258,8 +257,14 @@ instead of re-entering the pattern from outside it:
 `TryEnterPattern`, crossing-runway departures) puts large/turbine aircraft at the higher of their own TPA and field
 elevation + 1,500 ft (AIM 4-3-3.a.2: "not less than 1,500 feet AGL or 500 feet above the established pattern
 altitude" — the turbine TPA already is the established altitude + 500, so adding 500 again had jets crossing at
-2,000 ft AGL). A controller-assigned pattern altitude (`Pattern.AltitudeOverrideFt`) is flown as assigned by every category (AIM 4-4-7.b),
-so the turbine floor applies only to an unassigned TPA. Midfield triggers lead by `DownwindPhase.MidfieldLeadNm` (0.05 nm), not the 0.3 nm leg tolerance — on
+2,000 ft AGL). A controller-assigned pattern altitude (`Pattern.AltitudeOverrideFt`) is flown as assigned by every category (AIM 4-4-10.a), so the turbine floor applies only to an unassigned TPA. The circuit's altitude is resolved before the circuit is built (`CircuitPatternAltitudeOverride`), in this order:
+- a pre-issued clearance's pattern altitude, when it names no pattern runway or names the runway being entered;
+- then an option clearance's altitude deferred to this runway (`PhaseList.TransitionPatternAltitude`, satisfied by entering that runway's pattern);
+- then the standing override.
+
+An option modifier naming another runway (`COPT MLT 28L 20` on the 28R final) leaves this circuit's altitude alone and defers its altitude, or the runway change's clear, to the runway-transition circuit. Any later altitude assignment replaces that deferral: a runway-less modifier, `MLT`/`MRT` with an altitude, or a climb/descend command in the pattern. A go-around or a closed-traffic takeoff voids it. A FOLLOW join onto the very runway an option clearance armed drops the deferral and flies the standing override (YAAT-616).
+
+Midfield triggers lead by `DownwindPhase.MidfieldLeadNm` (0.05 nm), not the 0.3 nm leg tolerance — on
 OAK's 0.9 nm runways the larger lead started the crossover at the departure end. Midfield is
 `PatternGeometry.MidfieldAlongTrackNm`: the along-track (threshold origin, downwind heading — the axis
 `DownwindPhase` measures every trigger on) of the midpoint between the downwind start and the abeam point, i.e. the
@@ -386,7 +391,7 @@ Aircraft further out along the extended downwind are **arrivals**, not pattern m
 
 An aircraft entering from the wrong side flies a `MidfieldCrossingPhase`, built with its join by `PatternBuilder.BuildFieldCrossingPrefix`. A jet or turboprop crosses at the AIM 4-3-3.a.2 entry height, the higher of TPA and field + 1,500 ft (`MidfieldCrossingPhase.ResolveCrossingAltitude`). The builder inserts a `TeardropReentryPhase` only when that crossing altitude is more than 10 ft above TPA, so there is height to shed: a field authoring a low pattern (OAK 28L, 600 ft AGL).
 
-At a field with no authored pattern the turbine TPA already is field + 1,500 ft, the crossing is flown at TPA, and the aircraft turns straight onto downwind with `RejoinTrack`, as a piston, a helicopter, an in-pattern crossover and a controller-assigned pattern altitude always do. `TeardropReentryPhase` (`src/Yaat.Sim/Phases/Pattern/TeardropReentryPhase.cs`) builds a three-waypoint outbound-then-inbound descent that rejoins downwind at the abeam point via a 45° intercept:
+At a field with no authored pattern the turbine TPA already is field + 1,500 ft, the crossing is flown at TPA, and the aircraft turns straight onto downwind with `RejoinTrack`, as a piston, a helicopter, an in-pattern crossover and a controller-assigned pattern altitude always do. That includes an altitude carried by a pre-issued TG/SG/LA/COPT with no pattern runway or naming the flown runway, which the entry installs before it builds the join. `TeardropReentryPhase` (`src/Yaat.Sim/Phases/Pattern/TeardropReentryPhase.cs`) builds a three-waypoint outbound-then-inbound descent that rejoins downwind at the abeam point via a 45° intercept:
 
 1. **Outbound anchor** = abeam + `CrosswindHeading` × outbound distance (Jet 3.0 / TP 2.5 / else 2.0 nm).
 2. **45° lead-in** = abeam + reverse-45°-entry heading × lead-in distance (Jet 2.0 / TP 1.5 / else 1.0 nm).
@@ -1282,7 +1287,7 @@ Which command handler builds which phase (parsing/dispatch live in
 | **JAPP** (join approach) | `ApproachCommandHandler.TryJoinApproach` (`:330`) | `ApproachNavigationPhase` (+ HILPT hold) → `FinalApproachPhase` → landing |
 | **PTAC** (present-heading intercept) | `ApproachCommandHandler.TryPtac` (`:413`) | `InterceptCoursePhase` (`ForcedIntercept = cmd.Forced`) → `FinalApproachPhase` → landing |
 | Missed-approach hold | `ApproachCommandHandler` (`:1053`) | `ApproachNavigationPhase` → `HoldingPatternPhase` |
-| **Pattern** (TPAT / pattern legs, SA/MNA/TB/EXT/OFL/OFR) | `PatternCommandHandler` (`:462`, `:486`) | `PatternEntryPhase` / `MidfieldCrossingPhase` / `TeardropReentryPhase` + circuit legs |
+| **Pattern** (TPAT / pattern legs, SA/MNA/TB/EXT/OFL/OFR) | `PatternCommandHandler` (`TryEnterPattern`) | `PatternEntryPhase` / `MidfieldCrossingPhase` / `TeardropReentryPhase` + circuit legs |
 | **EF** (enter final) — parallel sidestep | `PatternCommandHandler.TryEnterPattern` → `ApplySidestep` | none — retargets the **active** `FinalApproachPhase` in place (`RetargetRunway`); only when the target is a parallel of the runway the aircraft is on final for, ≥ `MinSidestepAglFt` |
 | **EF** — same-runway short-final continue | `PatternCommandHandler.TryEnterPattern` | none — redundant re-clearance while established on final inside the entry point returns "continuing final" and leaves the live phases untouched (#228) |
 | **CVA** / **CVAF** (cleared visual approach; IFR-only; `Force` bypasses the RFIS field-in-sight gate) | `ApproachCommandHandler.TryClearedVisualApproach` (`:459`) | by angle off final: straight-in `FinalApproachPhase` (≤30°); angled-join `ApproachNavigationPhase` (one `INTCP` fix) → `FinalApproachPhase` (30–90°); IFR-visual pattern `PatternEntryPhase` → Downwind → Base → `FinalApproachPhase` (>90°) → landing. `ApproachId = "VIS<rwy>"`. Acquisition gate (§7-4-3.a): following → requires `HasReportedTrafficInSight` (and lead not a super); otherwise → requires `HasReportedFieldInSight`. `Force` (CVAF) sets the required flag |

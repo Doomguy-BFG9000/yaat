@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -74,8 +75,44 @@ public class PatternEntryTests : IDisposable
                     PatternAltitudeAglFt = 600,
                     PatternSizeNm = null,
                 },
+                new GroundRunway
+                {
+                    Name = "28L - 10R",
+                    Coordinates = [],
+                    WidthFt = 150,
+                    PatternAltitudeAglFt = 600,
+                    PatternSizeNm = null,
+                },
             ],
         };
+
+    /// <summary>
+    /// KOAK 28L from the real navdata, rebuilt on the fixture's airport id and field elevation so it sits in
+    /// the same scoped airport as <see cref="MakeOak28R"/>.
+    /// </summary>
+    private static RunwayInfo MakeOak28L()
+    {
+        RunwayInfo real =
+            TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L not found in the test navdata");
+        return TestRunwayFactory.Make(
+            designator: "28L",
+            airportId: "KOAK",
+            thresholdLat: real.ThresholdLatitude,
+            thresholdLon: real.ThresholdLongitude,
+            endLat: real.EndLatitude,
+            endLon: real.EndLongitude,
+            heading: real.TrueHeading.Degrees,
+            elevationFt: 9,
+            widthFt: real.WidthFt
+        );
+    }
+
+    /// <summary>
+    /// The fixture's navdb with KOAK 28L added, for the option-clearance tests whose pattern runway is 28L. Kept
+    /// out of the class-wide scope: a parallel changes the inferred pattern side every other test here relies on.
+    /// </summary>
+    private static IDisposable ScopeWithOak28L() =>
+        NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(MakeOak28R(), MakeOak28L(), MakeSfo28R(), MakeRunway12()));
 
     private static AircraftState MakeAircraft(double lat, double lon, double alt, double heading)
     {
@@ -1510,6 +1547,554 @@ public class PatternEntryTests : IDisposable
         Assert.IsType<MidfieldCrossingPhase>(phases[0]);
         Assert.IsType<DownwindPhase>(phases[1]);
         Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
+    }
+
+    /// <summary>
+    /// A pre-issued touch-and-go with a pattern altitude and no pattern runway assigns that altitude to the
+    /// circuit the queued entry builds (AIM 4-4-10.a: an assigned altitude holds until amended). The wrong-side
+    /// jet crosses at it, has nothing to shed (no teardrop, even at an authored-low field) and flies the downwind
+    /// at it; the consume leaves it as the standing override.
+    /// </summary>
+    [Fact]
+    public void WrongSide_PendingTouchAndGoWithPatternAltitude_CrossesAndFliesDownwindAtIt()
+    {
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", null, 1500);
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        List<Phase> phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
+        MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        PhaseContext ctx = MakeContext(aircraft);
+        crossing.OnStart(ctx);
+        Assert.Equal(1500.0, ctx.Targets.TargetAltitude);
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(phases[1]);
+        Assert.Equal(1500.0, downwind.Waypoints!.PatternAltitude);
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Null(aircraft.Pattern.PendingLandingClearance);
+    }
+
+    /// <summary>
+    /// The same pre-issued pattern altitude on a correct-side entry: the entry descends to it and the downwind
+    /// is flown at it, not at the authored 1,109 ft.
+    /// </summary>
+    [Fact]
+    public void SameSide_PendingTouchAndGoWithPatternAltitude_EntryAndDownwindAtIt()
+    {
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", null, 1500);
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        List<Phase> phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        PatternEntryPhase entry = Assert.IsType<PatternEntryPhase>(phases[0]);
+        Assert.Equal(1500.0, entry.PatternAltitude);
+        DownwindPhase downwind = phases.OfType<DownwindPhase>().First();
+        Assert.Equal(1500.0, downwind.Waypoints!.PatternAltitude);
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+    }
+
+    /// <summary>
+    /// A pre-issued option whose modifier names another runway (<c>COPT MLT 28L</c>) describes the pattern after
+    /// this approach, so it leaves this circuit's altitude alone: the standing 1,500 ft assignment is kept for the
+    /// crossing and the downwind, and there is no teardrop.
+    /// </summary>
+    [Fact]
+    public void WrongSide_PendingOptionToOtherRunway_KeepsStandingOverrideThisCircuit()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
+        aircraft.Pattern.AltitudeOverrideFt = 1500;
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "28L", null);
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        List<Phase> phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        Assert.Equal("28L", aircraft.Phases.PatternRunway?.Designator);
+        Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
+        MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        PhaseContext ctx = MakeContext(aircraft);
+        crossing.OnStart(ctx);
+        Assert.Equal(1500.0, ctx.Targets.TargetAltitude);
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(phases[1]);
+        Assert.Equal(1500.0, downwind.Waypoints!.PatternAltitude);
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Equal(new DeferredPatternAltitude(null), aircraft.Phases.TransitionPatternAltitude);
+    }
+
+    /// <summary>
+    /// With no standing assignment, a pre-issued <c>COPT MLT 28L 20</c>'s altitude belongs to 28L's pattern: this
+    /// circuit keeps the authored rules — the jet crosses at the AIM 4-3-3.a.2 entry height (1,509), a teardrop
+    /// sheds it down to the authored 1,109 and the downwind is flown there. Nothing on this circuit targets 2,000.
+    /// </summary>
+    [Fact]
+    public void WrongSide_PendingOptionToOtherRunwayWithAltitude_LeavesThisCircuitOnAuthoredRules()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterWrongSideWithPendingOptionTo28L(standingOverrideFt: null, pendingAltitudeFt: 2000);
+
+        List<Phase> phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        Assert.Equal("28L", aircraft.Phases.PatternRunway?.Designator);
+        MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        PhaseContext crossingCtx = MakeContext(aircraft);
+        crossing.OnStart(crossingCtx);
+        Assert.Equal(1509.0, crossingCtx.Targets.TargetAltitude);
+
+        TeardropReentryPhase teardrop = Assert.IsType<TeardropReentryPhase>(phases[1]);
+        PhaseContext teardropCtx = MakeContext(aircraft);
+        teardrop.OnStart(teardropCtx);
+        List<int> stepAltitudes = [.. teardropCtx.Targets.NavigationRoute.Select(t => t.AltitudeRestriction!.Altitude1Ft)];
+        _output.WriteLine($"teardrop steps: {string.Join(", ", stepAltitudes)}");
+        int[] expectedSteps = [1109 + 250, 1109 + 50, 1109];
+        Assert.Equal(expectedSteps, stepAltitudes);
+
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(phases[2]);
+        Assert.Equal(1109.0, downwind.Waypoints!.PatternAltitude);
+        Assert.Null(aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Equal(new DeferredPatternAltitude(2000), aircraft.Phases.TransitionPatternAltitude);
+    }
+
+    /// <summary>
+    /// The deferred half of the 2b case: once the option is flown, the auto-cycle builds 28L's transition circuit
+    /// with the modifier's 2,000 ft as the override.
+    /// </summary>
+    [Fact]
+    public void OptionToOtherRunway_AppliesDeferredAltitudeOnTransitionCircuit()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterWrongSideWithPendingOptionTo28L(standingOverrideFt: null, pendingAltitudeFt: 2000);
+
+        DownwindPhase transitionDownwind = FlyLowApproachIntoNextCircuit(aircraft);
+
+        Assert.Equal("28L", aircraft.Phases!.AssignedRunway?.Designator);
+        Assert.Equal(2000.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Equal(2000.0, transitionDownwind.Waypoints!.PatternAltitude);
+        Assert.Null(aircraft.Phases.TransitionPatternAltitude);
+    }
+
+    /// <summary>
+    /// The deferred half of the 2a case: the runway change clears the standing 1,500 ft assignment — different
+    /// runway, different TPA — when 28L's transition circuit is built, not before.
+    /// </summary>
+    [Fact]
+    public void OptionToOtherRunway_ClearsStandingOverrideOnTransitionCircuit()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterWrongSideWithPendingOptionTo28L(standingOverrideFt: 1500, pendingAltitudeFt: null);
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+
+        DownwindPhase transitionDownwind = FlyLowApproachIntoNextCircuit(aircraft);
+
+        Assert.Equal("28L", aircraft.Phases!.AssignedRunway?.Designator);
+        Assert.Null(aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Equal(1109.0, transitionDownwind.Waypoints!.PatternAltitude);
+        Assert.Null(aircraft.Phases.TransitionPatternAltitude);
+    }
+
+    /// <summary>
+    /// A pending clearance whose modifier names the runway being flown (<c>COPT MRT 28R 15</c> pre-issued for 28R) is
+    /// the runway-less case: its altitude is this circuit's. The wrong-side jet crosses at it, has nothing to shed and
+    /// flies the downwind at it.
+    /// </summary>
+    [Fact]
+    public void WrongSide_PendingTouchAndGoWithPatternAltitudeForTheFlownRunway_CrossesAndFliesDownwindAtIt()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        RunwayInfo runway = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", "28R", 1500);
+
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+
+        List<Phase> phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
+        MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        PhaseContext ctx = MakeContext(aircraft);
+        crossing.OnStart(ctx);
+        Assert.Equal(1500.0, ctx.Targets.TargetAltitude);
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(phases[1]);
+        Assert.Equal(1500.0, downwind.Waypoints!.PatternAltitude);
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Null(aircraft.Phases.TransitionPatternAltitude);
+    }
+
+    /// <summary>
+    /// <c>COPT MLT 28L 20</c> issued live on an established 28R circuit: this circuit keeps the standing 1,500 ft, the
+    /// 2,000 ft waits for 28L, and the transition circuit is built at it.
+    /// </summary>
+    [Fact]
+    public void LiveOptionToOtherRunwayWithAltitude_KeepsThisCircuitAndDefersItToTheTransition()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: 1500);
+
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 2000));
+
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Equal(new DeferredPatternAltitude(2000), aircraft.Phases!.TransitionPatternAltitude);
+
+        DownwindPhase transitionDownwind = FlyLowApproachIntoNextCircuit(aircraft);
+
+        Assert.Equal("28L", aircraft.Phases.AssignedRunway?.Designator);
+        Assert.Equal(2000.0, transitionDownwind.Waypoints!.PatternAltitude);
+    }
+
+    /// <summary>
+    /// A later pattern instruction for the runway being flown (<c>MLT 28R</c>, or <c>COPT MLT 28R</c>) replaces the
+    /// armed transition, and the altitude it deferred goes with it.
+    /// </summary>
+    [Theory]
+    [InlineData("MLT")]
+    [InlineData("COPT")]
+    public void LiveOptionToOtherRunway_ThenInstructionForTheFlownRunway_DisarmsTheDeferral(string instruction)
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 2000));
+
+        if (instruction == "MLT")
+        {
+            CommandResult result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, "28R", altitudeOverride: null);
+            Assert.True(result.Success, result.Message);
+        }
+        else
+        {
+            IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28R", null));
+        }
+
+        Assert.Equal("28R", aircraft.Phases!.PatternRunway?.Designator);
+        Assert.Null(aircraft.Phases.TransitionPatternAltitude);
+    }
+
+    /// <summary>
+    /// <c>COPT MRT 15</c> after <c>COPT MLT 28L 20</c>: the most recent assignment wins (AIM 4-4-10.a), so 1,500 ft
+    /// becomes the standing override, the deferral is disarmed and 1,500 carries into the 28L circuit.
+    /// </summary>
+    [Fact]
+    public void LiveOptionToOtherRunway_ThenRunwaylessModifierWithAltitude_ReplacesTheDeferral()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 2000));
+
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Right, null, 1500));
+
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Null(aircraft.Phases!.TransitionPatternAltitude);
+        Assert.Equal("28L", aircraft.Phases.PatternRunway?.Designator);
+
+        DownwindPhase transitionDownwind = FlyLowApproachIntoNextCircuit(aircraft);
+
+        Assert.Equal("28L", aircraft.Phases.AssignedRunway?.Designator);
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Equal(1500.0, transitionDownwind.Waypoints!.PatternAltitude);
+    }
+
+    /// <summary>
+    /// A plain altitude assignment in the pattern (<c>CM 15</c>, <c>DM 15</c>) after <c>COPT MLT 28L 20</c> is the most
+    /// recent assignment: it sets the standing override and disarms the deferral, so the 28L circuit is flown at it.
+    /// </summary>
+    [Theory]
+    [InlineData("CM")]
+    [InlineData("DM")]
+    public void LiveOptionToOtherRunway_ThenPlainAltitude_ReplacesTheDeferral(string instruction)
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 2000));
+
+        CommandResult result =
+            instruction == "CM"
+                ? FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(1500), aircraft)
+                : FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(1500), aircraft);
+        Assert.True(result.Success, result.Message);
+
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Null(aircraft.Phases!.TransitionPatternAltitude);
+
+        DownwindPhase transitionDownwind = FlyLowApproachIntoNextCircuit(aircraft);
+
+        Assert.Equal(1500.0, transitionDownwind.Waypoints!.PatternAltitude);
+    }
+
+    /// <summary>
+    /// A runway-less <c>MLT</c>/<c>MRT</c> with an altitude after <c>COPT MLT 28L 20</c> is the most recent assignment
+    /// (AIM 4-4-10.a): 1,500 ft becomes the standing override, the deferral is disarmed and 1,500 carries into the 28L
+    /// circuit.
+    /// </summary>
+    [Theory]
+    [InlineData(PatternDirection.Left)]
+    [InlineData(PatternDirection.Right)]
+    public void LiveOptionToOtherRunway_ThenRunwaylessMltOrMrtWithAltitude_ReplacesTheDeferral(PatternDirection direction)
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 2000));
+
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(aircraft, direction, runwayId: null, altitudeOverride: 1500);
+        Assert.True(result.Success, result.Message);
+
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Null(aircraft.Phases!.TransitionPatternAltitude);
+        Assert.Equal("28L", aircraft.Phases.PatternRunway?.Designator);
+
+        DownwindPhase transitionDownwind = FlyLowApproachIntoNextCircuit(aircraft);
+
+        Assert.Equal("28L", aircraft.Phases.AssignedRunway?.Designator);
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Equal(1500.0, transitionDownwind.Waypoints!.PatternAltitude);
+    }
+
+    /// <summary>
+    /// The pending-clearance twin, through the consume: a pre-issued touch-and-go with a runway-less 1,500 ft for 28L, on
+    /// an aircraft whose 28L transition deferred 2,000 ft, enters 28L. The clearance's altitude is the more recent
+    /// assignment, so the circuit is built at 1,500, the consume leaves it standing and nothing stays armed.
+    /// </summary>
+    [Fact]
+    public void PendingRunwaylessAltitude_EnteringTheArmedRunway_WinsOverTheDeferral()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = MakeOak28R();
+        aircraft.Phases.PatternRunway = MakeOak28L();
+        aircraft.Phases.TransitionPatternAltitude = new DeferredPatternAltitude(2000);
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28L", null, 1500);
+
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            runwayId: "28L",
+            finalDistanceNm: null
+        );
+
+        Assert.True(result.Success, result.Message);
+        DumpPhases(aircraft);
+        DownwindPhase downwind = aircraft.Phases!.Phases.OfType<DownwindPhase>().First();
+        Assert.Equal(1500.0, downwind.Waypoints!.PatternAltitude);
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Null(aircraft.Phases.TransitionPatternAltitude);
+        Assert.Null(aircraft.Pattern.PendingLandingClearance);
+    }
+
+    /// <summary>
+    /// Re-naming the flown runway (<c>COPT MRT 28R</c> after <c>COPT MLT 28L</c>) disarms the 28L transition and its
+    /// deferred clear; this circuit's standing 1,500 ft is kept — there is no runway change to clear it.
+    /// </summary>
+    [Fact]
+    public void LiveOptionToOtherRunway_ThenOptionForTheFlownRunway_KeepsTheStandingOverride()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: 1500);
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", null));
+
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Right, "28R", null));
+
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Null(aircraft.Phases!.TransitionPatternAltitude);
+        Assert.Equal("28R", aircraft.Phases.PatternRunway?.Designator);
+    }
+
+    /// <summary>
+    /// Re-issuing the armed runway's modifier with no altitude (<c>COPT MLT 28L</c> after <c>COPT MLT 28L 20</c>) is no
+    /// altitude assignment, so the armed 2,000 ft stands.
+    /// </summary>
+    [Fact]
+    public void LiveOption_ReissuedForTheArmedRunwayWithoutAltitude_KeepsTheDeferral()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 2000));
+
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", null));
+
+        Assert.Equal(new DeferredPatternAltitude(2000), aircraft.Phases!.TransitionPatternAltitude);
+        Assert.Null(aircraft.Pattern.AltitudeOverrideFt);
+    }
+
+    /// <summary>
+    /// Re-issuing the armed runway's modifier with a new altitude (<c>COPT MLT 28L 15</c> after <c>COPT MLT 28L 20</c>)
+    /// assigns that runway's pattern a newer altitude (AIM 4-4-10.a), so the deferral becomes 1,500.
+    /// </summary>
+    [Fact]
+    public void LiveOption_ReissuedForTheArmedRunwayWithAltitude_ReplacesTheDeferral()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 2000));
+
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 1500));
+
+        Assert.Equal(new DeferredPatternAltitude(1500), aircraft.Phases!.TransitionPatternAltitude);
+        Assert.Null(aircraft.Pattern.AltitudeOverrideFt);
+    }
+
+    /// <summary>
+    /// A go-around voids the option clearance the modifier rode on (AIM 5-5-5.a.6), so the armed pattern runway falls back
+    /// to the flown runway and the altitude it deferred is voided with it.
+    /// </summary>
+    [Fact]
+    public void OptionToOtherRunway_GoAround_VoidsTheDeferral()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterWrongSideWithPendingOptionTo28L(standingOverrideFt: null, pendingAltitudeFt: 2000);
+        Assert.Equal(new DeferredPatternAltitude(2000), aircraft.Phases!.TransitionPatternAltitude);
+
+        PhaseContext ctx = MakeContext(aircraft);
+        aircraft.Phases.Clear(ctx);
+        var goAround = new GoAroundPhase { ReenterPattern = true, NextLandingFullStop = false };
+        aircraft.Phases.Add(goAround);
+        aircraft.Altitude = 3000;
+        PhaseRunner.Tick(aircraft, ctx);
+        PhaseRunner.Tick(aircraft, ctx);
+
+        Assert.Equal(PhaseStatus.Completed, goAround.Status);
+        Assert.Equal("28R", aircraft.Phases.PatternRunway?.Designator);
+        Assert.Null(aircraft.Phases.TransitionPatternAltitude);
+        Assert.Null(aircraft.Pattern.AltitudeOverrideFt);
+    }
+
+    /// <summary>A closed-traffic takeoff clearance re-arms the pattern runway itself, which replaces any deferred transition altitude.</summary>
+    [Fact]
+    public void ClosedTrafficTakeoff_DisarmsTheDeferral()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        RunwayInfo runway28R = MakeOak28R();
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.Phases!.AssignedRunway = runway28R;
+        aircraft.Phases.PatternRunway = MakeOak28L();
+        aircraft.Phases.TransitionPatternAltitude = new DeferredPatternAltitude(2000);
+
+        DepartureClearanceHandler.ApplyClosedTraffic(
+            new ClosedTrafficDeparture(PatternDirection.Right, null, null),
+            aircraft,
+            aircraft.Phases,
+            runway28R,
+            removeInitialClimb: false
+        );
+
+        Assert.Equal("28R", aircraft.Phases.PatternRunway?.Designator);
+        Assert.Null(aircraft.Phases.TransitionPatternAltitude);
+    }
+
+    /// <summary>
+    /// Entering the armed runway's pattern directly (<c>ERD 28L</c> after <c>COPT MLT 28L 20</c>) satisfies the arming, so
+    /// the 28L circuit is built at the 2,000 ft the modifier deferred, which becomes the standing override.
+    /// </summary>
+    [Fact]
+    public void LiveOptionToOtherRunway_ThenEnteringThatRunwaysPattern_FliesItAtTheDeferredAltitude()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 2000));
+
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            runwayId: "28L",
+            finalDistanceNm: null
+        );
+
+        Assert.True(result.Success, result.Message);
+        DumpPhases(aircraft);
+        DownwindPhase downwind = aircraft.Phases!.Phases.OfType<DownwindPhase>().First();
+        Assert.Equal(2000.0, downwind.Waypoints!.PatternAltitude);
+        Assert.Equal(2000.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.Null(aircraft.Phases.TransitionPatternAltitude);
+    }
+
+    /// <summary>A B738 south of KOAK 28R that has entered right downwind, with no clearance pending.</summary>
+    private static AircraftState EnterRightDownwind28R(double? standingOverrideFt)
+    {
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = MakeOak28R();
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
+        aircraft.Pattern.AltitudeOverrideFt = standingOverrideFt;
+
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null
+        );
+        Assert.True(result.Success, result.Message);
+        return aircraft;
+    }
+
+    /// <summary>Issues <c>COPT</c> with <paramref name="modifier"/> live, on the aircraft's current circuit.</summary>
+    private static void IssueOption(AircraftState aircraft, OptionPatternModifier modifier)
+    {
+        CommandResult result = PatternCommandHandler.TrySetupClearedForOption(aircraft, modifier, TestDispatch.Context(Random.Shared));
+        Assert.True(result.Success, result.Message);
+    }
+
+    /// <summary>A B738 south of KOAK 28R entering right downwind with <c>COPT</c> pre-issued for a 28L pattern.</summary>
+    private static AircraftState EnterWrongSideWithPendingOptionTo28L(double? standingOverrideFt, int? pendingAltitudeFt)
+    {
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = MakeOak28R();
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
+        aircraft.Pattern.AltitudeOverrideFt = standingOverrideFt;
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "28L", pendingAltitudeFt);
+
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null
+        );
+        Assert.True(result.Success, result.Message);
+        return aircraft;
+    }
+
+    /// <summary>
+    /// Ends the entered circuit with a low approach on 28R and ticks it to completion, so the auto-cycle builds
+    /// the next circuit. Returns that circuit's downwind.
+    /// </summary>
+    private static DownwindPhase FlyLowApproachIntoNextCircuit(AircraftState aircraft)
+    {
+        PhaseList phases = aircraft.Phases!;
+        PhaseContext ctx = MakeContext(aircraft);
+        phases.Clear(ctx);
+        var lowApproach = new LowApproachPhase();
+        phases.Add(lowApproach);
+
+        // At the low-pass floor, then climbed clear of the field: the low approach completes on the second tick.
+        aircraft.Altitude = 9;
+        PhaseRunner.Tick(aircraft, ctx);
+        aircraft.Altitude = 3000;
+        PhaseRunner.Tick(aircraft, ctx);
+
+        Assert.Equal(PhaseStatus.Completed, lowApproach.Status);
+        return phases.Phases.OfType<DownwindPhase>().Last();
     }
 
     [Fact]

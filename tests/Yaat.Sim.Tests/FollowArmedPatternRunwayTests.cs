@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
@@ -45,7 +46,13 @@ public class FollowArmedPatternRunwayTests
             return;
         }
 
-        AircraftState joined = JoinLeadPattern(leadRunway: flown, flownRunway: flown, armedRunway: armed, direction: PatternDirection.Right);
+        AircraftState joined = JoinLeadPattern(
+            leadRunway: flown,
+            flownRunway: flown,
+            armedRunway: armed,
+            direction: PatternDirection.Right,
+            transitionAltitude: null
+        );
 
         Assert.Equal("28R", joined.Phases?.AssignedRunway?.Designator);
         Assert.Equal("28L", joined.Phases?.PatternRunway?.Designator);
@@ -67,7 +74,13 @@ public class FollowArmedPatternRunwayTests
             return;
         }
 
-        AircraftState joined = JoinLeadPattern(leadRunway: armed, flownRunway: flown, armedRunway: armed, direction: PatternDirection.Left);
+        AircraftState joined = JoinLeadPattern(
+            leadRunway: armed,
+            flownRunway: flown,
+            armedRunway: armed,
+            direction: PatternDirection.Left,
+            transitionAltitude: null
+        );
 
         Assert.Equal("28L", joined.Phases?.AssignedRunway?.Designator);
         Assert.Equal("28L", joined.Phases?.PatternRunway?.Designator);
@@ -89,7 +102,13 @@ public class FollowArmedPatternRunwayTests
             return;
         }
 
-        AircraftState joined = JoinLeadPattern(leadRunway: flown, flownRunway: flown, armedRunway: armedElsewhere, direction: PatternDirection.Right);
+        AircraftState joined = JoinLeadPattern(
+            leadRunway: flown,
+            flownRunway: flown,
+            armedRunway: armedElsewhere,
+            direction: PatternDirection.Right,
+            transitionAltitude: null
+        );
 
         Assert.Equal("28R", joined.Phases?.AssignedRunway?.Designator);
         Assert.Equal("28R", joined.Phases?.PatternRunway?.Designator);
@@ -112,7 +131,13 @@ public class FollowArmedPatternRunwayTests
             return;
         }
 
-        AircraftState joined = JoinLeadPattern(leadRunway: flown, flownRunway: flown, armedRunway: armed, direction: PatternDirection.Right);
+        AircraftState joined = JoinLeadPattern(
+            leadRunway: flown,
+            flownRunway: flown,
+            armedRunway: armed,
+            direction: PatternDirection.Right,
+            transitionAltitude: null
+        );
 
         Assert.Equal("28R", joined.Phases?.AssignedRunway?.Designator);
         Assert.Equal("33", joined.Phases?.PatternRunway?.Designator);
@@ -218,16 +243,164 @@ public class FollowArmedPatternRunwayTests
     }
 
     // ---------------------------------------------------------------------------------------------
+    // The altitude an option modifier deferred to the armed runway travels with the arming
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// <c>COPT MLT 28L 20</c> on the 28R circuit, then FOLLOW into a 28R lead's pattern: the join carries the armed 28L
+    /// and the 2,000 ft it deferred, so the 28L transition circuit after the next terminator is built at 2,000.
+    /// </summary>
+    [Fact]
+    public void PatternJoin_ArmedParallelWithDeferredAltitude_BuildsTheTransitionAtIt()
+    {
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "28L");
+        if (navDb is null || flown is null || armed is null)
+        {
+            return;
+        }
+
+        AircraftState joined = JoinLeadPattern(
+            leadRunway: flown,
+            flownRunway: flown,
+            armedRunway: armed,
+            direction: PatternDirection.Right,
+            transitionAltitude: new DeferredPatternAltitude(2000)
+        );
+
+        Assert.Equal("28L", joined.Phases?.PatternRunway?.Designator);
+        Assert.Equal(new DeferredPatternAltitude(2000), joined.Phases?.TransitionPatternAltitude);
+
+        DownwindPhase transitionDownwind = FlyLowApproachIntoNextCircuit(joined);
+
+        Assert.Equal("28L", joined.Phases?.AssignedRunway?.Designator);
+        Assert.Equal(2000.0, transitionDownwind.Waypoints!.PatternAltitude);
+    }
+
+    /// <summary>
+    /// A follow that ends on its own re-enters the 28R circuit through <c>TryEnterPattern</c>'s fresh list; the armed 28L
+    /// and the 2,000 ft it deferred both survive, and the 28L transition circuit is built at 2,000.
+    /// </summary>
+    [Fact]
+    public void ReturnToPattern_CarriesTheDeferredAltitudeToTheTransition()
+    {
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "28L");
+        if (navDb is null || flown is null || armed is null)
+        {
+            return;
+        }
+
+        AircraftState follower = ReturnToPatternWithDeferral(flown, armed, returnRunway: flown, PatternDirection.Right);
+
+        Assert.Equal("28R", follower.Phases?.AssignedRunway?.Designator);
+        Assert.Equal("28L", follower.Phases?.PatternRunway?.Designator);
+        Assert.Equal(new DeferredPatternAltitude(2000), follower.Phases?.TransitionPatternAltitude);
+
+        DownwindPhase transitionDownwind = FlyLowApproachIntoNextCircuit(follower);
+
+        Assert.Equal("28L", follower.Phases?.AssignedRunway?.Designator);
+        Assert.Equal(2000.0, transitionDownwind.Waypoints!.PatternAltitude);
+    }
+
+    /// <summary>
+    /// A follow that ends with a return to the armed runway (28L) itself satisfies the arming: that circuit is built at
+    /// the 2,000 ft the modifier deferred, which becomes the standing override, and nothing stays armed.
+    /// </summary>
+    [Fact]
+    public void ReturnToPattern_OnTheArmedRunway_BuildsThatCircuitAtTheDeferredAltitude()
+    {
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "28L");
+        if (navDb is null || flown is null || armed is null)
+        {
+            return;
+        }
+
+        AircraftState follower = ReturnToPatternWithDeferral(flown, armed, returnRunway: armed, PatternDirection.Left);
+
+        Assert.Equal("28L", follower.Phases?.AssignedRunway?.Designator);
+        Assert.Equal(2000.0, follower.Pattern.AltitudeOverrideFt);
+        Assert.Equal(2000.0, follower.Phases!.Phases.OfType<DownwindPhase>().First().Waypoints!.PatternAltitude);
+        Assert.Null(follower.Phases.TransitionPatternAltitude);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Fixture
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>
+    /// A follower flying <paramref name="flownRunway"/> with <paramref name="armedRunway"/> armed and 2,000 ft deferred to it,
+    /// whose follow ends (the lead is lost) and returns to <paramref name="returnRunway"/>'s circuit. Returns the follower
+    /// after the return tick.
+    /// </summary>
+    private static AircraftState ReturnToPatternWithDeferral(
+        RunwayInfo flownRunway,
+        RunwayInfo armedRunway,
+        RunwayInfo returnRunway,
+        PatternDirection direction
+    )
+    {
+        AircraftState follower = MakeVfr(Follower, OffFinal(returnRunway, 3.5, 1.0), returnRunway.TrueHeading, altitude: 1200);
+        follower.Approach.FollowingCallsign = Lead;
+        var patternReturn = new FollowPatternReturn(returnRunway, direction, returnRunway.AirportElevationFt + 1000, FromBase: false);
+        var phase = new VfrFollowPhase(Lead, patternReturn);
+        follower.Phases = new PhaseList
+        {
+            AssignedRunway = flownRunway,
+            PatternRunway = armedRunway,
+            TransitionPatternAltitude = new DeferredPatternAltitude(2000),
+            TrafficDirection = direction,
+        };
+        follower.Phases.Add(phase);
+
+        PhaseContext ctx = Ctx(follower, returnRunway, _ => null);
+        follower.Phases.Start(ctx);
+
+        Assert.True(phase.OnTick(ctx));
+        Assert.IsNotType<VfrFollowPhase>(follower.Phases.CurrentPhase);
+        return follower;
+    }
+
+    /// <summary>
+    /// Ends the follower's circuit with a low approach and ticks it to completion, so the auto-cycle builds the next
+    /// circuit. Returns that circuit's downwind.
+    /// </summary>
+    private static DownwindPhase FlyLowApproachIntoNextCircuit(AircraftState aircraft)
+    {
+        aircraft.Approach.FollowingCallsign = null;
+        PhaseList phases = aircraft.Phases!;
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        phases.Clear(ctx);
+        var lowApproach = new LowApproachPhase();
+        phases.Add(lowApproach);
+
+        // At the low-pass floor, then climbed clear of the field: the low approach completes on the second tick.
+        aircraft.Altitude = phases.AssignedRunway!.ElevationFt;
+        PhaseRunner.Tick(aircraft, ctx);
+        aircraft.Altitude = 3000;
+        PhaseRunner.Tick(aircraft, ctx);
+
+        Assert.Equal(PhaseStatus.Completed, lowApproach.Status);
+        return phases.Phases.OfType<DownwindPhase>().Last();
+    }
+
+    /// <summary>
     /// Places the follower on <paramref name="leadRunway"/>'s downwind abeam point (inside every join
     /// gate) behind a lead flying that runway's downwind, with the follower's outgoing phase list
-    /// flying <paramref name="flownRunway"/> and <paramref name="armedRunway"/> armed. Returns the
-    /// follower after the join tick.
+    /// flying <paramref name="flownRunway"/> and <paramref name="armedRunway"/> armed, with
+    /// <paramref name="transitionAltitude"/> deferred to it. Returns the follower after the join tick.
     /// </summary>
-    private static AircraftState JoinLeadPattern(RunwayInfo leadRunway, RunwayInfo flownRunway, RunwayInfo armedRunway, PatternDirection direction)
+    private static AircraftState JoinLeadPattern(
+        RunwayInfo leadRunway,
+        RunwayInfo flownRunway,
+        RunwayInfo armedRunway,
+        PatternDirection direction,
+        DeferredPatternAltitude? transitionAltitude
+    )
     {
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(leadRunway.AirportId);
         PatternWaypoints waypoints = PatternGeometry.Compute(
@@ -265,6 +438,7 @@ public class FollowArmedPatternRunwayTests
         {
             AssignedRunway = flownRunway,
             PatternRunway = armedRunway,
+            TransitionPatternAltitude = transitionAltitude,
             TrafficDirection = direction,
         };
         follower.Phases.Add(phase);

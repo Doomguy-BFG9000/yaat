@@ -802,6 +802,9 @@ internal static class DepartureClearanceHandler
 
         phases.Phases.AddRange(circuit);
         phases.PatternRunway = patternRunway;
+        // The pattern runway is re-armed here, so a transition an earlier option clearance armed, and the altitude it
+        // deferred, are replaced.
+        phases.TransitionPatternAltitude = null;
         // AssignedRunway carries the pattern runway (circuit/final/landing read it).
         // DepartureRunway carries the takeoff runway for lineup/takeoff when they differ.
         phases.AssignedRunway = patternRunway;

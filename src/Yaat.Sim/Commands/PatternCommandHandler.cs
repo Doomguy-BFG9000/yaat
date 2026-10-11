@@ -146,6 +146,15 @@ internal static class PatternCommandHandler
             standingClearedRunwayId = runway.Designator;
         }
 
+        // An option clearance's transition armed for this very runway (COPT MLT 28L 20, then ERD 28L): entering that
+        // pattern directly satisfies the arming, so the altitude it deferred belongs to this circuit. Read off the list
+        // this entry replaces, before the rebuild drops it.
+        DeferredPatternAltitude? satisfiedTransitionAltitude = SatisfiedTransitionPatternAltitude(aircraft.Phases, runway);
+
+        // The pattern altitude this circuit is built at, read before the consume that installs it so every resolve
+        // below (the wrong-side crossing's waypoints, the entry's, the circuit's) agrees with what the phases fly.
+        double? circuitAltitudeOverrideFt = CircuitPatternAltitudeOverride(aircraft, runway, satisfiedTransitionAltitude);
+
         // The terminal phase of the rebuilt circuit follows the controller's
         // standing landing clearance, not the transient pattern turn-direction.
         // A full-stop CLAND must survive a later pattern-entry command
@@ -257,7 +266,7 @@ internal static class PatternCommandHandler
                     (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                     category,
                     aircraft.Pattern.SizeOverrideNm,
-                    aircraft.Pattern.AltitudeOverrideFt
+                    circuitAltitudeOverrideFt
                 );
                 waypoints = PatternGeometry.Compute(
                     runway,
@@ -680,7 +689,7 @@ internal static class PatternCommandHandler
                 (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 category,
                 aircraft.Pattern.SizeOverrideNm,
-                aircraft.Pattern.AltitudeOverrideFt
+                circuitAltitudeOverrideFt
             );
             waypoints ??= PatternGeometry.Compute(
                 runway,
@@ -753,7 +762,7 @@ internal static class PatternCommandHandler
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
             category,
             aircraft.Pattern.SizeOverrideNm,
-            aircraft.Pattern.AltitudeOverrideFt
+            circuitAltitudeOverrideFt
         );
         List<Phase> circuitPhases = PatternBuilder.BuildCircuit(
             runway,
@@ -851,23 +860,6 @@ internal static class PatternCommandHandler
             }
         }
 
-        if (isOnWrongSide)
-        {
-            foreach (
-                Phase joinPhase in PatternBuilder.BuildFieldCrossingPrefix(
-                    new MidfieldCrossingPhase { Waypoints = waypoints },
-                    waypoints,
-                    category,
-                    aircraft.Pattern.AltitudeOverrideFt,
-                    runway.AirportElevationFt,
-                    circuitPhases
-                )
-            )
-            {
-                phases.Add(joinPhase);
-            }
-        }
-
         foreach (Phase phase in circuitPhases)
         {
             phases.Add(phase);
@@ -875,10 +867,35 @@ internal static class PatternCommandHandler
 
         aircraft.Phases = phases;
 
+        // The satisfied transition's altitude becomes the standing override ahead of the consume, so a pre-issued
+        // clearance's own pattern altitude, the more recent assignment, still wins.
+        if (satisfiedTransitionAltitude is { } satisfied)
+        {
+            aircraft.Pattern.AltitudeOverrideFt = satisfied.AltitudeFt;
+        }
+
         // Consume the single-shot clearance pre-issued before this entry built its circuit. It has
         // already been folded into standingClearance above; this clears the slot, warns when it named a
         // different runway than the circuit that just built, and installs the exact SG/LA terminal.
         ConsumePendingLandingClearance(aircraft, runway);
+
+        // The wrong-side join is built only now, from the override as the consume left it: the crossing and
+        // the teardrop read that override live when they start, so the teardrop decision must see it too. The
+        // wrong-side path adds no PatternEntryPhase and nothing has started, so the join heads the list.
+        if (isOnWrongSide)
+        {
+            phases.Phases.InsertRange(
+                0,
+                PatternBuilder.BuildFieldCrossingPrefix(
+                    new MidfieldCrossingPhase { Waypoints = waypoints },
+                    waypoints,
+                    category,
+                    aircraft.Pattern.AltitudeOverrideFt,
+                    runway.AirportElevationFt,
+                    circuitPhases
+                )
+            );
+        }
 
         // Consume any EXT/SA/MNA pre-arm issued before this entry built its circuit
         // (e.g. EXT DOWNWIND while ERD 28R sat queued behind DCT VPCOL).
@@ -951,6 +968,9 @@ internal static class PatternCommandHandler
             // auto-cycle (PatternRunway ?? AssignedRunway) build the next circuit on the runway the
             // aircraft was told to leave.
             aircraft.Phases.PatternRunway = resolved;
+            // This instruction replaces any option-clearance transition armed before it, and the altitude that
+            // transition deferred with it.
+            aircraft.Phases.TransitionPatternAltitude = null;
             NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, resolved.Designator);
             // Changing runway clears altitude override — different runway, different TPA
             aircraft.Pattern.AltitudeOverrideFt = null;
@@ -966,10 +986,13 @@ internal static class PatternCommandHandler
             }
         }
 
-        // Set explicit altitude override if provided
+        // Set explicit altitude override if provided. The most recent assignment (AIM 4-4-10.a) also replaces
+        // an altitude an option clearance deferred to an armed transition; without an altitude the deferral is
+        // left alone, and a named runway disarmed it above.
         if (altitudeOverride is not null)
         {
             aircraft.Pattern.AltitudeOverrideFt = altitudeOverride;
+            aircraft.Phases?.TransitionPatternAltitude = null;
         }
 
         if (aircraft.Phases?.AssignedRunway is null)
@@ -2451,6 +2474,46 @@ internal static class PatternCommandHandler
     }
 
     /// <summary>
+    /// The pattern altitude override the circuit being built for <paramref name="runway"/> is flown at. A
+    /// pre-issued clearance's pattern altitude with no pattern runway, or with <paramref name="runway"/> itself as
+    /// its pattern runway, is assigned to this circuit (AIM 4-4-10.a: an assigned altitude holds until amended), and
+    /// <see cref="ConsumePendingLandingClearance"/> installs it as the standing override. One naming another pattern
+    /// runway describes the pattern after this approach, and one that names a different runway is voided by the
+    /// consume, so both fall through. Next comes <paramref name="satisfiedTransitionAltitude"/>, the altitude an option
+    /// clearance deferred to this runway's pattern, then the standing override. Pure, like
+    /// <see cref="PeekPendingLandingClearance"/>.
+    /// </summary>
+    private static double? CircuitPatternAltitudeOverride(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        DeferredPatternAltitude? satisfiedTransitionAltitude
+    )
+    {
+        if (
+            (PeekPendingLandingClearance(aircraft, runway) is { PatternAltitudeFt: { } pendingAltitude } pending)
+            && ((pending.PatternRunwayId is null) || MatchesRunway(pending.PatternRunwayId, runway))
+        )
+        {
+            return pendingAltitude;
+        }
+
+        return satisfiedTransitionAltitude is { } satisfied ? satisfied.AltitudeFt : aircraft.Pattern.AltitudeOverrideFt;
+    }
+
+    /// <summary>
+    /// The pattern altitude an option clearance deferred to <paramref name="runway"/>'s pattern
+    /// (<see cref="PhaseList.TransitionPatternAltitude"/> with <see cref="PhaseList.PatternRunway"/> naming it), which an
+    /// entry to that runway's pattern satisfies; null when none is armed or it is armed for another runway.
+    /// </summary>
+    private static DeferredPatternAltitude? SatisfiedTransitionPatternAltitude(PhaseList phases, RunwayInfo runway) =>
+        (
+            phases is { PatternRunway: { } armedRunway, TransitionPatternAltitude: { } deferred }
+            && AirborneFollowHelper.IsSameRunway(armedRunway, runway)
+        )
+            ? deferred
+            : null;
+
+    /// <summary>
     /// Clears the single-shot pre-issued clearance now that an entry has built its circuit. A clearance
     /// that named a different runway than the circuit is voided with an RPO warning (7110.65 §3-10-5)
     /// rather than silently landing the aircraft on a runway nobody cleared — which is also what keeps an
@@ -2509,7 +2572,11 @@ internal static class PatternCommandHandler
         }
         else if (pending.PatternAltitudeFt is { } pendingPatternAltitude)
         {
+            // The most recent assignment (AIM 4-4-10.a): it also replaces an altitude deferred to a transition.
+            // The clear guards a list this consume did not rebuild — the consume runs on the fresh list
+            // TryEnterPattern built, so an armed deferral stands on the list that entry replaced, never here.
             aircraft.Pattern.AltitudeOverrideFt = pendingPatternAltitude;
+            aircraft.Phases?.TransitionPatternAltitude = null;
         }
 
         Log.LogDebug(
@@ -2942,25 +3009,21 @@ internal static class PatternCommandHandler
     /// flown on the runway the aircraft is already assigned — only <see cref="PhaseList.PatternRunway"/>
     /// moves, so the auto-cycle builds the next circuit for the new runway once the clearance has been
     /// flown (<c>COPT MLT 28L</c> on the 28R final = the option on 28R, then left traffic for 28L).
-    /// A pattern runway other than the one being flown clears a standing pattern-altitude override the
-    /// way a runway-changing MLT does — different runway, different TPA — before any altitude the
-    /// modifier itself names is applied.
+    /// A pattern runway other than the one being flown changes the pattern altitude the way a
+    /// runway-changing MLT does — different runway, different TPA: the modifier's altitude, or a clear of
+    /// the standing override when it names none. That belongs to the pattern after this approach, so it is
+    /// deferred to the runway-transition circuit (<see cref="PhaseList.TransitionPatternAltitude"/>) and
+    /// this circuit keeps its altitude. A modifier on the runway being flown, or naming no runway, takes
+    /// effect at once; with an altitude it is the most recent assignment (AIM 4-4-10.a), so it also
+    /// replaces an altitude deferred to an armed transition, which then carries into that circuit.
     /// </summary>
     private static string ApplyOptionClearancePattern(AircraftState aircraft, OptionPatternModifier modifier, RunwayInfo? patternRunway)
     {
         PhaseList? phases = aircraft.Phases;
+        bool deferredToTransition = false;
         if ((phases is not null) && (patternRunway is not null))
         {
-            bool runwayChanged = !string.Equals(
-                phases.PatternRunway?.Designator ?? phases.AssignedRunway?.Designator,
-                patternRunway.Designator,
-                StringComparison.OrdinalIgnoreCase
-            );
-            phases.PatternRunway = patternRunway;
-            if (runwayChanged)
-            {
-                aircraft.Pattern.AltitudeOverrideFt = null;
-            }
+            deferredToTransition = ArmOptionPatternRunway(aircraft, phases, patternRunway, modifier.AltitudeFt);
         }
 
         if (modifier.Direction is { } dir)
@@ -2970,13 +3033,48 @@ internal static class PatternCommandHandler
             aircraft.Pattern.TrafficDirection = dir;
         }
 
-        if (modifier.AltitudeFt is { } altitude)
+        if ((modifier.AltitudeFt is { } altitude) && !deferredToTransition)
         {
             aircraft.Pattern.AltitudeOverrideFt = altitude;
+            phases?.TransitionPatternAltitude = null;
         }
 
         return $"{TrafficLabel(modifier.Direction)}{PatternRunwayLabel(modifier.Direction, patternRunway?.Designator)}"
             + ArmedTransitionCrossesField(phases?.AssignedRunway, patternRunway);
+    }
+
+    /// <summary>
+    /// Arms <paramref name="patternRunway"/> as the next circuit's runway and returns whether the modifier's
+    /// altitude change (<paramref name="modifierAltitudeFt"/>, or the runway change's clear) waits for the
+    /// runway-transition circuit: true when it names a runway other than the one being flown. Re-issued for
+    /// the runway already armed with no altitude, it is no altitude assignment and the armed deferral stands.
+    /// Naming the runway being flown disarms any deferral and keeps this circuit's override; only with no
+    /// runway assigned at all does a change of pattern runway clear the standing override at once.
+    /// </summary>
+    private static bool ArmOptionPatternRunway(AircraftState aircraft, PhaseList phases, RunwayInfo patternRunway, int? modifierAltitudeFt)
+    {
+        bool runwayChanged = !string.Equals(
+            phases.PatternRunway?.Designator ?? phases.AssignedRunway?.Designator,
+            patternRunway.Designator,
+            StringComparison.OrdinalIgnoreCase
+        );
+        bool deferredToTransition =
+            (phases.AssignedRunway is { } flownRunway)
+            && !string.Equals(flownRunway.Designator, patternRunway.Designator, StringComparison.OrdinalIgnoreCase);
+        bool reissuedWithoutAltitude = deferredToTransition && !runwayChanged && (modifierAltitudeFt is null);
+
+        phases.PatternRunway = patternRunway;
+        if (!reissuedWithoutAltitude)
+        {
+            phases.TransitionPatternAltitude = deferredToTransition ? new DeferredPatternAltitude(modifierAltitudeFt) : null;
+        }
+
+        if (runwayChanged && (phases.AssignedRunway is null))
+        {
+            aircraft.Pattern.AltitudeOverrideFt = null;
+        }
+
+        return deferredToTransition;
     }
 
     /// <summary>

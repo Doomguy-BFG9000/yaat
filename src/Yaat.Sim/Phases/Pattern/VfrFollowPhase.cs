@@ -1055,7 +1055,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// <see cref="Commands.PatternCommandHandler.TryEnterPattern"/> builds a new list without a
     /// <see cref="PhaseList.PatternRunway"/>, so a pattern runway armed before the follow (<c>COPT MLT 28L</c> on the 28R
     /// circuit) would be dropped by the re-entry. Carry it over as a join does (<see cref="CarryArmedPatternRunway"/>),
-    /// unless the entry itself armed one (a pre-issued clearance's pattern modifier).
+    /// with the pattern altitude its modifier deferred to it, unless the entry itself armed one (a pre-issued clearance's
+    /// pattern modifier). A return to the armed runway itself has built that circuit at the deferred altitude
+    /// (the entry reads it off the list it replaces), so nothing is carried.
     /// </summary>
     private static void KeepArmedPatternRunway(AircraftState aircraft, ArmedPatternState armedBefore, FollowPatternReturn patternReturn)
     {
@@ -1068,6 +1070,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         if (!AirborneFollowHelper.IsSameRunway(patternRunway, patternReturn.Runway))
         {
             rebuilt.PatternRunway = patternRunway;
+            rebuilt.TransitionPatternAltitude = armedBefore.TransitionPatternAltitude;
         }
     }
 
@@ -1634,20 +1637,35 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// so the pattern phases keep spacing behind the lead; without it the follow is over. The clearance standing on the
     /// pursuit phase list (a CLAND, TG, SG, LA or COPT issued while the follower was still pursuing its lead) is captured
     /// first and carried onto the new list (<see cref="ApplyArmedLandingClearance"/>), as is an armed pattern runway
-    /// (<see cref="CarryArmedPatternRunway"/>).
+    /// (<see cref="CarryArmedPatternRunway"/>) with the pattern altitude its modifier deferred to it. A join onto the
+    /// armed runway itself satisfies the arming, so that circuit drops the deferral and keeps the altitude the runway's
+    /// own rules give it.
     /// </summary>
     private void InstallJoinedCircuit(PhaseContext ctx, RunwayInfo runway, PatternDirection direction, List<Phase> legs, bool keepFollowing)
     {
         PhaseList phases = ctx.Aircraft.Phases ?? new PhaseList();
         ClearanceType? armedClearance = phases.LandingClearance;
         string? armedClearedRunwayId = phases.ClearedRunwayId;
-        RunwayInfo patternRunway = CarryArmedPatternRunway(ctx.Aircraft, ArmedPatternState.Of(phases), runway, direction);
+        var armedBefore = ArmedPatternState.Of(phases);
+        RunwayInfo patternRunway = CarryArmedPatternRunway(ctx.Aircraft, armedBefore, runway, direction);
+        bool joinSatisfiesTheArming = AirborneFollowHelper.IsSameRunway(patternRunway, runway);
+        if (joinSatisfiesTheArming && (armedBefore.TransitionPatternAltitude is { } droppedDeferral))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: join onto armed runway {Rwy} satisfies the arming; deferred altitude {Altitude} dropped",
+                ctx.Aircraft.Callsign,
+                runway.Designator,
+                droppedDeferral.AltitudeFt
+            );
+        }
+
         phases.Clear(ctx);
         ctx.Aircraft.Phases = new PhaseList
         {
             AssignedRunway = runway,
             TrafficDirection = direction,
             PatternRunway = patternRunway,
+            TransitionPatternAltitude = joinSatisfiesTheArming ? null : armedBefore.TransitionPatternAltitude,
         };
         foreach (Phase p in legs)
         {
@@ -2333,11 +2351,18 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
     /// <summary>
     /// The pattern-runway arming a phase list carried before a follow rebuilt it: the armed <see cref="PhaseList.PatternRunway"/>,
-    /// the runway being flown (<see cref="PhaseList.AssignedRunway"/>) and the clearance the arming rode on.
+    /// the runway being flown (<see cref="PhaseList.AssignedRunway"/>), the clearance the arming rode on and the pattern
+    /// altitude its modifier deferred to the armed runway (<see cref="PhaseList.TransitionPatternAltitude"/>).
     /// </summary>
-    private readonly record struct ArmedPatternState(RunwayInfo? PatternRunway, RunwayInfo? FlownRunway, ClearanceType? LandingClearance)
+    private readonly record struct ArmedPatternState(
+        RunwayInfo? PatternRunway,
+        RunwayInfo? FlownRunway,
+        ClearanceType? LandingClearance,
+        DeferredPatternAltitude? TransitionPatternAltitude
+    )
     {
-        internal static ArmedPatternState Of(PhaseList phases) => new(phases.PatternRunway, phases.AssignedRunway, phases.LandingClearance);
+        internal static ArmedPatternState Of(PhaseList phases) =>
+            new(phases.PatternRunway, phases.AssignedRunway, phases.LandingClearance, phases.TransitionPatternAltitude);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
