@@ -114,7 +114,19 @@ public static class HeldReleaseService
         }
 
         // Queued held spawns at this airport become spawn-eligible immediately (the armed-set check in
-        // ProcessDelayedSpawns now returns false). Drop any pending scheduled releases for the field.
+        // ProcessDelayedSpawns now returns false). Release each through the spawn gate as REL would, so a runway spawn
+        // already has its release and never asks the student for one once it lines up (ReleaseOneCore does the same).
+        foreach (DelayedSpawn entry in scenario.DelayedQueue)
+        {
+            if (entry.HeldForRelease && AirportMatches(DepartureAirportOf(entry.Aircraft.State), normalized))
+            {
+                entry.HeldForRelease = false;
+                entry.Aircraft.State.Ground.ReleasedAtSpawnGate = true;
+                released++;
+            }
+        }
+
+        // Drop any pending scheduled releases for the field.
         scenario.ReleaseQueue.RemoveAll(r => AirportMatches(r.Airport, normalized));
 
         string suffix = released > 0 ? $" ({released} released)" : "";
