@@ -3138,10 +3138,18 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         (GroundNode arcEntry, GroundNode arcExit, LatLon position, TrueHeading heading) = pose;
         output.WriteLine($"{IntoFilletFt:F0} ft into the fillet {arcEntry.Id}-{arcExit.Id}, heading {heading.Degrees:F0}");
 
-        // The TAXI command's own start resolution: the heading-biased pick, else the nearest node.
-        GroundNode? headingBiased = layout.FindNearestNodeForTaxi(position, heading);
-        GroundNode? start = headingBiased ?? layout.FindNearestNode(position);
-        output.WriteLine($"heading-biased start: {(headingBiased is null ? "none" : $"node {headingBiased.Id}")}");
+        // The TAXI command's own start resolution.
+        GroundNode? start = layout.FindTaxiStartNode(
+            position,
+            heading,
+            new TaxiStartTraffic
+            {
+                Callsign = "TEST",
+                AircraftType = "B738",
+                OtherGroundAircraft = [],
+            }
+        );
+        output.WriteLine($"taxi start: {(start is null ? "none" : $"node {start.Id}")}");
         Assert.NotNull(start);
         double startFt = GeoMath.DistanceNm(position, start.Position) * GeoMath.FeetPerNm;
         double offHeadingDeg = GeoMath.AbsBearingDifference(GeoMath.BearingTo(position, start.Position), heading.Degrees);

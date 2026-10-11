@@ -2687,7 +2687,7 @@ public static class CommandDispatcher
             case AssignRunwayCommand assignRwy:
                 return GroundCommandHandler.TryAssignRunway(aircraft, assignRwy.RunwayId);
             case FollowGroundCommand followG:
-                return GroundCommandHandler.TryFollow(aircraft, followG, groundLayout, ctx.FindAircraft);
+                return GroundCommandHandler.TryFollow(aircraft, followG, groundLayout, ctx.FindAircraft, ctx.ListAircraft);
             case GiveWayCommand gw:
                 return GroundCommandHandler.TryGiveWay(aircraft, gw.TargetCallsign);
             case ExitLeftCommand el:

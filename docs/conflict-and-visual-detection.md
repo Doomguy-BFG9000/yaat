@@ -238,7 +238,7 @@ For `Converging` and `SameEdgeTrailing` the chosen yielder also gets a **display
 their defaults at the top of `ApplySpeedLimits` and re-derive each tick, exactly like `SpeedLimit`. The annotation
 itself does **not** set `Hold`/`IsImmobile` and does not move the aircraft — the `SpeedLimit` cap does that (for a
 converging-merge yielder within stop distance the cap is a full stop until the leader pulls away, then it follows in
-trail). The annotation drives the client's "→{target} (auto)" ground datablock badge and the "Yielding to" /
+trail). A **parked or held** holder (`IsParkedOrHeld`) is named the same way (not following) only when its limit is the one binding the mover (`ShowParkedHolderYield`): the limit must hold the mover more than `ParkedHolderYieldMarginKts` (2 kt) under the speed its navigator asks for now (`GroundNavigator.RequestedSpeedKts`), and a stricter limit already binding, or an earlier pair's yield at an equal limit, keeps its label. The right-click menu reads "Yielding to: {callsign} (auto-detected)". The annotation drives the client's "→{target} (auto)" ground datablock badge and the "Yielding to" /
 "Following" right-click wording, distinct from a controller GIVEWAY. The wire carries them on
 `AircraftStateDto.AutoYieldTarget`/`AutoYieldIsFollowing` (in the `TrainingDtoFingerprint` so the badge updates live).
 

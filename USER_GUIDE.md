@@ -639,7 +639,7 @@ To resolve it, issue `CLRWY` (alias `CLEARRWY`): the aircraft pulls forward just
 
 **Automatic ground yields.** When the simulator slows one ground aircraft for another — a converging path or an in-trail follow — the slowed aircraft's ground datablock shows a **→{callsign} (auto)** badge naming the traffic it is yielding to, so an automatic slowdown is never unexplained.
 
-Its right-click menu spells it out as **Yielding to** (converging) or **Following** (in trail). A give-way you issue yourself still takes precedence over the automatic one. The same badge appears on a pushback held on its stand for traffic already rolling past, and on a taxiing aircraft holding for a pushback whose tail is already in its lane.
+Its right-click menu spells it out as **Yielding to** (converging) or **Following** (in trail). A give-way you issue yourself still takes precedence over the automatic one. The same badge appears on a pushback held on its stand for traffic already rolling past, and on a taxiing aircraft holding for a pushback whose tail is already in its lane. A taxiing aircraft slowed or stopped beside a parked or held aircraft shows it too, once the slowdown is more than a couple of knots under the speed the aircraft would otherwise taxi at.
 
 **Departure-queue numbers.** A departure waiting for a runway shows the **runway and its place in line** on its ground datablock callsign — `UAL123 28R #1` for the aircraft next up, `28R #2`, `28R #3`, and so on for those behind it — so you can see at a glance which runway a clumped departure is waiting on and who goes next, even zoomed out.
 

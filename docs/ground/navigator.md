@@ -21,6 +21,8 @@ Phases run **before** physics each sub-tick (see [`../tick-loop.md`](../tick-loo
 
 `GroundConflictDetector.ApplySpeedLimits` runs **between** the phase tick and physics, writing `ctx.Aircraft.Ground.SpeedLimit`. The navigator honors that cap via `ClampBySpeedLimit` so it never publishes a target above a conflict-imposed limit, and `FlightPhysics.UpdateSpeed`/`UpdatePosition` clamp to the same limit again.
 
+`GroundNavigator.RequestedSpeedKts` is the speed the navigator last asked for, before that clamp (null until it first publishes one; not snapshotted). It is display-only: the detector compares a parked or held holder's limit with it to decide whether the yield label shows ([conflict-and-visual-detection.md](../conflict-and-visual-detection.md)).
+
 **The navigator never integrates speed.**
 
 It publishes `Targets.TargetSpeed` (and `Targets.DesiredDecelRate`: `SlowdownDecelRateKts` when the owning phase set one and no stop's braking curve sets the target, else `DecelRateKts` — the expedite rate, null otherwise) every tick and `FlightPhysics.UpdateSpeed` closes the gap at the ground rates — `CategoryPerformance.TaxiAccelRate` (1.0 kt/s for every category: the breakaway rate, then idle) and `DesiredDecelRate ?? TaxiDecelRate` — with a snap window of one sub-tick's change.
@@ -115,7 +117,7 @@ When no departure-aligned onto-runway arc route resolves — a parallel-taxiway 
 
 ### FOLLOWG: joining the lead's taxi path
 
-`FollowRoutePlanner.Plan(layout, follower, lead)` (`Phases/Ground/FollowRoutePlanner.cs`) says whether and where the follower can get onto the lead's taxi path. It is read twice. Before `FOLLOWG` installs a `FollowingPhase`, `GroundCommandHandler.RejectUnjoinableFollow` runs it as the joinability probe: `TryFollow` runs it, and so does `ArmFollowBehindRunwayHold` when the follow is armed at a runway bar; it is skipped when there is no layout or no lead lookup.
+`FollowRoutePlanner.Plan(layout, follower, lead, otherGroundAircraft)` (`Phases/Ground/FollowRoutePlanner.cs`; `otherGroundAircraft` is a `Func<IReadOnlyList<NeighbourCandidate>>` read only when the route starts at the taxi start pick, which never takes an occupied stand's parking node) says whether and where the follower can get onto the lead's taxi path. It is read twice. Before `FOLLOWG` installs a `FollowingPhase`, `GroundCommandHandler.RejectUnjoinableFollow` runs it as the joinability probe: `TryFollow` runs it, and so does `ArmFollowBehindRunwayHold` when the follow is armed at a runway bar; it is skipped when there is no layout or no lead lookup.
 
 `FollowingPhase` then plans again on its first tick (and after a restore with no follow route, or when its route runs out) and drives the `Joinable` plan as its follow route ([FOLLOWG: driving the follow route](#followg-driving-the-follow-route)). While it drives one, it plans again through `FollowRoutePlanner.Replan` at each node and when the lead is re-routed ([re-planning](#followg-driving-the-follow-route)).
 

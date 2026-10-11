@@ -974,7 +974,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     /// </summary>
     private static bool TaxiOutRoutes(AirportGroundLayout layout, AircraftState ac)
     {
-        GroundNode? start = layout.FindNearestNodeForTaxi(ac.Position, ac.TrueHeading) ?? layout.FindNearestNode(ac.Position);
+        GroundNode? start = layout.FindTaxiStartNode(ac.Position, ac.TrueHeading, TaxiStartTraffic.Of(ac, []));
         if (start is null)
         {
             return false;

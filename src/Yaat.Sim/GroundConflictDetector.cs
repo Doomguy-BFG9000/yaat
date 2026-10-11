@@ -1298,11 +1298,11 @@ public static class GroundConflictDetector
 
         if (winnerLimit is { } rw)
         {
-            ApplyMinLimit(winner, rw.Limit, rw.Reason, yielder, distFt);
+            ApplyHolderLimit(winner, rw, yielder, distFt);
         }
         if (yielderLimit is { } ry)
         {
-            ApplyMinLimit(yielder, ry.Limit, ry.Reason, winner, distFt);
+            ApplyHolderLimit(yielder, ry, winner, distFt);
         }
     }
 
@@ -1607,13 +1607,13 @@ public static class GroundConflictDetector
         Action<string>? diagnosticLog
     )
     {
-        if (dirA is not null)
+        if ((dirA is { } moveDirA) && (ComputeClosingLimit(a, moveDirA, b, stateB, distFt, diagnosticLog) is { } limitA))
         {
-            ApplyClosingLimit(a, dirA.Value, b, stateB, distFt, diagnosticLog);
+            ApplyHolderLimit(a, limitA, b, distFt);
         }
-        if (dirB is not null)
+        if ((dirB is { } moveDirB) && (ComputeClosingLimit(b, moveDirB, a, stateA, distFt, diagnosticLog) is { } limitB))
         {
-            ApplyClosingLimit(b, dirB.Value, a, stateA, distFt, diagnosticLog);
+            ApplyHolderLimit(b, limitB, a, distFt);
         }
         if (!skipHeadOn && dirA is not null && dirB is not null && a.GroundSpeed > 0 && b.GroundSpeed > 0)
         {
@@ -2154,6 +2154,95 @@ public static class GroundConflictDetector
         mover.Ground.AutoYieldIsFollowing = false;
     }
 
+    /// <summary>
+    /// How far under the speed the mover asks for a parked or held neighbour's limit must hold it before the yield label names
+    /// that neighbour, knots: a marginal shave is not a hold anyone needs explaining.
+    /// </summary>
+    public const double ParkedHolderYieldMarginKts = 2.0;
+
+    /// <summary>
+    /// Caps <paramref name="mover"/> at a closing limit <paramref name="obstacle"/> imposes, naming the obstacle as the
+    /// mover's yield target first when it is the parked or held aircraft holding it (<see cref="ShowParkedHolderYield"/>).
+    /// </summary>
+    private static void ApplyHolderLimit(AircraftState mover, (double Limit, string Reason) result, AircraftState obstacle, double distFt)
+    {
+        ShowParkedHolderYield(mover, obstacle, result.Limit);
+        ApplyMinLimit(mover, result.Limit, result.Reason, obstacle, distFt);
+    }
+
+    /// <summary>
+    /// Names a parked or held <paramref name="obstacle"/> as <paramref name="mover"/>'s yield target (<c>AutoYieldTarget</c>,
+    /// not following) when the closing limit it imposes, <paramref name="limitKts"/>, is what holds the mover: a taxiing
+    /// aircraft stopped or slowed beside a parked one shows what for, as a pusher's yield already does. Called before the
+    /// limit is applied, so <see cref="AircraftGroundOps.SpeedLimit"/> is the binding limit of the pairs resolved so far.
+    /// <list type="bullet">
+    /// <item>The limit must hold the mover more than <see cref="ParkedHolderYieldMarginKts"/> under the speed it asks for now
+    /// (<see cref="LiveRequestedSpeedKts"/>, a corner's speed in a corner).</item>
+    /// <item>A stricter limit already binding the mover keeps its label: the label names the binding holder only.</item>
+    /// <item>A yield another pair already named this pass (a moving lead, a convergence) stays unless this limit is
+    /// stricter than the binding one.</item>
+    /// </list>
+    /// A tug-moved mover keeps the outline rule's own test (<see cref="ShowTugMoveYield"/>); a moving obstacle and a
+    /// live-traffic shadow mover name nothing.
+    /// </summary>
+    /// <param name="mover">The aircraft the limit holds.</param>
+    /// <param name="obstacle">The aircraft the limit is for.</param>
+    /// <param name="limitKts">The closing limit, knots.</param>
+    public static void ShowParkedHolderYield(AircraftState mover, AircraftState obstacle, double limitKts)
+    {
+        if (TugMoveAgainstParked(mover, obstacle) is not null)
+        {
+            ShowTugMoveYield(mover, obstacle, limitKts);
+            return;
+        }
+
+        if (
+            mover.IsShadow
+            || !IsParkedOrHeld(obstacle)
+            || (limitKts >= LiveRequestedSpeedKts(mover) - ParkedHolderYieldMarginKts)
+            || !BindsAheadOfEarlierPairs(mover, limitKts)
+        )
+        {
+            return;
+        }
+
+        mover.Ground.AutoYieldTarget = obstacle.Callsign;
+        mover.Ground.AutoYieldIsFollowing = false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="limitKts"/>, not yet applied, binds <paramref name="mover"/> ahead of the pairs resolved so far
+    /// this pass: no limit yet, or one no stricter than it — strictly looser when an earlier pair already named a yield, so
+    /// that pair keeps its label on a tie.
+    /// </summary>
+    private static bool BindsAheadOfEarlierPairs(AircraftState mover, double limitKts)
+    {
+        if (mover.Ground.SpeedLimit is not { } bound)
+        {
+            return true;
+        }
+
+        return (limitKts < bound) || ((limitKts <= bound) && (mover.Ground.AutoYieldTarget is null));
+    }
+
+    /// <summary>
+    /// The speed <paramref name="mover"/> asks for now: its navigator's request before the ground speed limit
+    /// (<see cref="GroundNavigator.RequestedSpeedKts"/>) while taxiing or following; else, and before the navigator first
+    /// publishes one, the controller's taxi speed, else its category's default.
+    /// </summary>
+    private static double LiveRequestedSpeedKts(AircraftState mover)
+    {
+        double? navigator = mover.Phases?.CurrentPhase switch
+        {
+            TaxiingPhase taxiing => taxiing.NavRequestedSpeedKts,
+            FollowingPhase following => following.NavRequestedSpeedKts,
+            _ => null,
+        };
+        return navigator
+            ?? mover.Ground.CommandedTaxiSpeedKts
+            ?? CategoryPerformance.TaxiSpeed(AircraftCategorization.Categorize(mover.AircraftType));
+    }
+
     private static void ApplyClosingLimit(
         AircraftState mover,
         double moveDir,
@@ -2256,14 +2345,12 @@ public static class GroundConflictDetector
             if (limitForA is { } resultA)
             {
                 diagnosticLog?.Invoke($"  [Crossing] one-sided: {a.Callsign} limited {resultA.Limit:F1} ({resultA.Reason}) for {b.Callsign}");
-                ApplyMinLimit(a, resultA.Limit, resultA.Reason, b, distFt);
-                ShowTugMoveYield(a, b, resultA.Limit);
+                ApplyHolderLimit(a, resultA, b, distFt);
             }
             if (limitForB is { } resultB)
             {
                 diagnosticLog?.Invoke($"  [Crossing] one-sided: {b.Callsign} limited {resultB.Limit:F1} ({resultB.Reason}) for {a.Callsign}");
-                ApplyMinLimit(b, resultB.Limit, resultB.Reason, a, distFt);
-                ShowTugMoveYield(b, a, resultB.Limit);
+                ApplyHolderLimit(b, resultB, a, distFt);
             }
         }
 

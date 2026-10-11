@@ -268,6 +268,34 @@ public class GroundViewModelPushRouteTests
         Assert.NotNull(vm.PushRoutePreview);
     }
 
+    // The same push with a helicopter held in a hover right over 5A: it is airborne, so it is no ground neighbour (the
+    // server's taxi start lists only aircraft on the ground) and the push plans as it would to an empty spot, instead of
+    // refusing for an aircraft overhead.
+    [Fact]
+    public void PushRoutePreview_IgnoresAnAirborneAircraftOverhead()
+    {
+        if (LoadSfoLayout() is not { } layout)
+        {
+            return; // test data absent — skip
+        }
+
+        GroundNode spot = SfoSpot(layout, "5A");
+        var overhead = new AircraftModel
+        {
+            Callsign = "N76HV",
+            AircraftType = "S76",
+            Position = spot.Position,
+            Heading = new TrueHeading(118.0),
+            HoldKind = "HoldPosition",
+            GroundSpeed = 0,
+            IsOnGround = false,
+        };
+        GroundViewModel vm = StartFiveAlleyPush(layout, overhead);
+
+        Assert.Null(vm.PushRouteRefusal);
+        Assert.NotNull(vm.PushRoutePreview);
+    }
+
     // The same push with another E75L parked on top of the aircraft on D4: their outlines already overlap where they
     // stand, a placement error the server refuses the tow for, naming both, rather than planning around. The
     // preview shows that refusal, word for word, instead of a clean route.
@@ -693,6 +721,7 @@ public class GroundViewModelPushRouteTests
             Heading = stand.TrueHeading!.Value,
             CurrentPhase = "At Parking",
             ParkingSpot = standName,
+            IsOnGround = true,
         };
 
         GroundViewModel vm = MakeViewModel();
@@ -713,6 +742,7 @@ public class GroundViewModelPushRouteTests
             Heading = stand.TrueHeading!.Value,
             CurrentPhase = "At Parking",
             ParkingSpot = "D4",
+            IsOnGround = true,
         };
 
         GroundViewModel vm = MakeViewModel();
@@ -734,6 +764,7 @@ public class GroundViewModelPushRouteTests
             CurrentPhase = phase,
             GroundSpeed = groundSpeedKts,
             TargetSpeedKts = targetSpeedKts,
+            IsOnGround = true,
         };
 
     private static GroundNode SfoSpot(AirportGroundLayout layout, string name) =>
@@ -839,6 +870,7 @@ public class GroundViewModelPushRouteTests
             Position = new LatLon(Lat0, Lon0),
             Heading = new TrueHeading(180),
             CurrentPhase = "Holding After Pushback",
+            IsOnGround = true,
         };
 
     // The same aircraft still on stand 8B, so the plan opens with the straight push off the stand.
@@ -850,6 +882,7 @@ public class GroundViewModelPushRouteTests
             Position = new LatLon(Lat0, Lon0),
             Heading = new TrueHeading(180),
             CurrentPhase = "At Parking",
+            IsOnGround = true,
         };
 
     // A ramp lane running north: stand 8B, spots A and B, a plain intersection, and a stand a mile off.

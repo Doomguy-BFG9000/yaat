@@ -225,6 +225,9 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     public override string Name => $"Following {_targetCallsign}";
 
+    /// <summary>The speed the navigator asks for now, before the ground speed limit (<see cref="GroundNavigator.RequestedSpeedKts"/>).</summary>
+    internal double? NavRequestedSpeedKts => _nav.RequestedSpeedKts;
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Aircraft.IsOnGround = true;
@@ -668,7 +671,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             || (ctx.Aircraft.Ground.AssignedTaxiRoute is not { IsComplete: false } assigned)
             || (_clearingAttemptedRunways.Count > 0)
             || (RunwayInsideHoldLine(ctx.Aircraft, layout) is not null)
-            || (FollowRoutePlanner.RouteOnto(layout, ctx.Aircraft, ReanchorGoals(assigned)) is not { } onto)
+            || (FollowRoutePlanner.RouteOnto(layout, ctx.Aircraft, ReanchorGoals(assigned), GroundTraffic(ctx)) is not { } onto)
         )
         {
             return false;
@@ -1160,7 +1163,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         PlanCount++;
-        if ((FollowRoutePlanner.Plan(layout, ctx.Aircraft, lead) is not FollowRoutePlan.Joinable joinable) || IsEmpty(joinable))
+        if ((FollowRoutePlanner.Plan(layout, ctx.Aircraft, lead, GroundTraffic(ctx)) is not FollowRoutePlan.Joinable joinable) || IsEmpty(joinable))
         {
             return false;
         }
@@ -1247,7 +1250,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return null;
         }
 
-        if (FollowRoutePlanner.StartOf(layout, ctx.Aircraft, requireAhead: false) is { } start)
+        if (FollowRoutePlanner.StartOf(layout, ctx.Aircraft, requireAhead: false, GroundTraffic(ctx)) is { } start)
         {
             var taxiClass = FollowRoutePlanner.TaxiClass.Of(ctx.Aircraft);
             TaxiRouteSegment? leadIn = start.LeadIn;
@@ -1303,6 +1306,14 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         double halfLengthFt = AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0;
         return (Math.Abs(distFt * Math.Cos(offRad)) <= halfLengthFt) && (Math.Abs(distFt * Math.Sin(offRad)) <= BarCorridorHalfWidthFt);
     }
+
+    /// <summary>
+    /// Every aircraft on the ground the phase's world holds, as the follow route's start pick reads them
+    /// (<see cref="AirportGroundLayout.FindTaxiStartNode"/>), listed only when the planner asks; empty when the context has no
+    /// world.
+    /// </summary>
+    private static Func<IReadOnlyList<NeighbourCandidate>> GroundTraffic(PhaseContext ctx) =>
+        () => NeighbourCandidate.OnGround(ctx.ListAircraft?.Invoke());
 
     /// <summary>
     /// Whether another aircraft at rest on the ground stands in the exit at <paramref name="bar"/>: within half its length of the
@@ -1614,7 +1625,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         PlanCount++;
-        FollowRoutePlan replanned = FollowRoutePlanner.Replan(layout, ctx.Aircraft, lead);
+        FollowRoutePlan replanned = FollowRoutePlanner.Replan(layout, ctx.Aircraft, lead, GroundTraffic(ctx));
         if (replanned is FollowRoutePlan.WaitForLead)
         {
             return true;
@@ -1846,7 +1857,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         PlanCount++;
-        FollowRoutePlan plan = FollowRoutePlanner.Plan(layout, ctx.Aircraft, lead);
+        FollowRoutePlan plan = FollowRoutePlanner.Plan(layout, ctx.Aircraft, lead, GroundTraffic(ctx));
         if (plan is not FollowRoutePlan.Joinable joinable)
         {
             HoldOnUnjoinedPlan(ctx, plan);
@@ -1879,7 +1890,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         PlanCount++;
-        if ((FollowRoutePlanner.Replan(layout, ctx.Aircraft, lead) is FollowRoutePlan.Joinable joinable) && !IsEmpty(joinable))
+        if ((FollowRoutePlanner.Replan(layout, ctx.Aircraft, lead, GroundTraffic(ctx)) is FollowRoutePlan.Joinable joinable) && !IsEmpty(joinable))
         {
             AdoptIfDifferent(ctx, lead, joinable, "has a new path", keepOnBackwardStart: true);
         }

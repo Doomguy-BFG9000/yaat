@@ -234,7 +234,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         double downFDeg = GeoMath.BearingTo(junction.Position, ground.Layout.Nodes[SfoFAtENodeId].Position);
         AircraftState aircraft = MakeAircraft(ground.Layout, junction.Position, downFDeg);
         aircraft.Ground.CurrentTaxiway = "E";
-        GroundNode? start = ground.Layout.FindNearestNodeForTaxi(aircraft.Position, aircraft.TrueHeading);
+        GroundNode? start = ground.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, []));
         Assert.NotNull(start);
         Assert.DoesNotContain(start.Edges, e => e.MatchesTaxiway("E"));
 
@@ -377,7 +377,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     /// sent back to it — pure pursuit converges onto the line from where it is.
     ///
     /// <para>Driven through <see cref="TaxiApproachLeg.Prepend"/> directly: from this pose
-    /// <see cref="AirportGroundLayout.FindNearestNodeForTaxi"/> rejects the node behind and resolves the route
+    /// <see cref="AirportGroundLayout.FindTaxiStartNode"/> rejects the node behind and resolves the route
     /// from node 766 ahead instead, so the shape only reaches the leg through the plain nearest-node
     /// fallback.</para>
     /// </summary>

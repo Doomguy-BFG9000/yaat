@@ -1447,8 +1447,8 @@ public static class RampLaneReposition
     /// <paramref name="from"/> to <paramref name="to"/> passes within <paramref name="ownHalfSpanFt"/>, the other's
     /// half-span and <see cref="GroundOutlineSweep.WingtipBufferFt"/> of; null when it passes clear of all of them. Empty
     /// stands are no obstacle. One the leg already starts that close to is an obstacle only when the leg closes on it: a
-    /// leg leaving a neighbour abeam opens instead. Two callers, one rule: the spot line-up's free-space legs and the
-    /// ramp-confined cut.
+    /// leg leaving a neighbour abeam opens instead. Three callers, one rule: the spot line-up's free-space legs, the
+    /// ramp-confined cut, and the taxi start pick (<see cref="AirportGroundLayout.FindTaxiStartNode"/>).
     /// </summary>
     /// <param name="layout">The airport's ground layout.</param>
     /// <param name="callsign">The moving aircraft's callsign; tells it apart from itself in <paramref name="others"/>.</param>
@@ -1457,7 +1457,7 @@ public static class RampLaneReposition
     /// <param name="from">The leg's start.</param>
     /// <param name="to">The leg's end.</param>
     /// <returns>The blocking aircraft or stand, or null.</returns>
-    private static string? FindLegObstacle(
+    internal static string? FindLegObstacle(
         AirportGroundLayout layout,
         string callsign,
         double ownHalfSpanFt,

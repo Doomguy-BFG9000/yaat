@@ -800,7 +800,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
         foreach (string taxi in taxis)
         {
             CommandResult result = ground.Engine.SendCommand(Leader, taxi);
-            FollowRoutePlan plan = FollowRoutePlanner.Replan(ground.Layout, follower, leader);
+            FollowRoutePlan plan = FollowRoutePlanner.Replan(ground.Layout, follower, leader, () => []);
             bool behind =
                 (plan is FollowRoutePlan.Joinable joinable)
                 && ground.Layout.Nodes.TryGetValue(joinable.MergeNode, out GroundNode? merge)
@@ -1230,7 +1230,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
         foreach (string taxi in taxis)
         {
             CommandResult result = ground.Engine.SendCommand(Leader, taxi);
-            FollowRoutePlan plan = FollowRoutePlanner.Replan(ground.Layout, follower, leader);
+            FollowRoutePlan plan = FollowRoutePlanner.Replan(ground.Layout, follower, leader, () => []);
             output.WriteLine(
                 $"{Leader} <- '{taxi}' -> success={result.Success} msg={result.Message} route={leader.Ground.AssignedTaxiRoute?.ToSummary()} "
                     + $"replan={plan.GetType().Name}"
@@ -1321,7 +1321,7 @@ public class FollowGroundAtRunwayBarTests(ITestOutputHelper output)
             output.WriteLine(
                 $"{Leader} <- '{taxi}' -> success={result.Success} msg={result.Message} route={leader.Ground.AssignedTaxiRoute?.ToSummary()}"
             );
-            if (result.Success && (FollowRoutePlanner.Plan(ground.Layout, follower, leader) is FollowRoutePlan.FollowerAhead))
+            if (result.Success && (FollowRoutePlanner.Plan(ground.Layout, follower, leader, () => []) is FollowRoutePlan.FollowerAhead))
             {
                 return;
             }

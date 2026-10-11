@@ -341,7 +341,16 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode? start = ground.Layout.FindNearestNodeForTaxi(Skw3398OnBPose.Position, Skw3398OnBPose.Heading);
+        GroundNode? start = ground.Layout.FindTaxiStartNode(
+            Skw3398OnBPose.Position,
+            Skw3398OnBPose.Heading,
+            new TaxiStartTraffic
+            {
+                Callsign = "TEST",
+                AircraftType = "B738",
+                OtherGroundAircraft = [],
+            }
+        );
         Assert.NotNull(start);
         TaxiRoute? asCleared = TaxiPathfinder.ResolveExplicitPath(
             ground.Layout,

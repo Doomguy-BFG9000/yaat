@@ -51,4 +51,10 @@ public sealed record NeighbourCandidate
             GroundSpeedKts = aircraft.GroundSpeed,
             TargetSpeedKts = aircraft.Targets.TargetSpeed,
         };
+
+    /// <summary>The candidates of every aircraft on the ground among <paramref name="aircraft"/>.</summary>
+    /// <param name="aircraft">The aircraft the caller can see; null when it has no world.</param>
+    /// <returns>Their candidates; empty when the caller has no world.</returns>
+    public static IReadOnlyList<NeighbourCandidate> OnGround(IEnumerable<AircraftState>? aircraft) =>
+        (aircraft is null) ? [] : [.. aircraft.Where(a => a.IsOnGround).Select(From)];
 }

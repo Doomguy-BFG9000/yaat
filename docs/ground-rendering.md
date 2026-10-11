@@ -200,7 +200,7 @@ Follow               -> ShowAllTaxiRoutes && HasActiveTaxiRoute
 
 Whenever a route must be drawn, `GroundViewModel.ResolveRemainingRoute(ac)` **reconstructs the geometry locally**: it parses the taxiway-name string, picks the start node, trims the sequence to start at `CurrentTaxiway`, and re-runs `TaxiPathfinder.ResolveExplicitPath` against the client's cached `AirportGroundLayout` (`_domainLayout`).
 
-The start node is the server's: `AirportGroundLayout.FindNearestNodeForTaxi(position, heading)`, else `FindNearestNode` — on a straight taxi edge or fillet arc the aircraft stands mid-way along, the end ahead of it, so the overlay starts on the taxiway the aircraft is on and not on a nearer parallel one (see [ground/pathfinder.md](ground/pathfinder.md#where-it-sits--entry-points)).
+The start node is the server's: `AirportGroundLayout.FindTaxiStartNode(position, heading, traffic)` over the ground aircraft the server's world holds (airborne and delayed ones left out), so it never starts at an occupied stand's parking node — on a straight taxi edge or fillet arc the aircraft stands mid-way along, the end ahead of it, so the overlay starts on the taxiway the aircraft is on and not on a nearer parallel one (see [ground/pathfinder.md](ground/pathfinder.md#where-it-sits--entry-points)).
 
 **A turn about is drawn exactly as the server sends it.** The server turns an aircraft mid-way along a straight edge about on the taxiway in one of two shapes (`TaxiTurnAboutShape`), and `AircraftModel.TaxiTurnAboutShape` carries it until that first leg is flown; `TurnAboutStart` picks where the overlay resolves the route from:
 

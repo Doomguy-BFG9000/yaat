@@ -98,6 +98,9 @@ public sealed class TaxiingPhase : Phase
 
     internal double NavMaxSpeedKts => _nav.MaxSpeedKts;
 
+    /// <summary>The speed the navigator asks for now, before the ground speed limit (<see cref="GroundNavigator.RequestedSpeedKts"/>).</summary>
+    internal double? NavRequestedSpeedKts => _nav.RequestedSpeedKts;
+
     /// <summary>
     /// True when the navigator's last tick played a curve primitive (a fillet arc or a synthesised slow turn)
     /// rather than a straight. Read from <see cref="GroundNavigator.LastTickDiag"/>, the same per-tick

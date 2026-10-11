@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -1149,75 +1150,39 @@ public sealed class AirportGroundLayout
     /// </summary>
     public const double AtNodeToleranceFt = 15.0;
 
+    /// <summary>How far from the aircraft <see cref="FindTaxiStartNode"/> looks for a heading-aligned node, feet.</summary>
+    private const double AlignedStartMaxDistFt = 100.0;
+
     /// <summary>
-    /// Pick the start node for a taxi command, biased by heading. Unlike
-    /// <see cref="FindNearestNode(LatLon)"/> — which returns the absolute
-    /// nearest node and can land on the wrong branch when an aircraft rests
-    /// between graph nodes after a directional pushback (issue #161) — this
-    /// returns, for an aircraft neither at a parking node nor on a taxi edge
-    /// (both below), the nearest node within <paramref name="maxDistFt"/> that has
-    /// at least one non-RAMP, non-runway-centerline outbound edge whose
-    /// bearing is within 90° of the aircraft's <paramref name="heading"/>.
-    /// <para>
-    /// Returns null when no qualifying node exists in the radius — the caller
-    /// should fall back to <see cref="FindNearestNode(LatLon)"/>. The maximum
-    /// distance is generous because the helper is only a discriminator across
-    /// the small set of candidate nodes any near-graph aircraft has within
-    /// reach; selection is by closest-of-the-qualifying, not by absolute
-    /// nearest, so a far node with the right alignment never beats a close
-    /// one.
-    /// </para>
-    /// <para>
-    /// Aircraft positioned <em>at</em> a node (HoldingShortPhase fuselage tip
-    /// at the hold-short line, AtParkingPhase at the spot) still resolve to
-    /// that node because their forward heading aligns with the outbound edge
-    /// the route continues along — the existing-edge test admits the same
-    /// node <see cref="FindNearestNode(LatLon)"/> would have picked.
-    /// </para>
-    /// <para>
-    /// An aircraft away from every node but on a straight taxi edge
-    /// (<see cref="FindOccupiedTaxiEdge"/>) starts at that edge's endpoint ahead,
-    /// so a long edge never hands the start to a nearer node on a parallel
-    /// taxiway. That branch applies neither <paramref name="maxDistFt"/> nor the
-    /// heading-aligned-edge test: the endpoint is on the taxiway the aircraft is
-    /// on, however far along it. An aircraft on no straight edge but on a fillet
-    /// arc (<see cref="FindOccupiedFilletArc"/>), past the end of the edge it
-    /// came off, starts at the arc's end ahead, never the node it entered by.
-    /// </para>
+    /// How far from the aircraft <see cref="FindTaxiStartNode"/> looks for another start when the usual one is an occupied
+    /// stand's parking node or its free-space leg passes a parked aircraft, feet: past the neighbouring stands' nodes and
+    /// lead-ins either side of a narrow-body's stand.
     /// </summary>
-    public GroundNode? FindNearestNodeForTaxi(LatLon position, TrueHeading heading, double maxDistFt = 100.0)
+    public const double OccupiedStandStartSearchFt = 300.0;
+
+    /// <summary>
+    /// On a taxiway's pavement, away from every node (within <paramref name="atNodeNm"/> of no taxi node): the end of the
+    /// straight edge (<see cref="FindOccupiedTaxiEdge"/>) or fillet arc (<see cref="FindOccupiedFilletArc"/>) ahead, so the
+    /// taxi starts on the taxiway the aircraft is on. The nearest node can sit on a parallel taxiway (issue #880: KOAK C/D,
+    /// KSFO B/A) or behind the aircraft. Null off the pavement.
+    /// </summary>
+    private GroundNode? FindPavementStart(LatLon position, TrueHeading heading, double atNodeNm)
     {
-        // Below this distance the candidate node and the aircraft are
-        // effectively co-located — bearing-to-node is undefined and the
-        // existing HoldingShortPhase / AtParkingPhase behaviour (start at the
-        // node the aircraft is sitting at) must be preserved.
-        double atNodeNm = AtNodeToleranceFt / GeoMath.FeetPerNm;
-
-        if (FindAtParkingStart(position, atNodeNm) is { } parkingStart)
+        if (HasTaxiNodeWithin(position, atNodeNm))
         {
-            return parkingStart;
+            return null;
         }
 
-        // On a taxiway's pavement, away from every node: start on that taxiway, at the end of the edge or fillet ahead.
-        // The nearest node can sit on a parallel taxiway (issue #880: KOAK C/D, KSFO B/A) or behind the aircraft.
-        if (!HasTaxiNodeWithin(position, atNodeNm))
+        if (FindOccupiedTaxiEdge(position) is { } occupied)
         {
-            if (FindOccupiedTaxiEdge(position) is { } occupied)
-            {
-                return TaxiEdgeEndpointAhead(position, heading, occupied);
-            }
-
-            if (FindOccupiedFilletArc(position) is { } arc)
-            {
-                return FilletArcEndAhead(position, heading, arc);
-            }
+            return TaxiEdgeEndpointAhead(position, heading, occupied);
         }
 
-        return FindNearestAlignedNode(position, heading, maxDistFt / GeoMath.FeetPerNm, atNodeNm);
+        return (FindOccupiedFilletArc(position) is { } arc) ? FilletArcEndAhead(position, heading, arc) : null;
     }
 
     /// <summary>
-    /// The straight taxi edge an aircraft stands mid-way along when <see cref="FindNearestNodeForTaxi"/> starts its taxi
+    /// The straight taxi edge an aircraft stands mid-way along when <see cref="FindTaxiStartNode"/> starts its taxi
     /// at that edge's endpoint ahead: at no parking node, within <see cref="AtNodeToleranceFt"/> of no taxi node, and on
     /// the edge (<see cref="FindOccupiedTaxiEdge"/>). Null otherwise.
     /// </summary>
@@ -1509,7 +1474,7 @@ public sealed class AirportGroundLayout
     /// Returns true when <paramref name="node"/> has at least one outbound
     /// taxi edge (not RAMP, not runway centerline) whose bearing from the
     /// node toward its neighbor is within 90° of <paramref name="heading"/>.
-    /// Used by <see cref="FindNearestNodeForTaxi"/> to reject candidate
+    /// Used by <see cref="FindTaxiStartNode"/> to reject candidate
     /// start nodes whose only taxi connections head away from the aircraft.
     /// </summary>
     private static bool HasHeadingAlignedTaxiEdge(GroundNode node, TrueHeading heading)
@@ -4447,13 +4412,254 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
-    /// The graph node a taxi from <paramref name="position"/>, facing <paramref name="heading"/>, starts at: the heading-aligned
-    /// endpoint of the nearest taxi edge (<see cref="FindNearestNodeForTaxi"/>, which handles post-pushback poses where the
-    /// aircraft rests between graph nodes — see issue #161), or the absolute nearest node when the position is genuinely
-    /// off-graph. Null when the layout has no node. TAXI and FOLLOWG both start here.
+    /// The graph node a taxi from <paramref name="position"/>, facing <paramref name="heading"/>, starts at: the node of
+    /// <see cref="PickTaxiStart"/>. Null when the layout has no node. TAXI, FOLLOWG and the client's route previews all start
+    /// here.
     /// </summary>
-    public GroundNode? FindTaxiStartNode(LatLon position, TrueHeading heading) =>
-        FindNearestNodeForTaxi(position, heading) ?? FindNearestNode(position);
+    /// <param name="position">Where the aircraft stands.</param>
+    /// <param name="heading">Its nose heading.</param>
+    /// <param name="traffic">The aircraft itself and the other aircraft on the ground the caller can see.</param>
+    /// <returns>The start node, or null when the layout has no node.</returns>
+    public GroundNode? FindTaxiStartNode(LatLon position, TrueHeading heading, TaxiStartTraffic traffic) =>
+        PickTaxiStart(position, heading, traffic)?.Node;
+
+    /// <summary>
+    /// The graph node a taxi from <paramref name="position"/>, facing <paramref name="heading"/>, starts at, and the parked
+    /// or held aircraft that still blocks it when no clear start was found.
+    /// <para>
+    /// In order: the parking node the aircraft stands at (<see cref="FindAtParkingStart"/>); on a taxiway's pavement, the
+    /// end of the edge or fillet arc ahead (<see cref="FindPavementStart"/>); else the nearest non-parking node within
+    /// <see cref="AlignedStartMaxDistFt"/> that is not behind the aircraft and has a taxi edge aligned with its heading
+    /// (<see cref="FindNearestAlignedNode"/>), which keeps a post-pushback pose resting between nodes off the wrong branch
+    /// (issue #161); else the absolute nearest node.
+    /// </para>
+    /// <para>
+    /// A start reached by a free-space leg (the aligned node or the nearest node) never runs through a parked or held
+    /// aircraft (<see cref="TaxiStartTraffic.ParkedOrHeldOthers"/>): when that start is an occupied stand's parking node,
+    /// or its leg passes a parked aircraft or the stand it occupies (<see cref="RampLaneReposition.FindLegObstacle"/>), the
+    /// taxi nodes within <see cref="OccupiedStandStartSearchFt"/> are tried instead — never a parking, helipad or runway
+    /// node; ahead of the nose before behind it, a heading-aligned one first (<see cref="FallbackStartRank"/>); then nearest
+    /// first — and the first whose leg is clear and crosses no runway centreline and no other taxi edge
+    /// (<see cref="IsClearStartLeg"/>) is the start. When every one is ruled out the usual start stands with its blocker,
+    /// and the conflict detector's yield badge names the aircraft it waits for.
+    /// </para>
+    /// <para>
+    /// An aircraft occupies the stand it names only while it stands within <see cref="AtNodeToleranceFt"/> or half its length
+    /// of that stand's parking node (<see cref="OccupiedStandOf"/>): one holding after pushback beside its stand leaves the
+    /// stand empty, and is an obstacle only where it stands.
+    /// </para>
+    /// </summary>
+    /// <param name="position">Where the aircraft stands.</param>
+    /// <param name="heading">Its nose heading.</param>
+    /// <param name="traffic">The aircraft itself and the other aircraft on the ground the caller can see.</param>
+    /// <returns>
+    /// The start node, and the blocker the start was kept with ("stand 23, SWA2436", or a callsign) or null when nothing blocks
+    /// it; null when the layout has no node.
+    /// </returns>
+    public (GroundNode Node, string? Blocker)? PickTaxiStart(LatLon position, TrueHeading heading, TaxiStartTraffic traffic)
+    {
+        double atNodeNm = AtNodeToleranceFt / GeoMath.FeetPerNm;
+        if ((FindAtParkingStart(position, atNodeNm) ?? FindPavementStart(position, heading, atNodeNm)) is { } onSurface)
+        {
+            return (onSurface, null);
+        }
+
+        GroundNode? usual =
+            FindNearestAlignedNode(position, heading, AlignedStartMaxDistFt / GeoMath.FeetPerNm, atNodeNm) ?? FindNearestNode(position);
+        return (usual is null) ? null : AvoidParkedTraffic(usual, position, heading, traffic);
+    }
+
+    /// <summary>
+    /// <paramref name="usual"/>, unless something rules it out (<see cref="StartBlocker"/>): then the first fallback start
+    /// (<see cref="FallbackStartCandidates"/>) that nothing rules out, or <paramref name="usual"/> with its blocker when every
+    /// one is ruled out.
+    /// </summary>
+    private (GroundNode Node, string? Blocker) AvoidParkedTraffic(GroundNode usual, LatLon position, TrueHeading heading, TaxiStartTraffic traffic)
+    {
+        StartObstacles obstacles = StartObstaclesNear(position, traffic);
+        if (StartBlocker(usual, position, traffic, obstacles) is not { } blocker)
+        {
+            return (usual, null);
+        }
+
+        List<IGroundEdge> taxiEdges = TaxiEdgesNear(position);
+        foreach (GroundNode candidate in FallbackStartCandidates(usual, position, heading))
+        {
+            if (IsClearStartLeg(position, candidate, taxiEdges) && (StartBlocker(candidate, position, traffic, obstacles) is null))
+            {
+                Log.LogDebug(
+                    "[TaxiStart] {Callsign}: node {Usual} is blocked by {Blocker}; starting at node {Start} instead",
+                    traffic.Callsign,
+                    usual.Id,
+                    blocker,
+                    candidate.Id
+                );
+                return (candidate, null);
+            }
+        }
+
+        Log.LogDebug(
+            "[TaxiStart] {Callsign}: node {Usual} is blocked by {Blocker} and no node within {SearchFt:F0} ft is clear; keeping it",
+            traffic.Callsign,
+            usual.Id,
+            blocker,
+            OccupiedStandStartSearchFt
+        );
+        return (usual, blocker);
+    }
+
+    /// <summary>
+    /// The parked or held aircraft a free-space start leg is checked against, each naming a stand only while it occupies it
+    /// (<see cref="OccupiedStandOf"/>), and the aircraft occupying each stand, by the stand's parking node id.
+    /// </summary>
+    private sealed record StartObstacles(List<NeighbourCandidate> Aircraft, Dictionary<int, NeighbourCandidate> OccupiedStands);
+
+    /// <summary>
+    /// The parked or held aircraft near enough to <paramref name="position"/> to rule out a start: within
+    /// <see cref="OccupiedStandStartSearchFt"/> plus the leg's clearance (<see cref="RampLaneReposition.FindLegObstacle"/>)
+    /// and the reach of the stand it occupies. Each stand is resolved once.
+    /// </summary>
+    private StartObstacles StartObstaclesNear(LatLon position, TaxiStartTraffic traffic)
+    {
+        double ownHalfSpanFt = AircraftFootprint.ResolveWingspanFt(traffic.AircraftType) / 2.0;
+        var aircraft = new List<NeighbourCandidate>();
+        var occupiedStands = new Dictionary<int, NeighbourCandidate>();
+        foreach (NeighbourCandidate other in traffic.ParkedOrHeldOthers())
+        {
+            double reachFt =
+                OccupiedStandStartSearchFt
+                + ownHalfSpanFt
+                + (AircraftFootprint.ResolveWingspanFt(other.AircraftType) / 2.0)
+                + GroundOutlineSweep.WingtipBufferFt
+                + StandToleranceFt(other);
+            if ((GeoMath.DistanceNm(position, other.Position) * GeoMath.FeetPerNm) > reachFt)
+            {
+                continue;
+            }
+
+            GroundNode? stand = OccupiedStandOf(other);
+            NeighbourCandidate obstacle = (stand is null) ? other with { StandName = null } : other;
+            aircraft.Add(obstacle);
+            if (stand is not null)
+            {
+                occupiedStands.TryAdd(stand.Id, obstacle);
+            }
+        }
+
+        return new StartObstacles(aircraft, occupiedStands);
+    }
+
+    /// <summary>
+    /// How far from its stand's parking node an aircraft still occupies the stand, feet: <see cref="AtNodeToleranceFt"/> or
+    /// half its length, whichever is more.
+    /// </summary>
+    private static double StandToleranceFt(NeighbourCandidate aircraft) =>
+        Math.Max(AtNodeToleranceFt, AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0);
+
+    /// <summary>
+    /// The parking node of the stand <paramref name="aircraft"/> names, while it stands within <see cref="StandToleranceFt"/>
+    /// of it; null when it names none or stands away from it (pushed back beside it, say).
+    /// </summary>
+    private GroundNode? OccupiedStandOf(NeighbourCandidate aircraft)
+    {
+        if ((aircraft.StandName is not { } name) || (FindParkingByName(name) is not { } stand))
+        {
+            return null;
+        }
+
+        return ((GeoMath.DistanceNm(aircraft.Position, stand.Position) * GeoMath.FeetPerNm) <= StandToleranceFt(aircraft)) ? stand : null;
+    }
+
+    /// <summary>
+    /// What rules <paramref name="start"/> out as the start of a free-space leg from <paramref name="position"/>: the
+    /// aircraft occupying the stand whose parking node it is, or the parked or held aircraft the leg passes, or whose stand
+    /// it passes (<see cref="RampLaneReposition.FindLegObstacle"/>); null when nothing does.
+    /// </summary>
+    private string? StartBlocker(GroundNode start, LatLon position, TaxiStartTraffic traffic, StartObstacles obstacles)
+    {
+        if (obstacles.OccupiedStands.TryGetValue(start.Id, out NeighbourCandidate? occupant))
+        {
+            return DescribeBlocker(occupant);
+        }
+
+        double halfSpanFt = AircraftFootprint.ResolveWingspanFt(traffic.AircraftType) / 2.0;
+        foreach (NeighbourCandidate other in obstacles.Aircraft)
+        {
+            if (RampLaneReposition.FindLegObstacle(this, traffic.Callsign, halfSpanFt, [other], position, start.Position) is not null)
+            {
+                return DescribeBlocker(other);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>A blocker as the TAXI response names it: "stand 23, SWA2436" for a stand occupant, else its callsign.</summary>
+    private static string DescribeBlocker(NeighbourCandidate blocker) =>
+        (blocker.StandName is { } standName) ? $"stand {standName}, {blocker.Callsign}" : blocker.Callsign;
+
+    /// <summary>
+    /// The nodes a blocked start may fall back to, best first: every taxi node within <see cref="OccupiedStandStartSearchFt"/>
+    /// of <paramref name="position"/> but <paramref name="usual"/> and any parking, helipad or runway node
+    /// (<see cref="IsFallbackStartNode"/>), ranked by <see cref="FallbackStartRank"/>, then nearest first, then by node id.
+    /// </summary>
+    private IEnumerable<GroundNode> FallbackStartCandidates(GroundNode usual, LatLon position, TrueHeading heading)
+    {
+        double searchNm = OccupiedStandStartSearchFt / GeoMath.FeetPerNm;
+        double atNodeNm = AtNodeToleranceFt / GeoMath.FeetPerNm;
+        return Nodes
+            .Values.Where(n => (n.Id != usual.Id) && IsFallbackStartNode(n))
+            .Select(n => (Node: n, DistNm: GeoMath.DistanceNm(position, n.Position)))
+            .Where(c => c.DistNm <= searchNm)
+            .OrderBy(c => FallbackStartRank(c.Node, c.DistNm, position, heading, atNodeNm))
+            .ThenBy(c => c.DistNm)
+            .ThenBy(c => c.Node.Id)
+            .Select(c => c.Node);
+    }
+
+    /// <summary>A node a taxi may start at by a free-space leg: one with edges, not a parking or helipad node, on no runway centreline.</summary>
+    private static bool IsFallbackStartNode(GroundNode node) =>
+        (node.Edges.Count > 0) && (node.Type is not (GroundNodeType.Parking or GroundNodeType.Helipad)) && !node.Edges.Any(e => e.IsRunwayCenterline);
+
+    /// <summary>
+    /// A fallback start's rank, lower first: 0 within 90° of the nose with a taxi edge aligned with the heading
+    /// (<see cref="HasHeadingAlignedTaxiEdge"/>), 1 within 90° of the nose without one, 2 behind. A node within
+    /// <paramref name="atNodeNm"/> counts as ahead, its bearing being meaningless there.
+    /// </summary>
+    private static int FallbackStartRank(GroundNode node, double distNm, LatLon position, TrueHeading heading, double atNodeNm)
+    {
+        bool ahead = (distNm <= atNodeNm) || (GeoMath.AbsBearingDifference(GeoMath.BearingTo(position, node.Position), heading.Degrees) < 90.0);
+        if (!ahead)
+        {
+            return 2;
+        }
+
+        return HasHeadingAlignedTaxiEdge(node, heading) ? 0 : 1;
+    }
+
+    /// <summary>
+    /// The edges within <see cref="OccupiedStandStartSearchFt"/> of <paramref name="position"/> a fallback start leg may not
+    /// cross: every edge that is not apron (RAMP), and every edge touching a runway holding position.
+    /// </summary>
+    private List<IGroundEdge> TaxiEdgesNear(LatLon position) =>
+        [
+            .. AllEdges.Where(e =>
+                ((!e.IsRamp) || e.Nodes.Any(n => n.Type == GroundNodeType.RunwayHoldShort))
+                && (GeoMath.DistanceToSegmentFt(position, e.Nodes[0].Position, e.Nodes[1].Position) <= OccupiedStandStartSearchFt)
+            ),
+        ];
+
+    /// <summary>
+    /// The straight leg from <paramref name="position"/> to <paramref name="candidate"/> crosses no runway centreline
+    /// (<see cref="RunwayCenterlineBetween"/>) and none of <paramref name="taxiEdges"/> but the candidate's own, as a
+    /// ramp-confined cut may not.
+    /// </summary>
+    private bool IsClearStartLeg(LatLon position, GroundNode candidate, List<IGroundEdge> taxiEdges) =>
+        !RunwayCenterlineBetween(position, candidate.Position)
+        && !taxiEdges.Any(e =>
+            !e.HasNode(candidate.Id)
+            && (GeoMath.SegmentsIntersect(position, candidate.Position, e.Nodes[0].Position, e.Nodes[1].Position) is not null)
+        );
 
     // LatLon-shaped overloads of the find methods. Thin wrappers around the scalar forms above.
 

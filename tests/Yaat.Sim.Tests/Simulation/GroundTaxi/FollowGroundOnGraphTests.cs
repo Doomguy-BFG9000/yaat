@@ -2016,7 +2016,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         Assert.IsType<CrossingRunwayPhase>(middle.Phases?.CurrentPhase);
         TaxiRoute assigned = Assert.IsType<TaxiRoute>(middle.Ground.AssignedTaxiRoute);
         Assert.False(assigned.IsComplete, "the middle aircraft's pre-follow taxi route is complete, so the plan cannot read it");
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, middle));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, middle, () => []));
         TaxiTrailEdge? newest = middle.Ground.TaxiEdgeTrail.Newest;
         GroundEdge under = Assert.IsType<GroundEdge>(
             TaxiEdgeLocator.EdgeUnder(run.Layout, middle.Position, newest is { } n ? (n.NodeA, n.NodeB) : null)
@@ -2413,7 +2413,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         );
         follower.Ground.Layout = layout;
         HashSet<int> goal = [southOf28R.Segments[^1].ToNodeId];
-        FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(layout, follower, goal);
+        FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(layout, follower, goal, () => []);
         Assert.True(onto.HasValue, $"no way back from 28R's bar #{chain[0].Id} onto B south of the runway");
         output.WriteLine($"way back {string.Join(" ", onto.Value.Segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}"))}");
         Assert.Equal(chain[0].Id, onto.Value.Segments[0].FromNodeId);
@@ -2434,7 +2434,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         }
 
         int behind = RouteSouthOf28ROnB(leadIn.Layout).Segments[0].FromNodeId;
-        FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(leadIn.Layout, leadIn.Follower, new HashSet<int> { behind });
+        FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(leadIn.Layout, leadIn.Follower, new HashSet<int> { behind }, () => []);
         Assert.NotNull(onto);
 
         List<TaxiRouteSegment> segments = onto.Value.Segments;
@@ -2471,7 +2471,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(at, next)
         );
         aircraft.Ground.Layout = layout;
-        FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(layout, aircraft, new HashSet<int> { next.Id });
+        FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(layout, aircraft, new HashSet<int> { next.Id }, () => []);
         output.WriteLine(
             onto is { } route
                 ? $"route {string.Join(" ", route.Segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}"))}"
@@ -2590,7 +2590,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(south, farBar)
         );
         follower.Ground.Layout = layout;
-        FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(layout, follower, new HashSet<int> { chain[1].Id });
+        FollowRoutePlanner.RouteFromHere? onto = FollowRoutePlanner.RouteOnto(layout, follower, new HashSet<int> { chain[1].Id }, () => []);
         Assert.True(onto.HasValue, $"no way back from south of 28R's bar #{farBar.Id} onto B node #{chain[1].Id}");
         output.WriteLine($"way back {string.Join(" ", onto.Value.Segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}"))}");
         return new LeadIn(layout, follower, farBar, onto.Value);
@@ -3790,7 +3790,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         follower.Phases.Add(new FollowingPhase(run.Lead.Callsign));
         follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, run.Layout));
         run.Engine.World.AddAircraft(follower);
-        Assert.IsType<FollowRoutePlan.FollowerAhead>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        Assert.IsType<FollowRoutePlan.FollowerAhead>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
         return new MergeRun(run.Engine, run.Layout, run.Lead, follower);
     }
 
@@ -3862,7 +3862,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
         follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, layout));
         engine.World.AddAircraft(follower);
-        Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Plan(layout, follower, lead));
+        Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         return new MergeRun(engine, layout, lead, follower);
     }
 

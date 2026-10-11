@@ -80,10 +80,16 @@ public class SfoT9AB1ConnectorTests
         // Precondition: this fixture is the disconnected variant (A/B1 share no junction).
         int ab1 = layout.Nodes.Values.Count(n => n.Edges.Any(e => e.MatchesTaxiway("A")) && n.Edges.Any(e => e.MatchesTaxiway("B1")));
         Assert.Equal(0, ab1);
-
-        GroundNode? startNode =
-            layout.FindNearestNodeForTaxi(new LatLon(StartLat, StartLon), new TrueHeading(StartHeading))
-            ?? layout.FindNearestNode(StartLat, StartLon);
+        GroundNode? startNode = layout.FindTaxiStartNode(
+            new LatLon(StartLat, StartLon),
+            new TrueHeading(StartHeading),
+            new TaxiStartTraffic
+            {
+                Callsign = "TEST",
+                AircraftType = "B738",
+                OtherGroundAircraft = [],
+            }
+        );
         Assert.NotNull(startNode);
 
         TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(

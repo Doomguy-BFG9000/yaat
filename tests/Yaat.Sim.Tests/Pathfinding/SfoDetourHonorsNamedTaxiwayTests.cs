@@ -48,7 +48,16 @@ public class SfoDetourHonorsNamedTaxiwayTests
         var standHeading = new TrueHeading(StandHeadingDeg);
 
         // The same start-node resolution GroundCommandHandler.TryTaxi performs for a TAXI command.
-        GroundNode? startNode = layout.FindNearestNodeForTaxi(stand!.Position, standHeading) ?? layout.FindNearestNode(stand.Position);
+        GroundNode? startNode = layout.FindTaxiStartNode(
+            stand!.Position,
+            standHeading,
+            new TaxiStartTraffic
+            {
+                Callsign = "TEST",
+                AircraftType = "B738",
+                OtherGroundAircraft = [],
+            }
+        );
         Assert.NotNull(startNode);
 
         TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(

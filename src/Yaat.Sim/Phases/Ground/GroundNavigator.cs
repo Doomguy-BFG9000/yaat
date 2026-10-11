@@ -225,6 +225,17 @@ public sealed class GroundNavigator
     public double MaxSpeedKts { get; set; }
 
     /// <summary>
+    /// The speed (kts) the navigator last asked for, before the conflict/airport <see cref="AircraftGroundOps.SpeedLimit"/>
+    /// clamp: its straight, braking-curve and corner caps (a corner's speed in a corner). Null until it first publishes a
+    /// speed — a fresh navigator, or one restored from a snapshot, which does not carry it.
+    /// <para>
+    /// Display-only: <see cref="GroundConflictDetector"/> reads it to tell a limit that is holding the aircraft below what it
+    /// asks for (its yield label) from one it would not reach anyway. It feeds no speed, physics or command decision.
+    /// </para>
+    /// </summary>
+    public double? RequestedSpeedKts { get; private set; }
+
+    /// <summary>
     /// Minimum forward speed (kts) the navigator commands while following — a speed floor that overrides the
     /// internal braking curve, corner-speed caps, and re-acquire gate (but never the conflict/airport
     /// <see cref="AircraftState.GroundSpeedLimit"/> ceiling, which always wins for safety). Default 0 (no
@@ -3976,7 +3987,7 @@ public sealed class GroundNavigator
         {
             double currentTangent = CurrentSlowTurnTangentDeg(prim);
             ctx.Targets.TargetTrueHeading = new TrueHeading(currentTangent);
-            PublishSpeed(ctx, cappedTarget);
+            PublishSpeed(ctx, prim.MaxSpeedKts);
             return NavigatorResult.Navigating;
         }
 
@@ -4009,7 +4020,7 @@ public sealed class GroundNavigator
         // ComputeTargetSpeed braking-curve logic because SlowTurn primitives
         // don't participate in the multi-segment speed constraint system.
         ctx.Targets.TargetTrueHeading = new TrueHeading(tangentDeg);
-        PublishSpeed(ctx, cappedTarget);
+        PublishSpeed(ctx, prim.MaxSpeedKts);
 
         double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         PrevDistToTarget = distToNode;
@@ -4611,6 +4622,7 @@ public sealed class GroundNavigator
     /// </summary>
     private void PublishSpeed(PhaseContext ctx, double targetKts)
     {
+        RequestedSpeedKts = targetKts;
         ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetKts);
         ctx.Targets.DesiredDecelRate = ((SlowdownDecelRateKts is { } slowdownRate) && !_stopCurveBinds) ? slowdownRate : DecelRateKts;
     }

@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
@@ -7,6 +8,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -69,7 +71,7 @@ public class GroundConflictDetectorTests
             far.Position,
             FollowCornerGeometry.Facing(far, junction)
         );
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
         Assert.Equal(junction.Id, plan.MergeNode);
         Assert.True(plan.MergeAheadOfLead);
         Assert.Equal(route.Segments[into + 1].ToNodeId, plan.LeadPathFromMerge[0].ToNodeId);
@@ -406,17 +408,46 @@ public class GroundConflictDetectorTests
     }
 
     [Fact]
-    public void ParkedNeighbor_RoutePassesTooClose_MoverStops()
+    public void ParkedNeighbor_RoutePassesTooClose_MoverStops_ShowsYieldTarget()
     {
-        // Same geometry, but the route runs 60 ft from the parked aircraft — inside the wingspan
-        // clearance — so the mover still stops.
+        // Same geometry, but the route runs 60 ft from the parked aircraft — inside the wingspan clearance — so the mover
+        // still stops. YAAT-576: the parked aircraft holding it shows on its datablock, as a pusher's yield already does —
+        // otherwise the mover sits stopped with no reason the operator can see.
         (AircraftState? parked, AircraftState? mover) = BuildParkedNeighborPair(routeLateralFt: 60.0, moverGs: 0);
 
         var aircraft = new List<AircraftState> { parked, mover };
         GroundConflictDetector.ApplySpeedLimits(aircraft, null);
 
-        Assert.NotNull(mover.Ground.SpeedLimit);
-        Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+        Assert.Equal(0.0, mover.Ground.SpeedLimit);
+        Assert.Equal("PRK", mover.Ground.AutoYieldTarget);
+        Assert.False(mover.Ground.AutoYieldIsFollowing);
+    }
+
+    [Fact]
+    public void ParkedNeighbor_RouteClearsIt_NoYieldTarget()
+    {
+        // The route clears the parked aircraft, so nothing holds the mover and no yield is named.
+        (AircraftState? parked, AircraftState? mover) = BuildParkedNeighborPair(routeLateralFt: 140.0, moverGs: 0);
+
+        var aircraft = new List<AircraftState> { parked, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Null(mover.Ground.SpeedLimit);
+        Assert.Null(mover.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void ParkedNeighbor_MoverWithoutRoute_ShowsYieldTarget()
+    {
+        // No route, so the heading-only stop rules; the parked aircraft that stops it is still named.
+        (AircraftState? parked, AircraftState? mover) = BuildParkedNeighborPair(routeLateralFt: null, moverGs: 8);
+
+        var aircraft = new List<AircraftState> { parked, mover };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Equal(0.0, mover.Ground.SpeedLimit);
+        Assert.Equal("PRK", mover.Ground.AutoYieldTarget);
+        Assert.False(mover.Ground.AutoYieldIsFollowing);
     }
 
     [Fact]
@@ -460,6 +491,9 @@ public class GroundConflictDetectorTests
             mover.Ground.SpeedLimit <= 5.0,
             $"the next segment passes 40ft from the parked aircraft, but the mover kept {mover.Ground.SpeedLimit}kt"
         );
+
+        // A crawl under its commanded taxi speed is a hold by the parked aircraft, and the datablock names it (YAAT-576).
+        Assert.Equal("PRK", mover.Ground.AutoYieldTarget);
     }
 
     [Fact]
@@ -493,6 +527,251 @@ public class GroundConflictDetectorTests
 
         Assert.NotNull(mover.Ground.SpeedLimit);
         Assert.Equal(0.0, mover.Ground.SpeedLimit!.Value);
+        Assert.Equal("PRK", mover.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>
+    /// YAAT-576: two parked neighbours hold the same mover, one stopping it inside the stop ring and one slowing it to a crawl
+    /// in the trail band. The label names the one whose limit binds, the stopping one, whichever pair the detector resolves
+    /// first.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ParkedHolders_TwoWithDifferentLimits_NamesTheStricter(bool stricterFirst)
+    {
+        AircraftState mover = NorthboundE75L();
+        AircraftState stopping = ParkedB738("STP", mover.Position, bearingDeg: 340.0, distFt: 120.0);
+        AircraftState slowing = ParkedB738("TRL", mover.Position, bearingDeg: 20.0, distFt: 200.0);
+
+        List<AircraftState> aircraft = stricterFirst ? [mover, stopping, slowing] : [mover, slowing, stopping];
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Equal(0.0, mover.Ground.SpeedLimit);
+        Assert.Equal("STP", mover.Ground.AutoYieldTarget);
+        Assert.False(mover.Ground.AutoYieldIsFollowing);
+    }
+
+    /// <summary>
+    /// YAAT-576: a moving lead on the same edge stops the mover in trail, and a parked neighbour beside it would stop it too.
+    /// The parked limit is no stricter than the lead's, so the label keeps naming the lead, following.
+    /// </summary>
+    [Fact]
+    public void ParkedHolder_MovingLeadAlreadyStopsTheMover_KeepsFollowing()
+    {
+        (AirportGroundLayout? layout, GroundNode? n0, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        AircraftState mover = MakeAircraft("MOV", n0.Position, heading: 0, gs: 10, taxiRoute: SimpleLayoutRoute(layout), phase: new TaxiingPhase());
+        AircraftState lead = MakeAircraft(
+            "LED",
+            new LatLon(BaseLat + (1.2 * OffsetLatPer100Ft), BaseLon),
+            heading: 0,
+            gs: 10,
+            taxiRoute: SimpleLayoutRoute(layout),
+            phase: new TaxiingPhase()
+        );
+        AircraftState parked = ParkedB738("PRK", mover.Position, bearingDeg: 60.0, distFt: 140.0);
+
+        GroundConflictDetector.ApplySpeedLimits([mover, lead, parked], layout);
+
+        Assert.Equal(0.0, mover.Ground.SpeedLimit);
+        Assert.Equal("LED", mover.Ground.AutoYieldTarget);
+        Assert.True(mover.Ground.AutoYieldIsFollowing);
+    }
+
+    /// <summary>
+    /// YAAT-576: the label is measured against the speed the navigator asks for now, not the commanded taxi speed: a limit
+    /// 1 kt under the navigator's request shaves nothing worth naming, while one 3 kt under it is a hold and names the parked
+    /// neighbour. The commanded speed is set 10 kt above the request, so a label measured against it would name the shave.
+    /// </summary>
+    [Fact]
+    public void ParkedHolder_LimitOneKnotUnderTheNavigatorsRequest_NamesNothing()
+    {
+        (AircraftState mover, TaxiingPhase taxiing) = TaxiingOnTheSimpleLayout();
+        double requestKts = Assert.NotNull(taxiing.NavRequestedSpeedKts);
+        Assert.True(requestKts > 3.0, $"the navigator asked for only {requestKts:F1} kt");
+        mover.Ground.CommandedTaxiSpeedKts = requestKts + 10.0;
+        AircraftState parked = ParkedB738("PRK", mover.Position, bearingDeg: 30.0, distFt: 100.0);
+
+        GroundConflictDetector.ShowParkedHolderYield(mover, parked, requestKts - 1.0);
+        Assert.Null(mover.Ground.AutoYieldTarget);
+
+        GroundConflictDetector.ShowParkedHolderYield(mover, parked, requestKts - 3.0);
+        Assert.Equal("PRK", mover.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>
+    /// YAAT-576: a taxiing phase restored from a snapshot carries no navigator request until it next ticks. The detector's
+    /// first pass after the restore falls back to the commanded taxi speed (here the category's), without throwing, and still
+    /// names the parked neighbour that stops the mover.
+    /// </summary>
+    [Fact]
+    public void ParkedHolder_RestoredTaxiingPhaseBeforeItsFirstTick_FallsBackAndNamesTheHolder()
+    {
+        (AircraftState mover, TaxiingPhase taxiing) = TaxiingOnTheSimpleLayout();
+        Assert.NotNull(taxiing.NavRequestedSpeedKts);
+        var restored = TaxiingPhase.FromSnapshot((TaxiingPhaseDto)taxiing.ToSnapshot());
+        Assert.Null(restored.NavRequestedSpeedKts);
+        mover.Phases = new PhaseList();
+        mover.Phases.Add(restored);
+        AircraftState parked = ParkedB738("PRK", mover.Position, bearingDeg: 30.0, distFt: 100.0);
+
+        GroundConflictDetector.ApplySpeedLimits([mover, parked], mover.Ground.Layout);
+
+        Assert.Equal(0.0, mover.Ground.SpeedLimit);
+        Assert.Equal("PRK", mover.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>
+    /// YAAT-576, through the convergence closing check with a winner: the winner nearer the junction is slowed in the trail
+    /// band for the moving yielder behind it, and the yielder keeps the convergence's label. A moving aircraft is never
+    /// named as a parked holder, so the winner carries no label.
+    /// </summary>
+    [Fact]
+    public void ConvergenceClosing_WinnerSlowedForAMovingYielder_NamesNoHolder()
+    {
+        (AirportGroundLayout layout, AircraftState yielder, AircraftState winner) = ConvergingB744s(fromSouthFt: 270.0);
+
+        GroundConflictDetector.ApplySpeedLimits([yielder, winner], layout);
+
+        Assert.Equal(GroundConflictDetector.SlowTaxiSpeedKts, winner.Ground.SpeedLimit);
+        Assert.Null(winner.Ground.AutoYieldTarget);
+        Assert.Equal("NEA", yielder.Ground.AutoYieldTarget);
+        Assert.False(yielder.Ground.AutoYieldIsFollowing);
+    }
+
+    /// <summary>
+    /// YAAT-576, through the crossing checks a convergence falls back to when the winner clears the junction first: the
+    /// winner is still slowed in the trail band for the moving aircraft behind it, and names nobody — a moving aircraft is
+    /// never a parked holder, and the convergence named no yield.
+    /// </summary>
+    [Fact]
+    public void CrossingChecks_WinnerClearsFirst_SlowedForAMovingAircraft_NamesNoHolder()
+    {
+        (AirportGroundLayout layout, AircraftState farther, AircraftState nearer) = ConvergingB744s(fromSouthFt: 330.0);
+
+        GroundConflictDetector.ApplySpeedLimits([farther, nearer], layout);
+
+        Assert.Equal(GroundConflictDetector.SlowTaxiSpeedKts, nearer.Ground.SpeedLimit);
+        Assert.Null(nearer.Ground.AutoYieldTarget);
+        Assert.Null(farther.Ground.AutoYieldTarget);
+    }
+
+    /// <summary>An E75L at the base point, nose north at 10 kt, on a straight route north along the base longitude.</summary>
+    private static AircraftState NorthboundE75L()
+    {
+        var from = new GroundNode
+        {
+            Id = 20,
+            Position = new LatLon(BaseLat - (0.5 * OffsetLatPer100Ft), BaseLon),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var to = new GroundNode
+        {
+            Id = 21,
+            Position = new LatLon(BaseLat + (4 * OffsetLatPer100Ft), BaseLon),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        AircraftState mover = MakeAircraft("MOV", new LatLon(BaseLat, BaseLon), heading: 0, gs: 10, taxiRoute: MakeRoute(MakeGeoSeg(from, to)));
+        mover.AircraftType = ParkedNeighborMoverType;
+        return mover;
+    }
+
+    /// <summary>A B738 at parking <paramref name="distFt"/> from <paramref name="from"/> on a true bearing of <paramref name="bearingDeg"/>.</summary>
+    private static AircraftState ParkedB738(string callsign, LatLon from, double bearingDeg, double distFt) =>
+        MakeAircraft(
+            callsign,
+            GeoMath.ProjectPoint(from, new TrueHeading(bearingDeg), distFt / FtPerNm),
+            heading: 0,
+            gs: 0,
+            phase: new AtParkingPhase()
+        );
+
+    /// <summary><see cref="BuildSimpleLayout"/>'s two edges north, node 0 to node 2.</summary>
+    private static TaxiRoute SimpleLayoutRoute(AirportGroundLayout layout) =>
+        MakeRoute(MakeSeg(0, 1, "A", layout.Edges[0]), MakeSeg(1, 2, "A", layout.Edges[1]));
+
+    /// <summary>
+    /// A B738 started taxiing north from node 0 of <see cref="BuildSimpleLayout"/> and ticked three seconds, so its navigator
+    /// has published a requested speed; with its taxiing phase.
+    /// </summary>
+    private static (AircraftState Mover, TaxiingPhase Taxiing) TaxiingOnTheSimpleLayout()
+    {
+        (AirportGroundLayout? layout, GroundNode? n0, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        AircraftState mover = MakeAircraft("MOV", n0.Position, heading: 0, gs: 0, taxiRoute: SimpleLayoutRoute(layout));
+        mover.Ground.Layout = layout;
+        var taxiing = new TaxiingPhase();
+        mover.Phases = new PhaseList();
+        mover.Phases.Add(taxiing);
+        var ctx = new PhaseContext
+        {
+            Aircraft = mover,
+            Targets = mover.Targets,
+            Category = AircraftCategorization.Categorize(mover.AircraftType),
+            DeltaSeconds = 1.0,
+            GroundLayout = layout,
+            Logger = NullLogger.Instance,
+        };
+        mover.Phases.Start(ctx);
+        for (int second = 0; second < 3; second++)
+        {
+            taxiing.OnTick(ctx);
+            FlightPhysics.Update(mover, ctx.DeltaSeconds);
+        }
+
+        return (mover, taxiing);
+    }
+
+    /// <summary>
+    /// Two taxiing B744s converging on one junction at the base point: <c>SOU</c> <paramref name="fromSouthFt"/> south of it
+    /// at 5 kt, nose north, and <c>NEA</c> 5 ft north-east of it at 30 kt, nose south-west, each on a route ending at the
+    /// junction. NEA is the nearer, so it is the convergence's winner unless it clears the junction well before SOU arrives;
+    /// past the pair's stop ring and inside its trail band, NEA's closing check slows it to
+    /// <see cref="GroundConflictDetector.SlowTaxiSpeedKts"/> for the 5 kt aircraft behind it.
+    /// </summary>
+    private static (AirportGroundLayout Layout, AircraftState FromSouth, AircraftState FromNortheast) ConvergingB744s(double fromSouthFt)
+    {
+        var junction = new GroundNode
+        {
+            Id = 30,
+            Position = new LatLon(BaseLat, BaseLon),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var south = new GroundNode
+        {
+            Id = 31,
+            Position = GeoMath.ProjectPoint(junction.Position, new TrueHeading(180.0), 500.0 / FtPerNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var northeast = new GroundNode
+        {
+            Id = 32,
+            Position = GeoMath.ProjectPoint(junction.Position, new TrueHeading(45.0), 500.0 / FtPerNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+        layout.Nodes[junction.Id] = junction;
+        layout.Nodes[south.Id] = south;
+        layout.Nodes[northeast.Id] = northeast;
+
+        AircraftState fromSouth = MakeAircraft(
+            "SOU",
+            GeoMath.ProjectPoint(junction.Position, new TrueHeading(180.0), fromSouthFt / FtPerNm),
+            heading: 0,
+            gs: 5,
+            taxiRoute: MakeRoute(MakeGeoSeg(south, junction)),
+            phase: new TaxiingPhase()
+        );
+        AircraftState fromNortheast = MakeAircraft(
+            "NEA",
+            GeoMath.ProjectPoint(junction.Position, new TrueHeading(45.0), 5.0 / FtPerNm),
+            heading: 225,
+            gs: 30,
+            taxiRoute: MakeRoute(MakeGeoSeg(northeast, junction)),
+            phase: new TaxiingPhase()
+        );
+        fromSouth.AircraftType = "B744";
+        fromNortheast.AircraftType = "B744";
+        return (layout, fromSouth, fromNortheast);
     }
 
     private static TaxiRoute MakeRoute(params TaxiRouteSegment[] segments)

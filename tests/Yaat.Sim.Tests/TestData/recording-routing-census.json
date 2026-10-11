@@ -1475,6 +1475,20 @@
     "Solo": true
   },
   {
+    "File": "oak576-push-te-parked-neighbour-recording.yaat-bug-report-bundle.zip",
+    "Commands": 202,
+    "ByKind": {
+      "Compound": 46,
+      "FlightPlan": 1,
+      "SetActivePosition": 1,
+      "Strip": 154
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 1,
+    "Solo": false
+  },
+  {
     "File": "parallel-mlt-from-upwind-recording.yaat-bug-report-bundle.zip",
     "Commands": 121,
     "ByKind": {

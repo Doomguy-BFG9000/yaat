@@ -1368,12 +1368,15 @@ public partial class GroundViewModel : ObservableObject
     /// to preview. A route that does not resolve from here is dropped. Empty without a layout, a navigation database,
     /// routes or a start node.
     /// </summary>
-    public List<TaxiRouteRow> GetPresetTaxiChoices(AircraftModel ac) => [.. PresetTaxiRows(ac).Select(preset => preset.Row)];
+    public List<TaxiRouteRow> GetPresetTaxiChoices(AircraftModel ac) =>
+        ((_domainLayout is { } layout) && (TaxiStartNode(layout, ac) is { } start))
+            ? [.. PresetTaxiRows(layout, start, ac).Select(preset => preset.Row)]
+            : [];
 
-    /// <summary><see cref="GetPresetTaxiChoices"/>'s rows, each with the preset it was built from.</summary>
-    private List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> PresetTaxiRows(AircraftModel ac)
+    /// <summary><see cref="GetPresetTaxiChoices"/>'s rows from <paramref name="start"/>, each with the preset it was built from.</summary>
+    private List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> PresetTaxiRows(AirportGroundLayout layout, GroundNode start, AircraftModel ac)
     {
-        if ((_domainLayout is not { } layout) || (NavigationDatabase.InstanceOrNull is not { } navDb) || (TaxiStartNode(layout, ac) is not { } start))
+        if (NavigationDatabase.InstanceOrNull is not { } navDb)
         {
             return [];
         }
@@ -1429,11 +1432,21 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The node a taxi from <paramref name="ac"/> starts at, as the server picks it: on the taxiway the aircraft is on, else
-    /// the heading-aligned node (<see cref="AirportGroundLayout.FindNearestNodeForTaxi"/>), else the nearest node.
+    /// The node a taxi from <paramref name="ac"/> starts at, as the server picks it (<see cref="AirportGroundLayout.FindTaxiStartNode"/>),
+    /// against the aircraft the server's world holds: never an occupied stand's parking node, nor a node whose free-space leg
+    /// passes a parked aircraft.
     /// </summary>
-    private static GroundNode? TaxiStartNode(AirportGroundLayout layout, AircraftModel ac) =>
-        layout.FindNearestNodeForTaxi(ac.Position, ac.Heading) ?? layout.FindNearestNode(ac.Position);
+    private GroundNode? TaxiStartNode(AirportGroundLayout layout, AircraftModel ac) =>
+        layout.FindTaxiStartNode(
+            ac.Position,
+            ac.Heading,
+            new TaxiStartTraffic
+            {
+                Callsign = ac.Callsign,
+                AircraftType = ac.AircraftType,
+                OtherGroundAircraft = ServerWorldCandidates(),
+            }
+        );
 
     /// <summary>Whether <paramref name="ac"/> stands at <paramref name="node"/>: under 25 ft away, 0 ft once rounded to 50 ft.</summary>
     private static bool StandsAt(AircraftModel ac, GroundNode node) =>
@@ -1469,7 +1482,7 @@ public partial class GroundViewModel : ObservableObject
             return TaxiToRunwayMenu.Empty;
         }
 
-        List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> presets = PresetTaxiRows(ac);
+        List<(TaxiRouteDefinition Preset, TaxiRouteRow Row)> presets = PresetTaxiRows(layout, start, ac);
         List<RunwayIdentifier> runways = RunwaysWithHoldShorts(layout);
         string assignedRunway = ac.AssignedRunway;
         List<string> departureEnds = ActiveDepartureRunwayEnds(layout.AirportId);
@@ -2561,9 +2574,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        // The server's start: on the taxiway the aircraft is on (the endpoint ahead of a straight edge or fillet arc it
-        // stands mid-way along), else the heading-aligned node, else the nearest node.
-        GroundNode? start = layout.FindNearestNodeForTaxi(ac.Position, ac.Heading) ?? layout.FindNearestNode(ac.Position);
+        GroundNode? start = TaxiStartNode(layout, ac);
         return (start is null) ? null : ResolveRemainingRouteFrom(ac, request, start);
     }
 
@@ -3818,13 +3829,14 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Every aircraft this view knows that the server's world holds. A delayed spawn is listed ahead of its spawn time
-    /// but is not in the world yet, so the server's tug planning cannot see it and neither may the preview.
+    /// Every aircraft on the ground this view knows that the server's world holds. A delayed spawn is listed ahead of its
+    /// spawn time but is not in the world yet, so the server's tug planning cannot see it and neither may the preview; an
+    /// airborne aircraft is no ground neighbour, as the server's taxi start lists only aircraft on the ground.
     /// </summary>
     private List<NeighbourCandidate> ServerWorldCandidates()
     {
         IReadOnlyList<AircraftModel> all = _aircraftProvider?.Invoke() ?? [];
-        return [.. all.Where(ac => !ac.IsDelayed).Select(TugCandidateOf)];
+        return [.. all.Where(ac => (!ac.IsDelayed) && (ac.IsOnGround)).Select(TugCandidateOf)];
     }
 
     /// <summary>The aircraft as the tug planner and the push-target live check see it.</summary>

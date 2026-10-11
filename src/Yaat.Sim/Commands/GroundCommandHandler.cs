@@ -200,9 +200,8 @@ public static class GroundCommandHandler
             foldTargets = [];
         }
 
-        GroundNode? startNode = groundLayout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading);
-
-        if (startNode is null)
+        var traffic = TaxiStartTraffic.Of(aircraft, NeighbourCandidate.OnGround(options.ListAircraft?.Invoke()));
+        if (groundLayout.PickTaxiStart(aircraft.Position, aircraft.TrueHeading, traffic) is not { } taxiStart)
         {
             Log.LogWarning(
                 "[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})",
@@ -212,6 +211,9 @@ public static class GroundCommandHandler
             );
             return new CommandResult(false, "Cannot find position on taxiway graph");
         }
+
+        GroundNode startNode = taxiStart.Node;
+        string? startBlocker = taxiStart.Blocker;
 
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         WakeTurbulenceData.WakeClass wakeClass = WakeTurbulenceData.WakeClassForType(aircraft.AircraftType, category);
@@ -479,6 +481,10 @@ public static class GroundCommandHandler
         }
 
         msg = WithResponseNotes(msg, route.Warnings, implicitCrossLabel, pushBackNote);
+        if (startBlocker is not null)
+        {
+            msg += $" (blocked by {startBlocker})";
+        }
 
         return CommandDispatcher.Ok(msg) with
         {
@@ -792,7 +798,7 @@ public static class GroundCommandHandler
         TaxiCommand? effectiveCommand = null;
 
         // Anchor the start node to the first cleared taxiway when the aircraft is sitting on a node
-        // of it. The heading-biased FindNearestNodeForTaxi can land on an adjacent parallel taxiway
+        // of it. The heading-biased FindTaxiStartNode can land on an adjacent parallel taxiway
         // after a directional pushback (the aircraft's heading aligns with the neighbour's edge, not
         // its own taxiway's), which then makes the named first taxiway "unreachable" — WJA1521 pushed
         // onto M4 but the start node resolved onto the parallel M5, so "TAXI M4 M2 ..." was rejected.
@@ -5844,7 +5850,8 @@ public static class GroundCommandHandler
         AircraftState aircraft,
         FollowGroundCommand follow,
         AirportGroundLayout? groundLayout,
-        Func<string, AircraftState?>? findAircraft
+        Func<string, AircraftState?>? findAircraft,
+        Func<IReadOnlyList<AircraftState>>? listAircraft
     )
     {
         Phase? currentPhase = aircraft.Phases?.CurrentPhase;
@@ -5887,12 +5894,13 @@ public static class GroundCommandHandler
             return new CommandResult(false, reason);
         }
 
+        var probe = new FollowProbe(leader, () => NeighbourCandidate.OnGround(listAircraft?.Invoke()));
         if ((acceptance.IsAllowed) && (currentPhase is HoldingShortPhase runwayHold))
         {
-            return ArmFollowBehindRunwayHold(aircraft, runwayHold, follow, groundLayout, leader);
+            return ArmFollowBehindRunwayHold(aircraft, runwayHold, follow, groundLayout, probe);
         }
 
-        if (RejectUnjoinableFollow(aircraft, follow, groundLayout, leader) is { } unable)
+        if (RejectUnjoinableFollow(aircraft, follow, groundLayout, probe) is { } unable)
         {
             return unable;
         }
@@ -5930,7 +5938,7 @@ public static class GroundCommandHandler
         HoldingShortPhase hold,
         FollowGroundCommand follow,
         AirportGroundLayout? groundLayout,
-        AircraftState? leaderAircraft
+        FollowProbe probe
     )
     {
         if ((hold.HoldShort.Reason == HoldShortReason.DestinationRunway) && !HasArrivedAtHoldShort(aircraft))
@@ -5938,7 +5946,7 @@ public static class GroundCommandHandler
             return new CommandResult(false, $"holding short of departure runway {hold.RunwayEndFacing(aircraft)}; issue LUAW or CTO");
         }
 
-        if (RejectUnjoinableFollow(aircraft, follow, groundLayout, leaderAircraft) is { } unable)
+        if (RejectUnjoinableFollow(aircraft, follow, groundLayout, probe) is { } unable)
         {
             return unable;
         }
@@ -5951,6 +5959,13 @@ public static class GroundCommandHandler
         return CommandDispatcher.Ok($"Follow {leader}, hold short of {target}");
     }
 
+    /// <summary>What a FOLLOWG joinability probe plans with: the lead, when the caller could find it, and the aircraft on the ground.</summary>
+    /// <param name="Lead">The lead aircraft, or null when the caller has no lookup.</param>
+    /// <param name="OtherGroundAircraft">
+    /// Every aircraft on the ground the caller can see, read only when the plan needs a taxi start; empty when it has no world.
+    /// </param>
+    private readonly record struct FollowProbe(AircraftState? Lead, Func<IReadOnlyList<NeighbourCandidate>> OtherGroundAircraft);
+
     /// <summary>
     /// The FOLLOWG joinability probe (<see cref="FollowRoutePlanner.Plan"/>): unable when no taxi path reaches the lead's route,
     /// or when the follower stands on the lead's remaining route ahead of it. Null — the follow goes ahead — when it can join or
@@ -5960,15 +5975,15 @@ public static class GroundCommandHandler
         AircraftState aircraft,
         FollowGroundCommand follow,
         AirportGroundLayout? groundLayout,
-        AircraftState? lead
+        FollowProbe probe
     )
     {
-        if ((groundLayout is null) || (lead is null))
+        if ((groundLayout is null) || (probe.Lead is not { } lead))
         {
             return null;
         }
 
-        FollowRoutePlan plan = FollowRoutePlanner.Plan(groundLayout, aircraft, lead);
+        FollowRoutePlan plan = FollowRoutePlanner.Plan(groundLayout, aircraft, lead, probe.OtherGroundAircraft);
         return plan switch
         {
             FollowRoutePlan.NoPath => new CommandResult(false, $"unable, no taxi route to {follow.TargetCallsign}'s route"),

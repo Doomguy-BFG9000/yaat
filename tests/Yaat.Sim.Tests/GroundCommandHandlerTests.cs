@@ -1126,7 +1126,7 @@ public class GroundCommandHandlerTests
         ac.Phases = null;
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, null, null);
 
         Assert.False(result.Success);
         Assert.Contains("no active phase", result.Message!);
@@ -1152,7 +1152,7 @@ public class GroundCommandHandlerTests
         );
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, null, null);
 
         Assert.False(result.Success);
         Assert.Contains("on the ground", result.Message!);
@@ -1171,7 +1171,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeAircraftAtParking();
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"));
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"), null);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<FollowingPhase>(ac.Phases!.CurrentPhase);
@@ -1195,7 +1195,7 @@ public class GroundCommandHandlerTests
         );
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"));
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"), null);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<FollowingPhase>(ac.Phases!.CurrentPhase);
@@ -1221,7 +1221,7 @@ public class GroundCommandHandlerTests
         );
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"));
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"), null);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<FollowingPhase>(ac.Phases!.CurrentPhase);
@@ -1233,7 +1233,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeAircraftAtParking();
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, _ => null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, _ => null, null);
 
         Assert.False(result.Success);
         Assert.Contains("No aircraft UAL123", result.Message!);
@@ -1248,7 +1248,7 @@ public class GroundCommandHandlerTests
         Func<string, AircraftState?> lookup = LookupWithGroundLeader("UAL123");
         lookup("UAL123")!.IsOnGround = false;
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, lookup);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, lookup, null);
 
         Assert.False(result.Success);
         Assert.Contains("not on the ground", result.Message!);
@@ -1261,7 +1261,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeAircraftAtParking();
         var cmd = new FollowGroundCommand(ac.Callsign);
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader(ac.Callsign));
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader(ac.Callsign), null);
 
         Assert.False(result.Success);
         Assert.Contains("cannot follow itself", result.Message!);
@@ -1287,7 +1287,8 @@ public class GroundCommandHandlerTests
             follower,
             new FollowGroundCommand(run.Lead.Callsign),
             run.Layout,
-            run.Engine.FindAircraft
+            run.Engine.FindAircraft,
+            () => run.Engine.World.GetSnapshot()
         );
 
         Assert.False(result.Success, result.Message);
@@ -1318,7 +1319,13 @@ public class GroundCommandHandlerTests
         Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
         AircraftState lead = FollowCornerGeometry.AddTaxiing(setup, "N1LED", "C560", (chain[5], chain[4]), "TAXI B W 30");
 
-        CommandResult result = GroundCommandHandler.TryFollow(follower, new FollowGroundCommand(lead.Callsign), layout, engine.FindAircraft);
+        CommandResult result = GroundCommandHandler.TryFollow(
+            follower,
+            new FollowGroundCommand(lead.Callsign),
+            layout,
+            engine.FindAircraft,
+            () => engine.World.GetSnapshot()
+        );
 
         Assert.False(result.Success, result.Message);
         Assert.Equal($"unable, ahead of {lead.Callsign} on its route — issue HOLD, GIVEWAY or TAXI first", result.Message);
@@ -1347,7 +1354,13 @@ public class GroundCommandHandlerTests
         );
         follower.Ground.Layout = layout;
 
-        CommandResult result = GroundCommandHandler.TryFollow(follower, new FollowGroundCommand(lead.Callsign), layout, engine.FindAircraft);
+        CommandResult result = GroundCommandHandler.TryFollow(
+            follower,
+            new FollowGroundCommand(lead.Callsign),
+            layout,
+            engine.FindAircraft,
+            () => engine.World.GetSnapshot()
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<FollowingPhase>(follower.Phases!.CurrentPhase);

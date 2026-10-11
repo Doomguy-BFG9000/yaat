@@ -40,7 +40,16 @@ public class RampLaneRepositionTests
         ExplicitPathOptions options
     )
     {
-        GroundNode? start = layout.FindNearestNodeForTaxi(position, heading) ?? layout.FindNearestNode(position);
+        GroundNode? start = layout.FindTaxiStartNode(
+            position,
+            heading,
+            new TaxiStartTraffic
+            {
+                Callsign = "TEST",
+                AircraftType = "B738",
+                OtherGroundAircraft = [],
+            }
+        );
         Assert.NotNull(start);
         TaxiRoute? route = TaxiPathfinder.ResolveExplicitPathDetailed(
             layout,

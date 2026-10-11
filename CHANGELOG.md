@@ -22,6 +22,7 @@
 - `HFROFF` releases held departures that had not spawned yet, so an untowered IFR runway departure no longer asks for release again and waits.
 - A fresh `TAXI` or `PUSH` replaces the earlier queued taxi plan and pending ground `WAIT`/`GIVEWAY` instructions, so stale ones no longer fire later.
 - Signing in while VATSIM is down reports VATSIM as unavailable instead of failing with a server error.
+- A taxi from the ramp no longer routes through a neighbour's occupied stand and waits behind it forever; a blocked start is named in the reply.
 
 ## v0.16.1-beta [2026/10/10]
 

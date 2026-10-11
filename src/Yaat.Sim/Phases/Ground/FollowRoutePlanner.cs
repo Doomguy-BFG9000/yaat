@@ -66,6 +66,11 @@ public static class FollowRoutePlanner
     /// <param name="layout">The airport ground layout both aircraft are on.</param>
     /// <param name="follower">The aircraft told to follow.</param>
     /// <param name="lead">The aircraft it follows.</param>
+    /// <param name="otherGroundAircraft">
+    /// Every aircraft on the ground the caller can see: the follow route never starts through an occupied stand
+    /// (<see cref="AirportGroundLayout.FindTaxiStartNode"/>). Read only when the route starts at the taxi start pick, so a
+    /// plan that waits for its lead or starts at its trail's end builds no list.
+    /// </param>
     /// <returns>
     /// <see cref="FollowRoutePlan.WaitForLead"/> while the lead pushes back, is parked or is off every taxiway and every fillet
     /// arc of its route (<see cref="LocateLead"/>), and while it rounds an arc the follower may not drive with no path behind it
@@ -74,22 +79,31 @@ public static class FollowRoutePlanner
     /// route ahead of that edge; <see cref="FollowRoutePlan.NoPath"/> when no taxi path reaches the lead's path; otherwise
     /// <see cref="FollowRoutePlan.Joinable"/>.
     /// </returns>
-    public static FollowRoutePlan Plan(AirportGroundLayout layout, AircraftState follower, AircraftState lead) =>
-        Plan(layout, follower, lead, requireAhead: true);
+    public static FollowRoutePlan Plan(
+        AirportGroundLayout layout,
+        AircraftState follower,
+        AircraftState lead,
+        Func<IReadOnlyList<NeighbourCandidate>> otherGroundAircraft
+    ) => Plan(layout, follower, lead, new PlanStart(RequireAhead: true, Back: null, otherGroundAircraft));
 
     /// <summary>
     /// Plans the follow again for a follower already driving a follow route: as
-    /// <see cref="Plan(AirportGroundLayout, AircraftState, AircraftState)"/>, except that the route starts at its trail's end
-    /// without the check that the node lies ahead (<see cref="StartNode"/>): a follower re-planning just past a node has that
-    /// node a little behind it, and still drives on from it. A re-plan never turns the follower about: its route never starts
-    /// back along the edge it came in on (<see cref="BackMove"/>), and a lead path that would take it back there joins nothing
-    /// (<see cref="FollowRoutePlan.NoPath"/>).
+    /// <see cref="Plan(AirportGroundLayout, AircraftState, AircraftState, Func{IReadOnlyList{NeighbourCandidate}})"/>, except
+    /// that the route starts at its trail's end without the check that the node lies ahead (<see cref="StartNode"/>): a
+    /// follower re-planning just past a node has that node a little behind it, and still drives on from it. A re-plan never
+    /// turns the follower about: its route never starts back along the edge it came in on (<see cref="BackMove"/>), and a
+    /// lead path that would take it back there joins nothing (<see cref="FollowRoutePlan.NoPath"/>).
     /// </summary>
-    public static FollowRoutePlan Replan(AirportGroundLayout layout, AircraftState follower, AircraftState lead) =>
-        Plan(layout, follower, lead, requireAhead: false);
+    public static FollowRoutePlan Replan(
+        AirportGroundLayout layout,
+        AircraftState follower,
+        AircraftState lead,
+        Func<IReadOnlyList<NeighbourCandidate>> otherGroundAircraft
+    ) => Plan(layout, follower, lead, new PlanStart(RequireAhead: false, Back: null, otherGroundAircraft));
 
-    private static FollowRoutePlan Plan(AirportGroundLayout layout, AircraftState follower, AircraftState lead, bool requireAhead)
+    private static FollowRoutePlan Plan(AirportGroundLayout layout, AircraftState follower, AircraftState lead, PlanStart start)
     {
+        bool requireAhead = start.RequireAhead;
         if (LocateLead(layout, lead) is not { } located)
         {
             Log.LogDebug("[FollowPlan] {Follower}: {Lead} is not on a taxiway yet; wait for it", follower.Callsign, lead.Callsign);
@@ -120,11 +134,18 @@ public static class FollowRoutePlanner
             return PlanOnLeadEdge(follower, lead, current, path, back);
         }
 
-        return PlanToMerge(layout, follower, lead, path, new PlanStart(requireAhead, back));
+        return PlanToMerge(layout, follower, lead, path, start with { Back = back });
     }
 
-    /// <summary>How a plan starts: whether its start node must lie ahead (a first plan), and the move back it never starts with.</summary>
-    private readonly record struct PlanStart(bool RequireAhead, (int From, int To)? Back);
+    /// <summary>
+    /// How a plan starts: whether its start node must lie ahead (a first plan), the move back it never starts with, and the
+    /// aircraft on the ground its start is picked against.
+    /// </summary>
+    private readonly record struct PlanStart(
+        bool RequireAhead,
+        (int From, int To)? Back,
+        Func<IReadOnlyList<NeighbourCandidate>> OtherGroundAircraft
+    );
 
     /// <summary>
     /// The plan for a follower behind the lead on the edge the lead is on: it joins at that edge's start, with no route to it.
@@ -167,7 +188,7 @@ public static class FollowRoutePlanner
     /// </summary>
     private static FollowRoutePlan PlanToMerge(AirportGroundLayout layout, AircraftState follower, AircraftState lead, LeadPath path, PlanStart how)
     {
-        if (StartOf(layout, follower, how.RequireAhead) is not { } routeStart)
+        if (StartOf(layout, follower, how.RequireAhead, how.OtherGroundAircraft) is not { } routeStart)
         {
             return new FollowRoutePlan.NoPath();
         }
@@ -362,8 +383,12 @@ public static class FollowRoutePlanner
     /// newest edge, with an empty trail, or a newest edge the layout does not hold — a taxi's start
     /// (<see cref="AirportGroundLayout.FindTaxiStartNode"/>). Null when the layout has no node.
     /// </summary>
-    internal static GroundNode? StartNode(AirportGroundLayout layout, AircraftState aircraft, bool requireAhead) =>
-        StartOf(layout, aircraft, requireAhead)?.Node;
+    internal static GroundNode? StartNode(
+        AirportGroundLayout layout,
+        AircraftState aircraft,
+        bool requireAhead,
+        Func<IReadOnlyList<NeighbourCandidate>> otherGroundAircraft
+    ) => StartOf(layout, aircraft, requireAhead, otherGroundAircraft)?.Node;
 
     /// <summary>Where a follow (or clearing) route starts: its start node, and the segment that leads the aircraft into it, if any.</summary>
     /// <param name="Node">The node the route's search starts at.</param>
@@ -381,14 +406,21 @@ public static class FollowRoutePlanner
     /// <paramref name="requireAhead"/> the arc's far node, like the trail's end node, counts only when it lies ahead of the
     /// aircraft. Null when the layout has no node.
     /// </summary>
-    internal static RouteStart? StartOf(AirportGroundLayout layout, AircraftState aircraft, bool requireAhead)
+    internal static RouteStart? StartOf(
+        AirportGroundLayout layout,
+        AircraftState aircraft,
+        bool requireAhead,
+        Func<IReadOnlyList<NeighbourCandidate>> otherGroundAircraft
+    )
     {
         if (TrailArcStart(layout, aircraft, requireAhead) is { } onArc)
         {
             return onArc;
         }
 
-        GroundNode? start = TrailStartNode(layout, aircraft, requireAhead) ?? layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading);
+        GroundNode? start =
+            TrailStartNode(layout, aircraft, requireAhead)
+            ?? layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, otherGroundAircraft()));
         return (start is null) ? null : new RouteStart(start, LeadInSegment(start, aircraft));
     }
 
@@ -484,9 +516,14 @@ public static class FollowRoutePlanner
     /// Anything else the graph offers, a loop round to a goal behind it included, is left to the router. Null with no start node
     /// or no route.
     /// </summary>
-    internal static RouteFromHere? RouteOnto(AirportGroundLayout layout, AircraftState aircraft, IReadOnlySet<int> goals)
+    internal static RouteFromHere? RouteOnto(
+        AirportGroundLayout layout,
+        AircraftState aircraft,
+        IReadOnlySet<int> goals,
+        Func<IReadOnlyList<NeighbourCandidate>> otherGroundAircraft
+    )
     {
-        if (StartOf(layout, aircraft, requireAhead: false) is not { } routeStart)
+        if (StartOf(layout, aircraft, requireAhead: false, otherGroundAircraft) is not { } routeStart)
         {
             return null;
         }

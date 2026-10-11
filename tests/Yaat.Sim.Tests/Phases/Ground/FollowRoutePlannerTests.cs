@@ -37,7 +37,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
         );
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}, path to merge {plan.PathToMerge.ToSummary()}");
 
         Assert.Contains(plan.MergeNode, TrailNodeIds(run.Lead));
@@ -64,7 +64,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
 
         RampFillet ramp = TaxiHalfwayRoundTheRampFillet(run);
         AircraftState follower = ramp.Follower;
-        GroundNode start = Assert.IsType<GroundNode>(FollowRoutePlanner.StartNode(run.Layout, follower, requireAhead: true));
+        GroundNode start = Assert.IsType<GroundNode>(FollowRoutePlanner.StartNode(run.Layout, follower, requireAhead: true, () => []));
         output.WriteLine($"start #{start.Id}");
         Assert.NotEqual(ramp.CFar.Id, start.Id);
         Assert.Equal(run.Chain[5].Id, start.Id);
@@ -109,7 +109,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         output.WriteLine($"at #{farNode.Id} the locator finds fillet #{behind.Nodes[0].Id}-#{behind.Nodes[1].Id}");
         Assert.True(behind.HasNode(ramp.RampNode.Id), "the fillet the locator finds does not leave the ramp edge at the ramp node");
 
-        FollowRoutePlanner.RouteStart replanStart = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: false));
+        FollowRoutePlanner.RouteStart replanStart = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: false, () => []));
         output.WriteLine($"re-plan start #{replanStart.Node.Id}, lead-in {replanStart.LeadIn?.FromNodeId}->{replanStart.LeadIn?.ToNodeId}");
         Assert.NotSame(behind, replanStart.LeadIn?.Edge.Edge);
         Assert.NotEqual(behind.OtherNode(ramp.RampNode).Id, replanStart.Node.Id);
@@ -156,8 +156,10 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         Assert.True(offArcFt > TaxiEdgeLocator.OnFilletArcMaxOffsetFt, $"only {offArcFt:F1} ft off the fillet");
 
         bool rampEndAhead = follower.TrueHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(follower.Position, ramp.RampEnd.Position))) <= 90.0;
-        GroundNode? expected = rampEndAhead ? ramp.RampEnd : run.Layout.FindTaxiStartNode(follower.Position, follower.TrueHeading);
-        FollowRoutePlanner.RouteStart start = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: true));
+        GroundNode? expected = rampEndAhead
+            ? ramp.RampEnd
+            : run.Layout.FindTaxiStartNode(follower.Position, follower.TrueHeading, TaxiStartTraffic.Of(follower, []));
+        FollowRoutePlanner.RouteStart start = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: true, () => []));
         output.WriteLine($"trail end #{ramp.RampEnd.Id} ahead: {rampEndAhead}; start #{start.Node.Id}");
         Assert.Equal(expected?.Id, start.Node.Id);
         Assert.NotSame(ramp.Fillet, start.LeadIn?.Edge.Edge);
@@ -181,7 +183,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         follower.Ground.AssignedTaxiRoute = null;
         Assert.Null(FollowingPhase.DrivenRouteOf(follower));
 
-        FollowRoutePlanner.RouteStart start = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: true));
+        FollowRoutePlanner.RouteStart start = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: true, () => []));
         output.WriteLine($"start #{start.Node.Id}, lead-in {start.LeadIn?.FromNodeId}->{start.LeadIn?.ToNodeId}");
         Assert.Equal(run.Chain[5].Id, start.Node.Id);
         Assert.Same(ramp.Fillet, start.LeadIn?.Edge.Edge);
@@ -281,7 +283,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             AircraftState aircraft = PushFrom(candidate, stand);
             if (
                 (TravelledTowardEnd(candidate.Layout, aircraft) is { } behind)
-                && (candidate.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading)?.Id != behind.Id)
+                && (candidate.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, []))?.Id != behind.Id)
             )
             {
                 found = (candidate.Layout, aircraft);
@@ -299,19 +301,19 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         GroundNode end = Assert.IsType<GroundNode>(TravelledTowardEnd(setup.Layout, pushed));
         double offFt = GeoMath.DistanceToSegmentFt(pushed.Position, newest.Nodes[0].Position, newest.Nodes[1].Position);
         double toEndDeg = pushed.TrueHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(pushed.Position, end.Position)));
-        GroundNode? pick = setup.Layout.FindTaxiStartNode(pushed.Position, pushed.TrueHeading);
+        GroundNode? pick = setup.Layout.FindTaxiStartNode(pushed.Position, pushed.TrueHeading, TaxiStartTraffic.Of(pushed, []));
         output.WriteLine($"trail end #{end.Id} {toEndDeg:F0} deg off the nose, {offFt:F1} ft off the edge; taxi start pick #{pick?.Id}");
 
         Assert.True(offFt <= TaxiEdgeLocator.OnTaxiwayMaxOffsetFt, "the pushed aircraft is off its newest trail edge");
         Assert.True(toEndDeg > 90.0, "the trail end lies ahead of the nose");
         Assert.NotEqual(end.Id, pick?.Id);
-        GroundNode start = Assert.IsType<GroundNode>(FollowRoutePlanner.StartNode(setup.Layout, pushed, requireAhead: true));
+        GroundNode start = Assert.IsType<GroundNode>(FollowRoutePlanner.StartNode(setup.Layout, pushed, requireAhead: true, () => []));
         Assert.Equal(pick?.Id, start.Id);
         double toStartDeg = pushed.TrueHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(pushed.Position, start.Position)));
         Assert.True(toStartDeg <= 90.0, $"the planned start #{start.Id} is {toStartDeg:F0} deg off the nose");
 
         // A re-plan of a follow already driving its route has no ahead check: it starts at the trail's end, behind the nose.
-        Assert.Equal(end.Id, FollowRoutePlanner.StartNode(setup.Layout, pushed, requireAhead: false)?.Id);
+        Assert.Equal(end.Id, FollowRoutePlanner.StartNode(setup.Layout, pushed, requireAhead: false, () => [])?.Id);
     }
 
     /// <summary>
@@ -391,13 +393,13 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         TaxiTrailEdge newest = Assert.IsType<TaxiTrailEdge>(departure.Ground.TaxiEdgeTrail.Newest);
         GroundEdge edge = Assert.IsType<GroundEdge>(newest.Resolve(setup.Layout));
         double offFt = GeoMath.DistanceToSegmentFt(departure.Position, edge.Nodes[0].Position, edge.Nodes[1].Position);
-        GroundNode? pick = setup.Layout.FindTaxiStartNode(departure.Position, departure.TrueHeading);
+        GroundNode? pick = setup.Layout.FindTaxiStartNode(departure.Position, departure.TrueHeading, TaxiStartTraffic.Of(departure, []));
         output.WriteLine(
             $"{departure.Phases?.CurrentPhase?.Name} {departure.GroundSpeed:F1} kt, "
                 + $"{offFt:F0} ft off #{newest.NodeA}-#{newest.NodeB}; pick {pick?.Id}"
         );
         Assert.True(offFt > TaxiEdgeLocator.OnTaxiwayMaxOffsetFt, "the stopped departure is still on its newest trail edge");
-        Assert.Equal(pick?.Id, FollowRoutePlanner.StartNode(setup.Layout, departure, requireAhead: true)?.Id);
+        Assert.Equal(pick?.Id, FollowRoutePlanner.StartNode(setup.Layout, departure, requireAhead: true, () => [])?.Id);
 
         CommandResult follow = setup.Engine.SendCommand(departure.Callsign, $"FOLLOWG {lead.Callsign}");
         Assert.True(follow.Success, follow.Message);
@@ -435,7 +437,9 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         FilletChord pose = PoseOnFilletChord(run);
         Assert.Empty(pose.Follower.Ground.TaxiEdgeTrail.Edges);
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, pose.Follower, run.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(
+            FollowRoutePlanner.Plan(run.Layout, pose.Follower, run.Lead, () => [])
+        );
         string pathText = PathText(plan.PathToMerge.Segments.Select(s => s.Edge));
         output.WriteLine($"merge #{plan.MergeNode}, path to merge {pathText}");
 
@@ -481,8 +485,9 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         output.WriteLine(
             $"on the #{rampEnd.Id}->#{onB.Id} chord, {offCFt:F1} ft off C #{junction.Id}->#{cFar.Id}; came off #{rampEdge.OtherNode(rampEnd).Id}"
         );
-        Assert.Equal(cFar.Id, run.Layout.FindTaxiStartNode(at, heading)?.Id);
-        return new FilletChord(FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, "N2FOL", "C172", at, heading), cFar, rampEdge);
+        AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, "N2FOL", "C172", at, heading);
+        Assert.Equal(cFar.Id, run.Layout.FindTaxiStartNode(at, heading, TaxiStartTraffic.Of(follower, []))?.Id);
+        return new FilletChord(follower, cFar, rampEdge);
     }
 
     /// <summary>
@@ -604,7 +609,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(node, run.Chain[2])
         );
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}; path to merge {plan.PathToMerge.ToSummary()}");
 
         Assert.Equal(node.Id, plan.MergeNode);
@@ -643,7 +648,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(far, junction)
         );
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}, path to merge {plan.PathToMerge.ToSummary()}");
 
         Assert.Equal(junction.Id, plan.MergeNode);
@@ -681,7 +686,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(faced, back)
         );
 
-        Assert.IsType<FollowRoutePlan.FollowerAhead>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        Assert.IsType<FollowRoutePlan.FollowerAhead>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
     }
 
     /// <summary>
@@ -707,7 +712,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
         );
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
         output.WriteLine($"segment #{segment.FromNodeId}>#{segment.ToNodeId}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         Assert.False(plan.MergeAheadOfLead);
@@ -741,7 +746,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(passed.Edge.FromNode, passed.Edge.ToNode)
         );
 
-        FollowRoutePlan plan = FollowRoutePlanner.Plan(run.Layout, follower, run.Lead);
+        FollowRoutePlan plan = FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []);
         output.WriteLine($"lead on segment {index}, index {route.CurrentSegmentIndex}; follower on #{passed.FromNodeId}>#{passed.ToNodeId}; {plan}");
 
         Assert.IsType<FollowRoutePlan.Joinable>(plan);
@@ -782,7 +787,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(push.A2, push.A)
         );
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         List<(int, int)> undirected =
@@ -829,7 +834,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(first.FromNode, first.ToNode)
         );
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         List<DirectionalEdge> expected = lane[straight[0]..(straight[^1] + 1)];
         output.WriteLine($"merge #{plan.MergeNode}; lane {PathText(expected)}; lead path {PathText(plan.LeadPathFromMerge)}");
 
@@ -869,7 +874,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         follower.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[3], chain[4]), chain[3]);
         follower.Ground.TaxiEdgeTrail.Record(FollowCornerGeometry.EdgeBetween(chain[4], chain[5]), chain[4]);
 
-        FollowRoutePlan.Joinable joinable = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Replan(layout, follower, lead));
+        FollowRoutePlan.Joinable joinable = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Replan(layout, follower, lead, () => []));
         List<(int From, int To)> moves =
         [
             .. joinable.PathToMerge.Segments.Select(s => (s.FromNodeId, s.ToNodeId)),
@@ -895,8 +900,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         );
         stuck.Ground.TaxiEdgeTrail.Record(stub, mouth);
         output.WriteLine($"stub #{mouth.Id}>#{deadEnd.Id} ({stub.TaxiwayName})");
-        Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, stuck, lead));
-        Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Replan(layout, stuck, lead));
+        Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, stuck, lead, () => []));
+        Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Replan(layout, stuck, lead, () => []));
     }
 
     /// <summary>A follower standing on an edge of the lead's remaining route, ahead of the lead, is ahead of it: no follow route.</summary>
@@ -910,7 +915,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
 
         AircraftState follower = FollowCornerGeometry.SpawnOnRouteAhead(run.Lead, "N2FOL", "C172");
 
-        Assert.IsType<FollowRoutePlan.FollowerAhead>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        Assert.IsType<FollowRoutePlan.FollowerAhead>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
     }
 
     /// <summary>A lead parked on its stand is not on a taxiway yet: the follower waits for it.</summary>
@@ -932,7 +937,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(chain[6], chain[5])
         );
 
-        Assert.IsType<FollowRoutePlan.WaitForLead>(FollowRoutePlanner.Plan(layout, follower, lead));
+        Assert.IsType<FollowRoutePlan.WaitForLead>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
     }
 
     /// <summary>
@@ -965,7 +970,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(chain[6], chain[5])
         );
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine(
             $"merge #{plan.MergeNode}; lead path {string.Join(" ", plan.LeadPathFromMerge.Select(e => $"#{e.FromNodeId}>#{e.ToNodeId}"))}"
         );
@@ -1178,7 +1183,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         );
         follower.Ground.TaxiEdgeTrail.Record(before, beforeFar);
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         double jetRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet);
@@ -1236,7 +1241,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         );
         follower.Ground.TaxiEdgeTrail.Record(before, beforeFar);
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         Assert.NotEmpty(plan.LeadPathFromMerge);
@@ -1266,7 +1271,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             return;
         }
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         int pathEnd = plan.LeadPathFromMerge.Count == 0 ? plan.MergeNode : plan.LeadPathFromMerge[^1].ToNodeId;
@@ -1290,7 +1295,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             return;
         }
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
         Assert.True(FollowRoutePlanner.LeadRouteMatchesPath(s.Layout, s.Follower, s.Lead, plan.MergeNode, plan.LeadPathFromMerge));
 
@@ -1320,7 +1325,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         GroundNode t2 = s.Tight.Corner.TangentOnJ;
         SetRoute(s, [s.Tight.Corner.Arc.Directed(t1, t2), s.Beyond.Directed(t2, s.Beyond.OtherNode(t2))]);
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         Assert.Equal(t1.Id, plan.LeadPathFromMerge[^1].ToNodeId);
@@ -1346,7 +1351,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
 
         s.Lead.Ground.TaxiEdgeTrail.Clear();
 
-        FollowRoutePlan plan = FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead);
+        FollowRoutePlan plan = FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead, () => []);
         output.WriteLine($"plan {plan}");
 
         Assert.IsType<FollowRoutePlan.WaitForLead>(plan);
@@ -1393,7 +1398,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         );
         follower.Ground.TaxiEdgeTrail.Record(before, beforeFar);
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         double jetRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet);
@@ -1422,7 +1427,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         (GroundEdge before, GroundEdge beyond) = EdgesPastTheCorner(found.Corner);
         StubLead s = LeadOn(found, before.Directed(before.OtherNode(t1), t1), "C172");
         SetRoute(s, []);
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
         Assert.Equal(t1.Id, plan.LeadPathFromMerge[^1].ToNodeId);
 
@@ -1509,7 +1514,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         GroundNode t2 = s.Tight.Corner.TangentOnJ;
         SetRoute(s, [s.Tight.Corner.Arc.Directed(t1, t2), s.Beyond.Directed(t2, s.Beyond.OtherNode(t2))]);
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         Assert.Contains(plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, s.Tight.Corner.Arc));
@@ -1536,7 +1541,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         GroundNode t2 = s.Tight.Corner.TangentOnJ;
         SetRoute(s, [s.Beyond.Directed(t2, s.Beyond.OtherNode(t2))]);
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         Assert.Contains(plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, s.Tight.Corner.Arc));
@@ -1561,7 +1566,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
 
         GroundNode t1 = s.Tight.Corner.TangentOnC;
         SetRoute(s, []);
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
         Assert.Equal(t1.Id, plan.LeadPathFromMerge[^1].ToNodeId);
         Assert.True(FollowRoutePlanner.LeadRouteMatchesPath(s.Layout, s.Follower, s.Lead, plan.MergeNode, plan.LeadPathFromMerge));
@@ -1592,7 +1597,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         GroundNode t2 = corner.TangentOnJ;
         SetRoute(s, [corner.Arc.Directed(corner.TangentOnC, t2), s.Beyond.Directed(t2, s.Beyond.OtherNode(t2))]);
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         int arcAt = plan.LeadPathFromMerge.ToList().FindIndex(e => ReferenceEquals(e.Edge, corner.Arc));
@@ -1619,7 +1624,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
 
         FollowCornerGeometry.CToJCorner corner = s.Tight.Corner;
         SetRoute(s, []);
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(s.Layout, s.Follower, s.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
         Assert.Equal(corner.TangentOnC.Id, plan.LeadPathFromMerge[^1].ToNodeId);
 
@@ -1710,7 +1715,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         );
         follower.Ground.TaxiEdgeTrail.Record(before, beforeFar);
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         double jetRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet);
@@ -2022,7 +2027,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         );
         follower.Ground.TaxiEdgeTrail.Record(intoBehind, cNear);
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}");
 
         Assert.DoesNotContain(plan.LeadPathFromMerge, e => ReferenceEquals(e.Edge, corner.Arc));
@@ -2109,14 +2114,14 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(cBeforeFar, t1)
         );
         follower.Ground.TaxiEdgeTrail.Record(cBefore, cBeforeFar);
-        FollowRoutePlanner.RouteStart? start = FollowRoutePlanner.StartOf(layout, follower, requireAhead: true);
+        FollowRoutePlanner.RouteStart? start = FollowRoutePlanner.StartOf(layout, follower, requireAhead: true, () => []);
         string leadIn = start?.LeadIn is { } into ? $"#{into.FromNodeId}>#{into.ToNodeId}" : "none";
         output.WriteLine(
             $"follower on C #{cBeforeFar.Id}>#{t1.Id}: start #{start?.Node.Id}, lead-in {leadIn}; "
                 + $"lead trail {string.Join(", ", lead.Ground.TaxiEdgeTrail.Edges.Select(e => $"#{e.NodeA}-#{e.NodeB}"))}"
         );
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine(
             $"merge #{plan.MergeNode}; path to merge {string.Join(" ", plan.PathToMerge.Segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}"))}; "
                 + $"lead path {PathText(plan.LeadPathFromMerge)}"
@@ -2160,7 +2165,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         Assert.NotNull(run.Lead.Ground.AssignedTaxiRoute);
         AircraftState follower = FollowCornerGeometry.SpawnOnRouteAhead(run.Lead, "N2FOL", "C172");
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}, path to merge {plan.PathToMerge.ToSummary()}");
 
         GroundEdge current = Assert.IsType<GroundEdge>(TaxiEdgeLocator.EdgeUnder(run.Layout, run.Lead.Position, null));
@@ -2203,7 +2208,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.Facing(islandEdge.Nodes[0], islandEdge.Nodes[1])
         );
 
-        Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Plan(split.Layout, follower, lead));
+        Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Plan(split.Layout, follower, lead, () => []));
     }
 
     /// <summary>
@@ -2356,7 +2361,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             run.Chain[6].Position,
             FollowCornerGeometry.Facing(run.Chain[6], run.Chain[5])
         );
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
         output.WriteLine(
             $"merge #{plan.MergeNode}; path to merge {string.Join(" ", plan.PathToMerge.Segments.Select(s => $"#{s.FromNodeId}>#{s.ToNodeId}"))}"
         );
@@ -2404,7 +2409,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             followerFacesLead ? FollowCornerGeometry.Facing(from, to) : FollowCornerGeometry.Facing(to, from)
         );
 
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}; path to merge {plan.PathToMerge.ToSummary()}");
         return new SameEdge(from, to, lead, plan);
     }
@@ -2451,7 +2456,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             chain[6].Position,
             FollowCornerGeometry.Facing(chain[6], chain[5])
         );
-        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead));
+        FollowRoutePlan.Joinable plan = Assert.IsType<FollowRoutePlan.Joinable>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         output.WriteLine($"merge #{plan.MergeNode}; lead path {PathText(plan.LeadPathFromMerge)}; path to merge {plan.PathToMerge.ToSummary()}");
         Assert.Equal(chain[5].Id, plan.MergeNode);
         Assert.Equal(chain[1].Id, plan.LeadPathFromMerge[^1].ToNodeId);
