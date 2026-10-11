@@ -15,6 +15,7 @@
 ### Fixed
 
 - Pilot position reports and terrain-height checks no longer miss a nearby airport lying due east or west of the aircraft.
+- `HFROFF` releases held departures that had not spawned yet, so an untowered IFR runway departure no longer asks for release again and waits.
 
 ## v0.16.1-beta [2026/10/10]
 

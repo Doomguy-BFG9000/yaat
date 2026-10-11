@@ -8,8 +8,7 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-576 OAK ramp: TAXI routes through an occupied stand's parking node and deadlocks against the parked aircraft · release vNext
-- [/] YAAT-575 Let RES pre-clear an upcoming taxiway hold short (CROSS stays for runways) · release vNext
+- [/] YAAT-576 OAK ramp: TAXI routes through an occupied stand's parking node and deadlocks against the parked aircraft · release vNext
 - [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release v0.16.0-beta reels
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release v0.16.0-beta reels
   - [ ] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release v0.16.0-beta reels
@@ -24,6 +23,8 @@
   - [/] YAAT-538 List the rooms a feed consumer's user may see (ARTCC-filtered, authenticated) · release vNext
     - [ ] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext
   - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
+- [ ] YAAT-598 Exit SFO 28R GA and heavy cargo arrivals right, toward where they park · release vNext
+- [/] YAAT-599 Accept PUSH T7A from SFO stand F5, whose push lands on T7A's filleted end · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -160,6 +161,7 @@
 - [ ] YAAT-582 Bare CROSS clears the next bar in route order and re-aims the segment
 - [ ] YAAT-584 Decide and honour HS to a FOLLOWG follower (it never stops at a taxiway bar)
 - [ ] YAAT-586 Make RES/CROSS with CROSS and HS lists atomic when an HS target fails
+- [ ] YAAT-596 Add "Auto Cross only non-Active Runways" as option for Auto-Cross
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -191,7 +193,7 @@
 - [ ] YAAT-77 Repro or retire the stuck-in-LineUpPhase smell (N784ME)
 - [ ] YAAT-78 Blend or re-anchor the navigator's first sub-tick after a mid-arc restore
 - [ ] YAAT-79 Triage replay warnings in sfo-gc-arrival-goarounds: fidelity gap or noise
-- [ ] YAAT-80 Investigate #475 S1-OAK replay divergences (FDX3873, FDX440, lost HS B) · release vNext
+- [/] YAAT-80 Investigate #475 S1-OAK replay divergences (FDX3873, FDX440, lost HS B) · release vNext
 - [ ] YAAT-81 Fix the suite-order flake in AutoTrackRecordingTests (yaat-server)
 - [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
 - [ ] YAAT-83 Find why live recording playback shifts pilot transmissions 1–2 s
@@ -202,6 +204,7 @@
 - [ ] YAAT-429 Navigation queued blocks (JRADO, JRADI, DEPART, airway intercept) are lost silently after a snapshot restore · release vNext
 - [ ] YAAT-430 A restored or deferred AI-controller dispatch uses the student's facility hint, not the controller's
 - [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
+- [ ] YAAT-603 Decide whether a fresh taxi clearance cancels an expired preset TAXI still pending (SFO JAL57 replay)
 
 ## Wave 5 — Command queue and dispatch architecture
 
@@ -298,10 +301,11 @@
 - [ ] YAAT-559 Add every vNAS training airport with a real ground layout to the test data
 - [ ] YAAT-579 Write yaat's agent overlays (docs/agents/implementer.md and siblings)
 - [ ] YAAT-580 Move yaat-server CLAUDE.md's architecture narrative into its docs
+- [ ] YAAT-588 Teach prepare-release the vHotfix tag-branch hotfix path · release vNext
+- [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 
 ## Singles
 
-- [ ] YAAT-349 NavigationDatabase spatial grid: longitude search radius under-covers (misses in-range airports WNW/W, incl. KMIB/KMOT in CONUS)
 - [ ] YAAT-4 Airport sidecar ideas
 - [ ] YAAT-132 Table-drive AircraftChangeTracker.DetectChanges comparisons (yaat-server)
 - [ ] YAAT-133 Fly direct to the destination after the last route fix, then hold
@@ -460,8 +464,7 @@
 - [ ] YAAT-565 Send the full ICAO aircraft string in the room datafeed's flight_plan.aircraft
 - [ ] YAAT-566 Register the app's fonts in the headless UI test app so menu geometry matches the client
 - [ ] YAAT-568 Client driver: find_elements fails on a deep open flyout (object cycle / depth over 64)
-
-## No project
-
-- [ ] YAAT-588 Teach prepare-release the vHotfix tag-branch hotfix path · release vNext
-- [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
+- [ ] YAAT-597 Add SPD FAS and SPN FAS as additions to RFAS
+- [ ] YAAT-601 Answer 503, not 500, when VATSIM is down during /vnas/auth/refresh and login · release vNext
+- [ ] YAAT-602 Refuse an expired YAAT token at /vnas/auth/refresh instead of forwarding it to VATSIM
+- [ ] YAAT-604 Fix the suite-order flake in AtpaTrainingBroadcastTests (yaat-server)
