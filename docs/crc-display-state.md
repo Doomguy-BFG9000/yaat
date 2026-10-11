@@ -164,8 +164,10 @@ transponder plus the subscribing facility's ERAM config. Precedence:
    sim-side `Transponder.HasReportedModeC` latch, so an aircraft that reported Mode C before going standby renders CRC's
    "recently lost Mode C" forms — CRC only consults that field when the altitude is null.
 2. **Ident** → `IdentingBeacon`, a transient override on any beacon target, correlated or not.
-3. **Correlated** = `HasFlightPlan && code != 1200`. 1200 is the non-discrete universal VFR code and never correlates
-   (AIM §4-1-20); a filed aircraft squawking 1200 falls through to the uncorrelated branch. Correlated →
+3. **Correlated** = `TrackCorrelation.IsEramCorrelated`: a flight plan, a code other than 1200, and either a track (any
+   owner) or the code its flight plan assigned (7110.65 5-2-1b2 NOTE: the assigned code is what auto-acquires; 5-4-6e2
+   NOTE: a tracked aircraft that changes code stays associated). 1200 is the non-discrete universal VFR code and never
+   correlates (AIM §4-1-20); an untracked filed aircraft squawking another code (after `RANDSQ`) is uncorrelated. Correlated →
    `ReducedSeparation` inside single-sensor ASR coverage, else `CorrelatedBeacon`.
 4. **Uncorrelated** → `Mci` inside the MCI band (`EramConflictDetector.IsMciAltitudeEligible`: the floor below to 99,500 ft, inclusive), 1200 included; outside it `Vfr` for 1200, else `UncorrelatedBeacon` (CRC manual Table 1).
 

@@ -82,6 +82,19 @@ public class EramConflictSuppressionTests
     }
 
     /// <summary>
+    /// UAL200 untracked with its filed flight plan and assigned code 3456, squawking <paramref name="code"/>. Before a
+    /// track exists, only the assigned code correlates the target with its flight plan (7110.65 5-2-1b2 NOTE).
+    /// </summary>
+    private static void MakeUntrackedFiled(SimulationEngine engine, uint code)
+    {
+        AircraftState ual = engine.FindAircraft("UAL200")!;
+        ual.Track.Owner = null;
+        ual.Transponder.AssignedCode = 3456;
+        ual.Transponder.Code = code;
+        Assert.True(ual.FlightPlan.HasFlightPlan);
+    }
+
+    /// <summary>
     /// Puts both aircraft at <paramref name="altitudeFeet"/> with UAL200 10 nm east of AAL100 and head-on to it: outside
     /// minima now, and a conflict within the look-ahead.
     /// </summary>
@@ -257,6 +270,28 @@ public class EramConflictSuppressionTests
         PlaceHeadOn(belowFloor, 12000);
         Assert.Empty(belowFloor.TickEramConflictAlerts().New);
         Assert.Null(belowFloor.EramConflicts.FindPair("AAL100", "UAL200"));
+    }
+
+    [Fact]
+    public void UntrackedFiledAircraft_SquawkingAnotherCode_IsTheModeCIntruder()
+    {
+        SimulationEngine engine = Load();
+        MakeUntrackedFiled(engine, 4521);
+
+        EramActiveConflict alert = Assert.Single(engine.TickEramConflictAlerts().New);
+
+        Assert.Equal("UAL200", alert.IntruderCallsign);
+    }
+
+    [Fact]
+    public void UntrackedFiledAircraft_SquawkingItsAssignedCode_IsNotAnIntruder()
+    {
+        SimulationEngine engine = Load();
+        MakeUntrackedFiled(engine, 3456);
+
+        EramActiveConflict alert = Assert.Single(engine.TickEramConflictAlerts().New);
+
+        Assert.Null(alert.IntruderCallsign);
     }
 
     private static CommandResult Suppress(SimulationEngine engine) =>

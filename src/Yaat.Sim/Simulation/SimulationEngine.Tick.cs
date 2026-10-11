@@ -872,8 +872,11 @@ public sealed partial class SimulationEngine
     private readonly record struct EramPairSide(AircraftState Aircraft, string? Facility, bool Tracked, bool Correlated);
 
     /// <summary>
-    /// Indexes the snapshot by callsign for pair classification. Correlation is a filed flight plan with a discrete
-    /// beacon: the non-discrete VFR code 1200 never correlates (AIM §4-1-20), the same rule the ERAM target symbol uses.
+    /// Indexes the snapshot by callsign for pair classification. Correlation (<see cref="TrackCorrelation.IsEramCorrelated"/>)
+    /// is a filed flight plan with a discrete beacon (the non-discrete VFR code 1200 never correlates, AIM §4-1-20) on a
+    /// target that is tracked or squawking its assigned code: before a track exists only the assigned code correlates
+    /// (7110.65 §5-2-1b2 NOTE), and a track keeps the association through a code change (§5-4-6e2 NOTE). It is the same
+    /// rule the ERAM target symbol uses.
     /// </summary>
     private static Dictionary<string, EramPairSide> IndexEramPairSides(List<AircraftState> snapshot)
     {
@@ -881,8 +884,7 @@ public sealed partial class SimulationEngine
         foreach (AircraftState ac in snapshot)
         {
             string? facility = ac.Track.Owner is { OwnerType: TrackOwnerType.Eram, FacilityId: { } id } ? id : null;
-            bool correlated = ac.FlightPlan.HasFlightPlan && !ac.Transponder.IsVfrCode;
-            sides[ac.Callsign] = new EramPairSide(ac, facility, ac.Track.Owner is not null, correlated);
+            sides[ac.Callsign] = new EramPairSide(ac, facility, ac.Track.Owner is not null, TrackCorrelation.IsEramCorrelated(ac));
         }
 
         return sides;
