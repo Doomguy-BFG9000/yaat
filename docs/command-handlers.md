@@ -25,12 +25,12 @@ the single most important thing to get right.
 
 | Switch | Signature | Handles |
 |---|---|---|
-| `ApplyCommand` | `CommandDispatcher.cs:433` | Airborne / nav / flight / squawk / say / approach-clearance / pattern-entry verbs. The general arm. |
-| `TryApplyTowerCommand` | `CommandDispatcher.cs:1345` | Phase-interactive tower & ground verbs (CTO, LUAW, CLAND, pattern turns, TAXI, CROSS, hold-short, exits). |
+| `ApplyCommand` | `CommandDispatcher.cs:883` | Airborne / nav / flight / squawk / say / approach-clearance / pattern-entry verbs. The general arm. |
+| `TryApplyTowerCommand` | `CommandDispatcher.cs:2276` | Phase-interactive tower & ground verbs (CTO, LUAW, CLAND, pattern turns, TAXI, CROSS, hold-short, exits). |
 
 `ApplyCommand` is the fallback: it returns a real `CommandResult` for everything it knows, and a `NoDispatcherArm` result
 (its `default:` arm) for anything it doesn't. `TryApplyTowerCommand` is *nullable*: it returns a `CommandResult` when it recognizes the verb
-and `null` (its `default:` arm, `CommandDispatcher.cs:1617`) when it doesn't — `null` means "not a tower verb, let the caller try `ApplyCommand`."
+and `null` (its `default:` arm, `CommandDispatcher.cs:2662`) when it doesn't — `null` means "not a tower verb, let the caller try `ApplyCommand`."
 
 ### Why some verbs live in both
 
@@ -54,30 +54,47 @@ public entries: they are the `ActionRouter`'s flight-plan arm (`RecordedCommandK
 `BreakConflictCommand` (`BREAK`) and `GoCommand` (`GO`) are the inverse case: they have an arm **only** in `TryApplyTowerCommand`, never in
 `ApplyCommand`. `RES` on an aircraft that is not held but is stalled by the ground conflict detector (`Ground.SpeedLimit` at or below
 `GroundConflictDetector.SlowTaxiSpeedKts`) performs `TryBreakConflict` itself and answers `Resume taxi — breaking ground conflict`, so the
-controller's "resume" to a stuck aircraft does what `BREAK` does; a higher cap (trail speed) still refuses `Aircraft is not held`. `BREAK` is classified as a ground command (`CommandDescriber.IsGroundCommand`, `CommandDescriber.cs:933`); `GO` is in neither
-`IsGroundCommand` nor `IsTowerCommand` (`CommandDescriber.cs:868`). Both reach `TryApplyTowerCommand` only when a phase is active: a directly-typed
+controller's "resume" to a stuck aircraft does what `BREAK` does (`GroundCommandHandler.IsDetectorStalled`); a higher cap (trail speed) still refuses `Aircraft is not held` (a rolling aircraft on an active route is pre-cleared instead, below). `BREAK` is classified as a ground command (`CommandDescriber.IsGroundCommand`, `CommandDescriber.cs:1615`); `GO` is in neither
+`IsGroundCommand` nor `IsTowerCommand` (`CommandDescriber.cs:1549`). Both reach `TryApplyTowerCommand` only when a phase is active: a directly-typed
 `BREAK`/`GO` parses into a `CompoundCommand` and flows through `DispatchCompound` → the phase gate (`DispatchWithPhase`) → `TryApplyTowerCommand`.
 (The single-command `Dispatch` entry point — used by the engine-level `TaxiAll` fan-out and by tests — is a thin wrapper that puts the verb in
 one unconditional block and calls `DispatchCompound`; there is no second dispatch path.)
+
+A bare `RES` (no `CROSS`/`HS`) to an aircraft that is not in `HoldingShortPhase`, on the ground, not immobile, not detector-stalled and driving an incomplete route (`FollowingPhase.DrivenRouteOf`) takes the arm ahead of `groundResume` in `TryApplyTowerCommandCore`, `GroundCommandHandler.TryPreClearNextTaxiwayHoldShort`: it clears the route's next uncleared taxiway or spot hold short (`TaxiRoute.NextUnclearedHoldShortAhead`, `TaxiRoute.IsTaxiwayClassHoldShort`) and answers `Continue taxi past B` / `Continue taxi past spot 17`, with a handler-built `PilotReadback` of "continue taxi" (see [Handler-built readbacks](#handler-built-readbacks)).
+
+Later bars stay armed.
+
+The refusals, in the order the handler tests them, each leaving the bar armed:
+
+- No uncleared bar ahead: `No upcoming hold short to clear`.
+- The bar ending an incomplete route (`HoldShortReason.RouteIncomplete`): the incomplete-route refusal (`HoldingShortPhase.RouteIncompleteMessage`), a new `TAXI` being the way on.
+- The destination runway's bar (`HoldShortReason.DestinationRunway`): `Next hold short is departure runway {rwy}; issue CTO or LUAW`.
+- Any other runway bar (crossing, explicit `HS 28R`): `Next hold short is runway {rwy}; use CROSS`.
+
+Runway-node hardening: a bar that is taxiway-class by reason and target name is still refused as a runway bar (the same `use CROSS` text) when `GuardsARunway` finds its node is a layout `GroundNodeType.RunwayHoldShort` node, or another uncleared runway-class bar on the route shares its node. The layout node type is the ground truth the target-name test can only approximate.
+
+The route is the one the aircraft drives, not `AssignedTaxiRoute`: a `FOLLOWG` follower drives its follow or clearing route, and the assigned route `FOLLOWG` leaves in place is stale. A follower's driven route carries no hold short, so a bare `RES` to one answers `No upcoming hold short to clear`, or `Aircraft is not held` while it waits for its lead with neither route; `TaxiRoute.HasTaxiwayHoldShortAhead` (the hub's `HasTaxiwayHoldShortAhead` flag) is false for followers. With no route at all `RES` still answers `Aircraft is not held`.
+
+`RES` at a runway bar the aircraft is already holding short of (`HoldingShortPhase`) is not this arm (its `currentPhase is not HoldingShortPhase` guard): the held runway bar keeps being released by `RES` exactly as before, with no held-bar refusal.
 
 > If you add a phase-interactive verb to **only** `ApplyCommand`, an immediate dispatch may work, but a *queued/triggered* instance of that verb that
 > re-fires after a phase transition will hit the no-dispatcher-arm fallback in `BuildApplyAction` (see [Triggered re-dispatch](#triggered-re-dispatch-buildapplyaction)). Add it to both, or to `TryApplyTowerCommand` only if it always requires a phase.
 
 ## `DispatchCompoundCore` control flow
 
-`DispatchCompound` (`CommandDispatcher.cs:37`) is a thin wrapper that records initial-contact state, then calls `DispatchCompoundCore`
-(`CommandDispatcher.cs:54`). Core runs these steps **in order**; the first one that produces a non-null result short-circuits:
+`DispatchCompound` (`CommandDispatcher.cs:77`) is a thin wrapper that records initial-contact state, then calls `DispatchCompoundCore`
+(`CommandDispatcher.cs:244`). Core runs these steps **in order**; the first one that produces a non-null result short-circuits:
 
-1. **Leading-WAIT defer** — `TryDeferLeadingWait` (`:1038`). A bare leading `WAIT <n>` / `WAITD <nm>` extracts the timer and stores the remaining
+1. **Leading-WAIT defer** — `TryDeferLeadingWait` (`:1826`). A bare leading `WAIT <n>` / `WAITD <nm>` extracts the timer and stores the remaining
    blocks as a `DeferredDispatch` that re-dispatches fresh when the timer expires. Phases and the queue are untouched.
-2. **GiveWay defer** — `TryDeferGiveWay` (`:1136`). A leading `GIVEWAY <callsign>` condition defers the whole compound; the aircraft stays in its
+2. **GiveWay defer** — `TryDeferGiveWay` (`:1972`). A leading `GIVEWAY <callsign>` condition defers the whole compound; the aircraft stays in its
    current phase. With `ctx.FindAircraft` wired, an unresolved target callsign is hard-rejected so a typo can't silently fire via the "target gone"
    shortcut.
-3. **All-transparent fast path** — `IsAllTransparent` (`:271`) → `ApplyTransparentCompound` (`:297`). If every command in the compound is
+3. **All-transparent fast path** — `IsAllTransparent` (`:807`) → `ApplyTransparentCompound` (`:833`). If every command in the compound is
    phase-transparent (per `CommandDescriber.IsPhaseTransparent`) and has no condition, apply each directly and return. **This fires whether or not a
    phase is active** — see the footgun about queue-wiping below.
 3b. **Pure pattern-modifier reroute** — a compound whose every block is a single-command, no-condition `EXT`/`SA`/`MNA`
-   (`compound.Blocks.All(IsImmediatePhaseModifierBlock)`, `CommandDispatcher.cs:168`) on an aircraft with **no active phase** is applied directly via
+   (`compound.Blocks.All(IsImmediatePhaseModifierBlock)`, `CommandDispatcher.cs:319`) on an aircraft with **no active phase** is applied directly via
    `ApplyTransparentCompound` too — `EXT DOWNWIND; SA` included, the last-armed modifier winning the single `PendingEntryModifier` slot. These are
    tower commands → dimension `All`, and `ClearConflictingBlocks`'s fast path fires for `All` and `None` alike, so without this the queue wipe
    (step 7) would destroy a queued pattern entry the moment their dispatcher arm makes dry-run succeed. Applying directly pre-arms the queued entry
@@ -92,21 +109,21 @@ one unconditional block and calls `DispatchCompound`; there is no second dispatc
    them first; the moment the handler starts pre-issuing, dispatch would reach the wipe and destroy the entry the clearance is meant to attach to.
    Applying directly stores `AircraftPattern.PendingLandingClearance`, which `TryEnterPattern` folds into `standingClearance` when it builds the circuit.
    The `HasQueuedPatternEntry` guard keeps a clearance with nothing queued on the ordinary dry-run-guarded path and its ordinary rejection.
-4. **Phase gate** — if `aircraft.Phases?.CurrentPhase` exists, route through `DispatchWithPhase` (`:1172`). See [the phase gate](#the-phase-gate).
-5. **Dry-run validation** — `DryRunValidate` (`:812`) runs the first block on a clone whose queue has first been cleared the way step 7 will
+4. **Phase gate** — if `aircraft.Phases?.CurrentPhase` exists, route through `DispatchWithPhase` (`:2012`). See [the phase gate](#the-phase-gate).
+5. **Dry-run validation** — `DryRunValidate` (`:1451`) runs the first block on a clone whose queue has first been cleared the way step 7 will
    clear it. If it fails, return the error; **real state is unchanged**.
 6. **Post-validation phase clear** — only now (after dry-run passes) does the deferred `ClearsPhase` actually clear the `PhaseList`
    (`CommandDispatcher.ClearPhaseChain`).
-7. **Dimension-aware queue clearing** — `ClearConflictingBlocks` (`:1798`) removes queued blocks whose dimensions overlap the incoming command;
+7. **Dimension-aware queue clearing** — `ClearConflictingBlocks` (`:3054`) removes queued blocks whose dimensions overlap the incoming command;
    non-conflicting blocks survive and are re-appended.
-8. **Enqueue + apply first block** — `EnqueueBlocks` (`:1985`) appends the new blocks; the first new block with no trigger is applied immediately via
-   `ApplyBlock` (`:1757`). Triggered blocks wait for the physics tick.
+8. **Enqueue + apply first block** — `EnqueueBlocks` (`:3467`) appends the new blocks; the first new block with no trigger is applied immediately via
+   `ApplyBlock` (`:3010`). Triggered blocks wait for the physics tick.
 
 ## The phase gate
 
-`DispatchWithPhase` (`CommandDispatcher.cs:1369`) decides what an active phase does with the block's **driver** command:
+`DispatchWithPhase` (`CommandDispatcher.cs:2012`) decides what an active phase does with the block's **driver** command:
 
-0. **Pick the driver.** `FindPhaseGateDriverIndex` (`:1511`) selects the first *phase-interactive* (non-broad-transparent) command in the parallel
+0. **Pick the driver.** `FindPhaseGateDriverIndex` (`:2174`) selects the first *phase-interactive* (non-broad-transparent) command in the parallel
    block — **not** blindly `Commands[0]`. A block only reaches the gate because it holds at least one non-transparent command (`IsAllTransparent`
    claims the rest), so gating on a leading transparent sibling would let any phase that doesn't whitelist it reject the whole block. `SQ, SQNORM,
    PUSH` at parking is the canonical case: `AtParkingPhase` rejects `Squawk`, so the batch failed even though each verb succeeded on its own.
@@ -115,25 +132,25 @@ one unconditional block and calls `DispatchCompound`; there is no second dispatc
    fired yet.
 2. **`UnsupportedCommand`** → hard reject. Never let an unsupported verb interact with phases — it used to map to `FlyHeading` and destroy
    pattern state. (`CommandDescriber.ToCanonicalType` *throws* on `UnsupportedCommand`, so the transparency probe guards it.)
-3. **Phase-transparent command** → return `null`. `IsPhaseTransparentCommand` (`CommandDispatcher.cs:1578`) is a **narrow** dispatcher-local
+3. **Phase-transparent command** → return `null`. `IsPhaseTransparentCommand` (`CommandDispatcher.cs:2251`) is a **narrow** dispatcher-local
    list — RFIS/RTIS and their forced variants, `SafetyAlert`, `WakeAdvisory`, and `CancelAutoDelete` (NODEL). These are pure status setters that must
    never clear a phase; routing them through normal dispatch lets `NavigationCommandHandler` apply them without disturbing the phase.
-4. **Sim-control bypass** → return `null`. `IsSimControlBypass` (`:1595`) is just `Warp` / `WarpGround` — destructive teleports that wipe
+4. **Sim-control bypass** → return `null`. `IsSimControlBypass` (`:2268`) is just `Warp` / `WarpGround` — destructive teleports that wipe
    phase/queue/route *inside the handler*, so the gate has nothing to protect.
 5. **Tower command** → `TryApplyTowerCommand` on the driver. If it returns non-null, the result is used and every **sibling** command in the same
-   block is then applied via `ApplyParallelSibling` (`:1531`) — transparent siblings through `ApplyCommand`, the rest through `TryApplyTowerCommand`.
+   block is then applied via `ApplyParallelSibling` (`:2194`) — transparent siblings through `ApplyCommand`, the rest through `TryApplyTowerCommand`.
    This is how `EF 28L, CLAND` applies both clauses, and why `PUSH, SQ 0233` no longer silently drops the squawk (a squawk has no tower arm, so the
    old tower-only sibling loop skipped it).
 6. Otherwise consult the phase's acceptance verdict:
    - **`Rejected`** → return the reason; state unchanged.
-   - **`ClearsPhase`** → return the `PhaseShouldBeCleared` sentinel (`:1276`) so `DispatchCompoundCore` can validate *before* clearing.
+   - **`ClearsPhase`** → return the `PhaseShouldBeCleared` sentinel (`:73`) so `DispatchCompoundCore` can validate *before* clearing.
    - **`Allowed`** → return `null` (fall through to normal dispatch). Phase notification is deferred to `BuildApplyAction` after a successful apply.
 
 ### The two sentinels
 
 Both are `CommandResult` values detected by identity/substring, **not** exceptions:
 
-- `PhaseShouldBeCleared` (`CommandDispatcher.cs:25`) — a private static `CommandResult` instance. `DispatchCompoundCore` and `BuildApplyAction` test
+- `PhaseShouldBeCleared` (`CommandDispatcher.cs:73`) — a private static `CommandResult` instance. `DispatchCompoundCore` and `BuildApplyAction` test
   it with `ReferenceEquals`. Clearing is deferred until after `DryRunValidate` succeeds so an invalid command never destroys pattern/approach state.
   The clear sequence (build a `PhaseContext` via `BuildMinimalContext`, capture a `PhaseClearSummary`, `Phases.Clear(ctx)`, null out `Phases`, reset
   turn-rate overrides, `AirborneFollowHelper.ClearFollowState`, `ResumeAssignedAltitudeAfterPhaseClear`, then the "… cancelled by …" warning) is
@@ -158,18 +175,26 @@ Every per-domain handler follows the same read/write rules:
     `AltitudeFloor`, `AltitudeCeiling`. Speed: `TargetSpeed`, `AssignedSpeed`, `SpeedFloor`, `SpeedCeiling`, `TargetMach`, `HasExplicitSpeedCommand`.
   - `aircraft.Procedure.*` (SID/STAR via-mode, active procedure IDs, `DestinationRunway`).
   - A fresh `PhaseList` installed on `aircraft.Phases` (approach/pattern/ground handlers do this).
-- **Return** `CommandResult(true, message)` on success or `CommandResult(false, reason)` on failure. Success messages are joined for the RPO.
+- **Return** `CommandResult(true, message)` on success or `CommandResult(false, reason)` on failure. Success messages are joined for the RPO. A handler that knows the pilot's own words sets `PilotReadback` (success) or `PilotUnable` (refusal) on the result; see [Handler-built readbacks](#handler-built-readbacks).
 - **Never move the aircraft directly.** Physics reads `Targets` next tick and turns/climbs/accelerates toward them ([tick-loop.md](tick-loop.md)).
 
-The convention is: **command handlers set `Assigned*`; physics reads them.** `ApplyHeading` (`FlightCommandHandler.cs:11`) is the canonical example —
+The convention is: **command handlers set `Assigned*`; physics reads them.** `ApplyHeading` (`FlightCommandHandler.cs:32`) is the canonical example —
 it clears the active procedure, clears `NavigationRoute`, sets `TargetTrueHeading` (true) + `AssignedMagneticHeading` (magnetic) + clears
 `PreferredTurnDirection`, then returns `Ok(...)`. It does **not** touch `aircraft.TrueHeading`.
 
 ### The Force* exception
 
-`ApplyForceHeading` (`FlightCommandHandler.cs:80`), `ApplyForceAltitude`, `ApplyForceSpeed`, and the WARP verbs deliberately **teleport** by writing
+`ApplyForceHeading` (`FlightCommandHandler.cs:101`), `ApplyForceAltitude`, `ApplyForceSpeed`, and the WARP verbs deliberately **teleport** by writing
 `aircraft.TrueHeading` / `aircraft.TrueTrack` / `Altitude` / `Position` directly, in addition to the targets. These are the sim-control bypasses
 (`IsSimControlBypass`) that skip the phase gate because the handler wipes phase/queue/route itself.
+
+### Handler-built readbacks
+
+A handler that resolves something the command text does not say (the goal a `PUSH` reaches, the bar a bare `RES` released) returns the pilot's words on `CommandResult.PilotReadback`, a `HandlerReadback(Command, Speech)` record: `Speech` is the clause (a `PilotSpeechText`, no callsign) and `Command` is the `CanonicalCommandType` of the command whose handler built it (`Pushback` / `PushbackMulti` for `PushAccepted`, `Resume` for the `RES` pre-clear).
+
+`PilotResponder.BuildReadbackAsApplied` swaps `Speech` in for the clause of the compound's first command of that type (`IsCommandOfType`, by `CommandDescriber.ToCanonicalType`) and uses it once; a later command of the same type reads back from its own parsed form, and a command of another type never takes it. The type tag is what lets a compound carry a pre-cleared `RES` and a `PUSH` without one clause landing on the other.
+
+`CommandResult.PilotUnable` is the refusal counterpart and is a bare `PilotSpeechText`; it needs no tag because a refusal belongs to the one command that failed.
 
 ## Per-domain effect cheat-sheet
 
@@ -177,10 +202,10 @@ it clears the active procedure, clears `NavigationRoute`, sets `TargetTrueHeadin
 |---|---|---|
 | **Flight** | `FlightCommandHandler` | Heading/alt/speed/squawk/turn-rate. Heading verbs call `ClearActiveProcedure` + clear `NavigationRoute` + set `Assigned*` + `PreferredTurnDirection`. CM/DM clear via-mode and set `TargetAltitude`/`AssignedAltitude`. Force* teleport. |
 | **Navigation** | `NavigationCommandHandler` | JRADO/JRADI/DEPART/CROSS multi-fix routing, STAR (`DispatchJarr`) and airway (`DispatchJawy`) resolution into `Targets.NavigationRoute`, climb/descend-via mode. RFIS/RTIS visual-acquisition (need `ctx.Weather`/`ctx.FindAircraft`). `DispatchJfac`/`DispatchHoldingPattern` install a fresh `PhaseList`. |
-| **Approach** | `ApproachCommandHandler` | CAPP/JAPP/PTAC/CVA (JFAC/JLOC are `NavigationCommandHandler.DispatchJfac` — see Navigation row). Deferred clearance → `aircraft.Approach.PendingClearance` (`:112`); immediate → `aircraft.Phases = new PhaseList { AssignedRunway, ActiveApproach }` (`:130`, `:303`, `:391`, `:481`). Procedure-turn engagement (see [phases.md](phases.md)). CAPP and PTAC null `TargetSpeed` (§5-7-1.d) and restate a standing same-runway in-trail reduction via `RestateStandingInTrailReduction` (§5-7-1.c — see [approach-and-pattern-geometry.md](approach-and-pattern-geometry.md#construction-call-sites)). `IsOnFinal(aircraft, runway, layout)` tests against the landing threshold of the layout it is given. `ClearArrivalProcedureState` (`:1757`) tears down STAR/pending/expected/route on airport change. |
+| **Approach** | `ApproachCommandHandler` | CAPP/JAPP/PTAC/CVA (JFAC/JLOC are `NavigationCommandHandler.DispatchJfac` — see Navigation row). Deferred clearance → `aircraft.Approach.PendingClearance` (`:157`); immediate → `aircraft.Phases = new PhaseList { AssignedRunway, ActiveApproach }` (`:178`, `:371`, `:465`, `:652`). Procedure-turn engagement (see [phases.md](phases.md)). CAPP and PTAC null `TargetSpeed` (§5-7-1.d) and restate a standing same-runway in-trail reduction via `RestateStandingInTrailReduction` (§5-7-1.c — see [approach-and-pattern-geometry.md](approach-and-pattern-geometry.md#construction-call-sites)). `IsOnFinal(aircraft, runway, layout)` tests against the landing threshold of the layout it is given. `ClearArrivalProcedureState` (`:2117`) tears down STAR/pending/expected/route on airport change. |
 | **Pattern** | `PatternCommandHandler` | `TryEnterPattern`, pattern direction/turn/extend/size/offset/S-turn mods, option ops (T&G/S&G/low-approach/option), hold-orbit/hover, CLAND/LAHSO/CLC/GA. Builds/mutates pattern `PhaseList`. Classified **VFR-only** by `VfrCommandPolicy.RequiresVfr`; the client is what gates it. |
-| **Departure** | `DepartureClearanceHandler` | CTO/LUAW/CTOC state machine. `TryDepartureClearance` (`:90`) branches on current phase: `HoldingShort` / `Taxiing` (stores clearance for later) / `LineUp` / `HoldingInPosition`. Installs `LineUp → [LinedUpAndWaiting] → Takeoff → InitialClimb` tower phases; stores `Phases.DepartureClearance`. Pattern-relative modifiers classified **VFR-only** by `VfrCommandPolicy.IsVfrOnlyDeparture`; the client is what gates them. |
-| **Ground** | `GroundCommandHandler` | Taxi/pushback/hold-short/cross/exit/follow/give-way/break/go. The routing methods (`TryTaxi`, `TryTaxiAuto`, `TryPushback`, `TryHoldShort`, `TryFollow`, `TryAirTaxi`, `TryLand`, `TryAddExplicitHoldShorts`, `TryCrossRunway`, `TryApplyRouteCrossingsAndHoldShorts`) take an `AirportGroundLayout? groundLayout`; the rest (`TryAssignRunway`, `TryHoldPosition`, `TryResumeTaxi`, `TryGiveWay`, `TryBreakConflict`, `TryGo`, `TryExitCommand`) don't. `TryApplyRouteCrossingsAndHoldShorts` (pre-clear listed crossings then add/re-arm hold-shorts, atomic) is the shared engine behind both `RES … CROSS … HS …` and multi-runway `CROSS … HS …`; single-runway `CROSS` keeps its own path (immediate-satisfy + destination-runway far-side crossing). On the phase path the layout is `ctx.GroundLayout` (see `TryApplyTowerCommand:1347`); on the `ApplyCommand` path (AirTaxi/Land/CTOPP) it is `aircraft.Ground.Layout`. Installs/mutates ground `PhaseList`. `TryTaxi` resolves through `TaxiPathfinder.ResolveExplicitPathDetailed` so it can react to the structured `PathfindingFailure`; every pathfinder call passes the aircraft's category and wake class (`WakeTurbulenceData.WakeClassForType`, which selects the one-way constraints that bind). A plain `TAXI` naming no taxiway, only a gate/helipad/spot, from inside the ramp (`RampLaneReposition.StartsOffMovementArea`) is **ramp-confined** (`ResolveRampConfinedRoute`: the ramp graph, else one cut across the ramp via `RampLaneReposition.TryPlanRampConfinedRoute`, else a spot line-up that stays inside the ramp); with none it is refused with `Unable, need a route to spot X. To auto-route it: TAXIAUTO $X` (`RampConfinedRefusal`) and no recovery below runs. `TAXIAUTO`/`TAXIALL` (`TaxiCoreOptions.IsTaxiAuto`) are never confined and carry no uncleared-taxiway advisory; a plain TAXI's readback (`BuildTaxiReadback`, `TaxiReadbackInputs`) warns `taxiing via X — not in the route issued` for each uncleared movement-area taxiway and names the route's `ImpliedLanes`. See [`ground/pathfinder.md`](ground/pathfinder.md#a-bare-taxi-to-a-gate-or-spot-from-the-ramp-stays-in-the-ramp). Recovery ladder, in order: (1) a **first** cleared taxiway that is a parallel sibling ramp lane the map does not connect (SFO M3 → M4 / M5, from a gate or mid-lane) is honoured by a free-space cut across the apron onto it — `RampLaneReposition.TryPlan` returns a route whose first segment is a `VirtualNode` leg, see [`ground/pathfinder.md`](ground/pathfinder.md) (issue #396); (1b) a `@parking` / `$spot` clearance whose **last** cleared lane is a ramp taxilane the map does not join to the stand's sibling lane (OAK `TAXI V T TE @22`) — `DestinationUnreachable` blaming no taxiway — is honoured by taxiing the lane to the point nearest the stand and cutting across the apron onto the stand's lane (`RampLaneReposition.TryPlanDestinationCut`, issue #400), readback unchanged; (2) a parking start whose first cleared taxiway is `TaxiwayNotConnected`, is **not** such a lane, but lies within `GateAdjacentTaxiwayMaxFt` (450 ft) with no runway centerline between (`AirportGroundLayout.RunwayCenterlineBetween`) is retried without it and warned `unable via K — no ramp connection from the gate; taxiing via M3` (`TryDropGateLeadOut`); (3) the older contradictory-via drop for `@parking`/`$spot` destinations (`TryDropContradictoryVia`) runs right after it. Both return a `DroppedTaxiwayRoute` whose `DroppedName` becomes the `CommandResult.EffectiveCommand` the solo readback verbalizes and whose `Command` is the clearance as applied (used for the route summary's runway/turn-hint context). |
+| **Departure** | `DepartureClearanceHandler` | CTO/LUAW/CTOC state machine. `TryDepartureClearance` (`:132`) branches on current phase: `HoldingShort` / `Taxiing` (stores clearance for later) / `LineUp` / `HoldingInPosition`. Installs `LineUp → [LinedUpAndWaiting] → Takeoff → InitialClimb` tower phases; stores `Phases.DepartureClearance`. Pattern-relative modifiers classified **VFR-only** by `VfrCommandPolicy.IsVfrOnlyDeparture`; the client is what gates them. |
+| **Ground** | `GroundCommandHandler` | Taxi/pushback/hold-short/cross/exit/follow/give-way/break/go. The routing methods (`TryTaxi`, `TryTaxiAuto`, `TryPushback`, `TryHoldShort`, `TryFollow`, `TryAirTaxi`, `TryLand`, `TryAddExplicitHoldShorts`, `TryCrossRunway`, `TryApplyRouteCrossingsAndHoldShorts`) take an `AirportGroundLayout? groundLayout`; the rest (`TryAssignRunway`, `TryHoldPosition`, `TryResumeTaxi`, `TryGiveWay`, `TryBreakConflict`, `TryGo`, `TryExitCommand`) don't. `TryApplyRouteCrossingsAndHoldShorts` (pre-clear listed crossings then add/re-arm hold-shorts, atomic) is the shared engine behind both `RES … CROSS … HS …` and multi-runway `CROSS … HS …`; single-runway `CROSS` keeps its own path (immediate-satisfy + destination-runway far-side crossing). On the phase path the layout is `ctx.GroundLayout` (see `TryApplyTowerCommandCore:2293`); on the `ApplyCommand` path (AirTaxi/Land/CTOPP) it is `aircraft.Ground.Layout`. Installs/mutates ground `PhaseList`. `TryTaxi` resolves through `TaxiPathfinder.ResolveExplicitPathDetailed` so it can react to the structured `PathfindingFailure`; every pathfinder call passes the aircraft's category and wake class (`WakeTurbulenceData.WakeClassForType`, which selects the one-way constraints that bind). A plain `TAXI` naming no taxiway, only a gate/helipad/spot, from inside the ramp (`RampLaneReposition.StartsOffMovementArea`) is **ramp-confined** (`ResolveRampConfinedRoute`: the ramp graph, else one cut across the ramp via `RampLaneReposition.TryPlanRampConfinedRoute`, else a spot line-up that stays inside the ramp); with none it is refused with `Unable, need a route to spot X. To auto-route it: TAXIAUTO $X` (`RampConfinedRefusal`) and no recovery below runs. `TAXIAUTO`/`TAXIALL` (`TaxiCoreOptions.IsTaxiAuto`) are never confined and carry no uncleared-taxiway advisory; a plain TAXI's readback (`BuildTaxiReadback`, `TaxiReadbackInputs`) warns `taxiing via X — not in the route issued` for each uncleared movement-area taxiway and names the route's `ImpliedLanes`. See [`ground/pathfinder.md`](ground/pathfinder.md#a-bare-taxi-to-a-gate-or-spot-from-the-ramp-stays-in-the-ramp). Recovery ladder, in order: (1) a **first** cleared taxiway that is a parallel sibling ramp lane the map does not connect (SFO M3 → M4 / M5, from a gate or mid-lane) is honoured by a free-space cut across the apron onto it — `RampLaneReposition.TryPlan` returns a route whose first segment is a `VirtualNode` leg, see [`ground/pathfinder.md`](ground/pathfinder.md) (issue #396); (1b) a `@parking` / `$spot` clearance whose **last** cleared lane is a ramp taxilane the map does not join to the stand's sibling lane (OAK `TAXI V T TE @22`) — `DestinationUnreachable` blaming no taxiway — is honoured by taxiing the lane to the point nearest the stand and cutting across the apron onto the stand's lane (`RampLaneReposition.TryPlanDestinationCut`, issue #400), readback unchanged; (2) a parking start whose first cleared taxiway is `TaxiwayNotConnected`, is **not** such a lane, but lies within `GateAdjacentTaxiwayMaxFt` (450 ft) with no runway centerline between (`AirportGroundLayout.RunwayCenterlineBetween`) is retried without it and warned `unable via K — no ramp connection from the gate; taxiing via M3` (`TryDropGateLeadOut`); (3) the older contradictory-via drop for `@parking`/`$spot` destinations (`TryDropContradictoryVia`) runs right after it. Both return a `DroppedTaxiwayRoute` whose `DroppedName` becomes the `CommandResult.EffectiveCommand` the solo readback verbalizes and whose `Command` is the clearance as applied (used for the route summary's runway/turn-hint context). |
 | **Military routes** | `MilitaryRouteCommandHandler` | CMTR/MTRA/XMTR/SAYEXIT (7110.65 §9-2-6) and CAR (§9-2-13). Kept out of `NavigationCommandHandler`, which is already large; military routes are a self-contained domain with their own database dependency. Installs a fresh `PhaseList` holding `MilitaryRoutePhase` (training route or refueling track) or `AerialRefuelingAnchorPhase` (anchor orbit). Picks which published direction of a refueling track is meant from the aircraft's position — the clearance does not say. Takes `DispatchContext` for `ListAircraft`, used to warn when a second aircraft is cleared into an occupied route. `CMTR` on a refueling track and `CAR` on a training route each point at the other. See [military-training-routes.md](military-training-routes.md). |
 | **Contact** | `ContactCommandHandler` | CT / FCA — pure pilot-speech, **no flight-control mutation**. Resolves a target position to a frequency via `ctx.ArtccConfig`, queues a pilot readback, sets `aircraft.HasLeftStudentFrequency = true`, and stamps `CompletedAtSeconds`/`CompletionReason = HandedOff` on the first CT/FCA. |
 | **Flight plan** | `FlightPlanCommandHandler` | `TryChangeDestination` (APT/DEST) only — canonicalizes the airport via `NavigationDatabase.TryResolveAirport`, rejects unknowns, and clears arrival-procedure state when the destination actually changes. Dispatched from `RoomEngine.SendCommandAsync`'s intercept for the bare interactive form, and from `ApplyCommand`'s arm for preset/conditional forms. |
@@ -219,10 +244,10 @@ Client side, two independent surfaces consume that:
 
 ## Dimension classification
 
-`ClearConflictingBlocks` (`CommandDispatcher.cs:1798`) is dimension-aware. Each command declares which axes it touches via
-`CommandDescriber.GetCommandDimension` (`CommandDescriber.cs:274`): `Lateral`, `Vertical`, `Speed`, `All`, or `None`. Tower and ground commands are
+`ClearConflictingBlocks` (`CommandDispatcher.cs:3054`) is dimension-aware. Each command declares which axes it touches via
+`CommandDescriber.GetCommandDimension` (`CommandDescriber.cs:379`): `Lateral`, `Vertical`, `Speed`, `All`, or `None`. Tower and ground commands are
 `All`; ClimbVia/DescendVia and DepartFix are `Lateral | Vertical`; holds are `Lateral`. A new heading command clears queued lateral blocks
-but leaves a queued altitude block alone; mixed-dimension blocks are split via `SplitBlockNonConflicting` (`:1923`).
+but leaves a queued altitude block alone; mixed-dimension blocks are split via `SplitBlockNonConflicting` (`:3400`).
 
 **CrossFix is not lateral; DepartFix is.** `DispatchCrossFix` stamps the restriction on the fix when it is already on the route and appends it when it
 is not, leaving every other fix and restriction untouched — so `CFIX` is `Vertical` (plus `Speed` only when a speed was given) and a hand-built
@@ -244,13 +269,13 @@ speed assignment issued on the way to the fix must not. Everything else falls th
 
 ## Dry-run safety
 
-`DryRunValidate` (`CommandDispatcher.cs:812`) clones the aircraft (`AircraftState.FromSnapshot(aircraft.ToSnapshot(), ctx.GroundLayout)`) and runs
-**only the first block** on the clone via `DryRunApplyCommand` (`:852`), which tries `TryApplyTowerCommand` first (if phases are active) then
-`ApplyCommand`. The dry-run context (`:826`) overrides `Rng = new Random(0)`, `ValidateDctFixes = false`, `AutoCrossRunway = false`, and crucially
+`DryRunValidate` (`CommandDispatcher.cs:1451`) clones the aircraft (`AircraftState.FromSnapshot(aircraft.ToSnapshot(), ctx.GroundLayout)`) and runs
+**only the first block** on the clone via `DryRunApplyCommand` (`:1534`), which tries `TryApplyTowerCommand` first (if phases are active) then
+`ApplyCommand`. The dry-run context (`:1483`) overrides `Rng = new Random(0)`, `ValidateDctFixes = false`, `AutoCrossRunway = false`, and crucially
 `TerminalEmitter = null`.
 
 > Handlers must be **clone-safe**: any write to a singleton, a sibling aircraft, or anything not on the cloned `AircraftState` leaks out of the
-> dry-run. `TerminalEmitter` is nulled specifically so SAY-class verbs (`ApplyCommand:555-577`) don't broadcast phantom pilot transmissions on the
+> dry-run. `TerminalEmitter` is nulled specifically so SAY-class verbs (`ApplyCommand:1047-1076`) don't broadcast phantom pilot transmissions on the
 > throwaway clone.
 
 **The dry-run models the real path's queue clear.** Right after building the clone, `DryRunValidate` runs
@@ -262,15 +287,15 @@ evaluation owns this" — so a missing handler arm behind `AT`/`LV` is never cau
 
 ## Triggered re-dispatch (`BuildApplyAction`)
 
-`BuildApplyAction` (`CommandDispatcher.cs:2086`) builds the closure stored on a queued `CommandBlock` and run when its trigger fires
+`BuildApplyAction` (`CommandDispatcher.cs:3506`) builds the closure stored on a queued `CommandBlock` and run when its trigger fires
 ([tick-loop.md](tick-loop.md) step 9). It captures the parsed commands and the `DispatchContext`, then for each command:
 
 1. If a phase is active, try `TryApplyTowerCommand` first (mirroring the user-typed path). This is why queued tower verbs (`TAXI … ; CTO MRT`) re-fire
    correctly after a phase transition instead of hitting the no-dispatcher-arm fallback.
 2. If `TryApplyTowerCommand` returns the `PhaseShouldBeCleared` sentinel, run the same phase-clear sequence as `DispatchCompoundCore`, then apply via
-   `ApplyCommand` against the cleared state (`:2105`). We're already past validation here (the block was enqueued through the same dispatcher).
+   `ApplyCommand` against the cleared state (`:3533`). We're already past validation here (the block was enqueued through the same dispatcher).
 3. Otherwise fall back to `ApplyCommand`.
-4. After a *successful* apply, call `NotifyPhaseCommandAccepted` (`:2142`).
+4. After a *successful* apply, call `NotifyPhaseCommandAccepted` (`:3553`).
 
 **Track commands are excluded from the closure.** `TrackEngine.IsTrackCommand` verbs (`HO`/`TRACK`/`DROP`/`ACCEPT`/…)
 have no arm in `ApplyCommand`, so a triggered `AT FIX HO 2B` would hit the no-dispatcher-arm fallback. `CreateBlock`
@@ -284,14 +309,14 @@ survives snapshot restore (the post step re-parses `SourceCommandText` when `Par
 
 ## Phase-acceptance notification
 
-`NotifyPhaseCommandAccepted` (`CommandDispatcher.cs:1299`) releases phase-internal holds (e.g. the RV-SID runway-heading hold in `InitialClimbPhase`)
+`NotifyPhaseCommandAccepted` (`CommandDispatcher.cs:2219`) releases phase-internal holds (e.g. the RV-SID runway-heading hold in `InitialClimbPhase`)
 by calling `currentPhase.OnCommandAccepted(...)` — but **only after a command actually applied**, so a later validation/apply failure doesn't release
 internal state prematurely. It is called both on immediate dispatch (after `DispatchWithPhase` returns `Allowed`) and at trigger-fire time in
 `BuildApplyAction`.
 
 > The Unsupported / phase-transparent / sim-control-bypass guards inside `NotifyPhaseCommandAccepted` look redundant for immediate dispatch but are
 > **load-bearing for the triggered-block path** — queued blocks reach this helper without the pre-filtering `DispatchWithPhase` applies. The in-code
-> comment (`:1290`) warns against removing them.
+> comment (`:2205`) warns against removing them.
 
 ## `DispatchContext` — bundled call-site state
 
@@ -300,7 +325,7 @@ and which domains read them:
 
 | Field | Read by |
 |---|---|
-| `GroundLayout` | The graph-routing `GroundCommandHandler` methods (via the phase path's `TryApplyTowerCommand:1347`); the dry-run clone constructor; `ConvertGroundEntityCondition`. |
+| `GroundLayout` | The graph-routing `GroundCommandHandler` methods (via the phase path's `TryApplyTowerCommandCore:2293`); the dry-run clone constructor; `ConvertGroundEntityCondition`. |
 | `Rng` | `ApplyRandomSquawk` and anything needing deterministic randomness; overridden to `Random(0)` in dry-run. |
 | `Weather` | RFIS/RTIS visual acquisition (nullable; commands fail gracefully when absent). |
 | `FindAircraft` / `ListAircraft` | RTIS/FOLLOW relative-traffic lookups; GiveWay target validation; `RunwaySafetyAdvisor` occupied-runway scans (nullable). |
@@ -399,7 +424,7 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   `VfrCommandPolicy.RequiresVfr` lists the pattern/option verbs and `IsVfrOnlyDeparture` the pattern-relative CTO modifiers; the desktop client
   checks them against the controller's `VfrCommandsForIfr` setting. A new pattern-ish verb omitted from `RequiresVfr` reaches IFR traffic
   regardless of that setting.
-- **Two different "transparent" lists.** `CommandDescriber.IsPhaseTransparent` (`CommandDescriber.cs:1262`) is the **broad** list used by the
+- **Two different "transparent" lists.** `CommandDescriber.IsPhaseTransparent` (`CommandDescriber.cs:1633`) is the **broad** list used by the
   `IsAllTransparent` fast path (squawk, ident, say, RFIS/RTIS, NODEL, CT/FCA, expedite, the entire strip / half-strip / separator / blank
   family, …). Keep the strip family complete against `TrackEngine.IsStripCommand`: a strip type missing from the broad list sends a preset or
   deferred `STRIP <bay>` into the phase gate, where `AtParkingPhase` / `TaxiingPhase` reject it (issue #396). A verb on this list is applied directly by
@@ -407,11 +432,11 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   `EXP <alt>`, which assigns an altitude: `NeedsVerticalSupersede` routes it through `ClearConflictingBlocks` with `CommandDimension.Vertical` so a
   pending `CM`/`DM` cannot later override the clearance it just issued. That exception is deliberately keyed on the command type rather than on
   "has a dimension" — pattern modifiers (`EXT`/`SA`/`MNA`) are transparent *and* classify as `All`, so a dimension-based rule would clear the very
-  queued pattern entry they exist to modify. The dispatcher-local `IsPhaseTransparentCommand` (`CommandDispatcher.cs:1578`) is a **narrow** subset used by the phase gate to
+  queued pattern entry they exist to modify. The dispatcher-local `IsPhaseTransparentCommand` (`CommandDispatcher.cs:2251`) is a **narrow** subset used by the phase gate to
   fall through to normal dispatch (apply via the handler without clearing the active phase). They are not interchangeable. The real hazard runs the
   other way: a "harmless" status verb that is **omitted** from the broad list but whose `GetCommandDimension` resolves to `None` falls through to
   normal dispatch, where `ClearConflictingBlocks`'s `All`/`None` fast path clears the **entire** pending queue — wiping a
-  queued pattern entry whether or not a phase is active (the in-code comment at `CommandDispatcher.cs:84` documents this, citing N435C in S2-OAK-5).
+  queued pattern entry whether or not a phase is active (the in-code comment at `CommandDispatcher.cs:270` documents this, citing N435C in S2-OAK-5).
   The **broad** list has a second job inside the gate: it is what `FindPhaseGateDriverIndex` uses to skip transparent siblings when picking the
   command the phase's `CanAcceptCommand` is asked about. Adding a status verb to only the narrow list therefore still lets it wrongly drive the gate
   when it leads a mixed parallel block.
@@ -429,8 +454,8 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   Regression coverage: `SequentialTransparentCompoundTests`, `AptCancelsPatternAtOtherAirportTests`,
   `PhaseTransparentCommandTests.ParallelBlock_LeadingTurnRate_SurvivesPhaseClear`.
 - **Installing a phase has a lifecycle.** Build a fresh `PhaseList`, `Clear()` the old one with a `PhaseContext`, `Add` phases, then `Start()` with
-  another `PhaseContext` (see `DispatchJfac`, `TryAirborneFollow` at `CommandDispatcher.cs:2387` — the install sequence is at `:2452`, `DispatchHoldingPattern`). Use
-  `BuildMinimalContext` (`:1666`) to construct the `PhaseContext`. Skip the `Clear()`/`Start()` and you leave stale phase indices or unstarted phases.
+  another `PhaseContext` (see `DispatchJfac`, `TryAirborneFollow` at `CommandDispatcher.cs:3797`, whose install sequence is `InstallVfrFollowPhase`, `:5134`–`:5140`; `DispatchHoldingPattern`). Use
+  `BuildMinimalContext` (`:2717`) to construct the `PhaseContext`. Skip the `Clear()`/`Start()` and you leave stale phase indices or unstarted phases.
 - **A go-around leaves nothing for `ReplaceApproachEnding` to swap.** `GoAroundHelper.InstallGoAroundPhases` → `PhaseList.ReplaceUpcoming`
   deletes every pending landing phase, so while `GoAroundPhase` is current `ReplaceApproachEnding` (which only replaces a *pending*
   `Landing`/`HelicopterLanding`/`TouchAndGo`/`StopAndGo`/`LowApproach`) finds nothing, and `GoAroundPhase` is not in `TryForceLanding`'s

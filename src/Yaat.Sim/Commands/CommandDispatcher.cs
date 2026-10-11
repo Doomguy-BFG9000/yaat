@@ -38,11 +38,13 @@ public record CommandResult(
 {
     /// <summary>
     /// The pilot's readback of the command as the handler resolved it, when the handler builds one — every
-    /// <c>PUSH</c> / <c>PUSHM</c> form, whose readback names the goal the tug move reaches — in place of the one
+    /// <c>PUSH</c> / <c>PUSHM</c> form, whose readback names the goal the tug move reaches, and a bare <c>RES</c> that
+    /// pre-cleared a taxiway hold short, read back as the release "continue taxi" — in place of the one
     /// verbalized from the command text (<see cref="Pilot.PilotResponder.BuildReadbackAsApplied"/>). The clause alone,
-    /// without the callsign; null when the readback comes from the command.
+    /// without the callsign, tagged with the type of the command that produced it; null when the readback comes from the
+    /// command.
     /// </summary>
-    public PilotSpeechText? PilotReadback { get; init; }
+    public HandlerReadback? PilotReadback { get; init; }
 
     /// <summary>
     /// The pilot's "unable" for a refusal, when the handler builds one — an exit the crew cannot make on the rollout says
@@ -51,6 +53,14 @@ public record CommandResult(
     /// </summary>
     public PilotSpeechText? PilotUnable { get; init; }
 }
+
+/// <summary>
+/// A readback a handler built (<see cref="CommandResult.PilotReadback"/>), tagged with the type of the command that produced it,
+/// so it replaces the clause of a command of that type and never one of another.
+/// </summary>
+/// <param name="Command">The canonical type of the command whose handler built the readback.</param>
+/// <param name="Speech">The clause the pilot reads back, without the callsign.</param>
+public sealed record HandlerReadback(CanonicalCommandType Command, PilotSpeechText Speech);
 
 public static class CommandDispatcher
 {
@@ -2581,6 +2591,17 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryTaxiAuto(aircraft, autoTaxi, groundLayout, autoCrossRunway, ctx.IsScenarioScripted, ctx.ListAircraft);
             case HoldPositionCommand:
                 return GroundCommandHandler.TryHoldPosition(aircraft);
+            // Bare RES to an aircraft rolling free on a taxi route — not held, not stalled by the ground conflict detector —
+            // pre-clears the next hold short ahead when it is a taxiway or spot bar. A held or stalled aircraft keeps the
+            // release below, and so does one with no active route ("Aircraft is not held"). The route is the one the aircraft
+            // drives: a FOLLOWG follower's follow or clearing route, never the assigned route FOLLOWG leaves stale.
+            case ResumeCommand { CrossRunways.Count: 0, HoldShorts.Count: 0 }
+                when (currentPhase is not HoldingShortPhase)
+                    && aircraft.IsOnGround
+                    && !aircraft.Ground.IsImmobile
+                    && !GroundCommandHandler.IsDetectorStalled(aircraft)
+                    && (FollowingPhase.DrivenRouteOf(aircraft) is { IsComplete: false } preClearRoute):
+                return GroundCommandHandler.TryPreClearNextTaxiwayHoldShort(aircraft, preClearRoute);
             case ResumeCommand groundResume when currentPhase is not HoldingShortPhase:
             {
                 CommandResult applied = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(

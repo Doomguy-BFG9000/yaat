@@ -428,7 +428,7 @@ documented in [flight-strips.md](flight-strips.md) and [vtdls.md](vtdls.md).
 1. **Per-tick deltas** — `TrainingBroadcastService.BroadcastTrainingUpdates` sends `AircraftUpdated` for a callsign
    **only when** the tick's change flags include `DtoChangeFlags.TrainingDto` (`TrainingBroadcastService.cs:184`). Those
    flags come from `AircraftChangeTracker.DetectChanges`, which diffs the current state against the last-broadcast
-   `TrainingDtoFingerprint` (`AircraftChangeTracker.cs:145`, `:497`).
+   `TrainingDtoFingerprint` (`AircraftChangeTracker.cs:340`).
 2. **Delayed-spawn countdowns** — every delayed-queue entry is broadcast on `AircraftUpdated` **unconditionally every
    tick** (its `Delayed (Ns)` status changes each second), bypassing the delta gate
    (`TrainingBroadcastService.cs:191`-`196`).
@@ -489,7 +489,7 @@ The defaults buy nothing: there is one production construction site (`DtoConvert
 3. **Map it in `DtoConverter.ToTrainingDto`** (`../yaat-server/.../Simulation/DtoConverter.cs:620`) so the value is
    actually written onto the wire DTO.
 4. **Add it to `TrainingDtoFingerprint`** and capture it in `CaptureTrainingDto`
-   (`../yaat-server/.../Simulation/AircraftChangeTracker.cs:145`, `:497`). **Skip this step and the field round-trips on
+   (`../yaat-server/.../Simulation/AircraftChangeTracker.cs:340`). **Skip this step and the field round-trips on
    initial join — because the full manifest carries it — but never updates live**, because `DetectChanges` only sets
    `DtoChangeFlags.TrainingDto` when a *fingerprinted* field changes. This is the field-round-trips-but-never-updates
    bug. (If the field is a non-`AircraftDto` topic — STARS/ASDE-X/ERAM/Tower-Cab — it belongs in a *different*
@@ -568,6 +568,7 @@ extend the resolver to depend on a new input, fingerprint that input too.
   Like `AsdexFix` it is a derived field fingerprinted by its inputs rather than its value, so `CaptureTrainingDto` never computes it per tick: the phase name and `ParkingSpot` are already fingerprinted, the airport sidecars are fixed for the process, and the layout's identity has its own slot (`TrainingDtoFingerprint.GroundLayoutAirportId`).
 
   The client parses the name into `AircraftModel.StandDeparture` / `IMenuAircraft.StandDeparture` (an unknown name logs a warning and reads as null), and `AircraftCommandApplicability.CanPushBack` hides the push entries for `TaxiOut` only.
+- `HasTaxiwayHoldShortAhead` (a bool, right after `HasActiveTaxiRoute` in `AircraftStateDto` / `AircraftDto`) is `FollowingPhase.DrivenRouteOf(aircraft)?.HasTaxiwayHoldShortAhead()` (`DtoConverter`): the route the aircraft drives is incomplete and its next uncleared hold short ahead is a taxiway or spot bar, the one a bare `RES` pre-clears (`TaxiRoute.NextUnclearedHoldShortAhead`, `TaxiRoute.IsTaxiwayClassHoldShort`). For a `FOLLOWG` follower the driven route is its follow route, which carries no hold short, so the flag is false for followers. The client lands it on `AircraftModel` / `IMenuAircraft.HasTaxiwayHoldShortAhead`, and `AircraftCommandApplicability.CanResumeTaxi` offers "Resume taxi" to a rolling aircraft on it. It is its own `TrainingDtoFingerprint` field (`AircraftChangeTracker`), since the route's cleared bars are not fingerprinted, so clearing a bar rebroadcasts the aircraft.
 - `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
   → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`) are broadcast parameters
   `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.

@@ -310,7 +310,7 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 | At parking | Push back, Preset taxi route, Draw taxi route…, Push back to…, Check release window |
 | Pushing back | Hold position, Push route… |
 | Holding on the ground | Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross {runway} |
-| Taxiing | Hold position, Hold short of…, Cross {runway}, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff, Cancel takeoff clearance |
+| Taxiing | Hold position, Resume taxi, Hold short of…, Cross {runway}, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff, Cancel takeoff clearance |
 | Holding short | Cleared for takeoff, Line up and wait (at the departure runway); Cross {runway}, Resume taxi (at any other) |
 | Lined up | Cleared for takeoff, Cancel takeoff clearance, Draw taxi route… |
 | Departing | Fly heading, Maintain altitude, Climb via SID (IFR), Direct to…, Assign speed |
@@ -338,6 +338,7 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 
   A side with no exit it can make is not offered. An aircraft on a short pattern final is usually already inside 1 nm, so it rarely shows the list until the landing roll.
 - **Cleared for takeoff** shows while taxiing only near the departure runway, and at a hold-short only at the departure runway (there **Line up and wait** too, but not Resume taxi); neither shows while the aircraft is held for release.
+- **Resume taxi** on a moving aircraft shows only while the next hold-short on its route is a taxiway or spot bar (a runway bar takes **Cross**, and the pilot refuses `RES` there; at the departure runway the refusal says to issue CTO or LUAW). It does not show for an aircraft following another, whose route carries no hold-short. At a hold-short bar itself it still releases the aircraft as before.
 - **Cleared for takeoff** opens a flyout (the strip icon's, and All Commands › Tower › Cleared for takeoff). A VFR departure's flyout starts with an **Initial altitude** box (filled from a filed `VFR/045`, else "default climb"); every row below that takes an altitude appends it when the box is not blank. The rows: Cleared for takeoff, Make left / right closed traffic, Straight out, Left / right crosswind departure, Left / right downwind departure, Left / right turnout (45°), Fly heading, On course (off with no destination, or a destination equal to the departure airport), Turn left / right direct, then Custom….
 
   An IFR departure's flyout is Cleared for takeoff, Fly heading, Fly runway heading and Custom…; with "VFR commands for IFR aircraft" set to All, the VFR rows follow the altitude box under the IFR rows. Each row shows the command it sends, updating as you type; a row whose heading or fix box is empty or unreadable shows "···", fades and sends nothing, and Enter in a heading or fix box sends that row (fix boxes suggest fixes as the command bar does). Glyphs are pattern purple, turned to the departure runway.
@@ -524,6 +525,7 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
     Every push is a tug move: the aircraft turns only while rolling, pauses about 5 s at each reversal, and a push that would put it on a runway, a runway holding position or a taxiway it was not sent to is refused with the reason
   - *Pushback / Taxiing / Following*: "Hold position"
+  - *Taxiing*: "Resume taxi" while the next uncleared hold-short on the route is a taxiway or spot bar. It sends a bare `RES`, which clears that one bar so the aircraft taxis through without stopping (the pilot says "continue taxi"); later bars stay armed. A runway bar is cleared with "Cross {rwy}" instead.
   - *Taxiing*: "Hold short of…" submenu headed by the route (`route S T V W4 · RWY 30`), then one row per hold-short along the rest of the route, nearest first: a TW or RW badge, the name, where it is ("crossing on S", "before turning onto T", "at W4, end of route"), the distance along the route to the nearest 50 ft ("~1,500 ft") and the command the row sends.
 
     A taxiway the route crosses on more than one taxiway gets one row per crossing, sending the located `HS X@A` form. A runway gets one row: named by the room's active end of it; with neither or both ends active, by the end on that side for a crossing at a runway end ("Runway 30"), else by both ends ("Runway 12/30", sending the lower-numbered end). Hovering a row previews the route up to that hold-short.

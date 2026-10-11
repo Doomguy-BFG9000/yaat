@@ -1,6 +1,10 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Tests.Helpers;
 
@@ -57,5 +61,97 @@ public class ResumeReadbackTests
     {
         string? result = PhraseologyVerbalizer.VerbalizeTerminal(new ResumeCommand(["28L"], [HoldShortTarget.Parse("28R")]));
         Assert.Equal("resume taxi, cross runway 28L, hold short of runway 28R", result);
+    }
+
+    /// <summary>
+    /// A bare RES that pre-clears the taxiway hold short ahead of a rolling aircraft releases that bar, which the pilot reads
+    /// back as the §3-7 release, "continue taxi" — not "resume taxi", which answers a hold.
+    /// </summary>
+    [Fact]
+    public void Res_Bare_PreClearingTaxiwayHoldShort_ReadsBackContinueTaxi()
+    {
+        AircraftState ac = MakeTaxiingAircraftHoldingShortOfBAhead();
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], [])])]);
+
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(
+            compound,
+            result,
+            ac,
+            PilotPersonality.Verbatim,
+            FrequencyActivityLevel.Moderate
+        );
+
+        Assert.True(result.Success, result.Message);
+        Assert.NotNull(readback);
+        Assert.Equal("continue taxi", readback.Terminal);
+        Assert.StartsWith("continue taxi", readback.Tts);
+    }
+
+    /// <summary>
+    /// A B738 taxiing along A (nodes 1 → 2 → 3), neither held nor capped by the detector, told to hold short of taxiway B at
+    /// node 2.
+    /// </summary>
+    private static AircraftState MakeTaxiingAircraftHoldingShortOfBAhead()
+    {
+        var ac = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "B738",
+            Position = new LatLon(37.728, -122.218),
+            TrueHeading = new TrueHeading(280),
+            Altitude = 6,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            Phases = new PhaseList(),
+        };
+        ac.Phases.Add(new TaxiingPhase());
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = NullLogger.Instance,
+            }
+        );
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [Segment(1, 2), Segment(2, 3)],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 2,
+                    Reason = HoldShortReason.ExplicitHoldShort,
+                    TargetName = "B",
+                },
+            ],
+        };
+        return ac;
+    }
+
+    private static TaxiRouteSegment Segment(int fromId, int toId)
+    {
+        var from = new GroundNode
+        {
+            Id = fromId,
+            Position = new LatLon(0, 0),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var to = new GroundNode
+        {
+            Id = toId,
+            Position = new LatLon(0, 0),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var edge = new GroundEdge
+        {
+            Nodes = [from, to],
+            TaxiwayName = "A",
+            DistanceNm = 0.1,
+        };
+        return new TaxiRouteSegment { TaxiwayName = "A", Edge = edge.Directed(from, to) };
     }
 }

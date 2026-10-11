@@ -5,6 +5,8 @@
 ### Added
 
 - On request, the YAAT1 operator can delete one user's uploaded speech recordings and saved restart rooms in a single step.
+- `RES` to a taxiing aircraft clears its next taxiway or spot hold short, read back as "continue taxi"; runway hold shorts still need `CROSS`.
+- A taxiing aircraft's right-click quick commands offer Resume taxi when a taxiway or spot hold short lies ahead.
 
 ### Changed
 

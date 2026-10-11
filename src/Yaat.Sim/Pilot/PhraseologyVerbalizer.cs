@@ -519,6 +519,12 @@ public static class PhraseologyVerbalizer
     }
 
     /// <summary>
+    /// The readback of a taxiway or spot hold short's release — a <c>CROSS</c> naming a taxiway, or a bare <c>RES</c>
+    /// pre-clearing the bar ahead: 7110.65 P/CG CONTINUE ("continue taxi"); release per 3-7-2.a.
+    /// </summary>
+    public const string ContinueTaxiRelease = "continue taxi";
+
+    /// <summary>
     /// Renders a RES readback that carries CROSS / HS modifiers, composing the same
     /// "cross runway …" / "hold short of …" clauses as <see cref="RenderTaxiAlongRunway"/>
     /// after a "resume taxi" lead-in (7110.65 §3-7-2). Bare RES never reaches here.
@@ -550,7 +556,7 @@ public static class PhraseologyVerbalizer
         var body = new StringBuilder();
 
         // A taxiway target in the CROSS list releases a taxiway hold-short — that is read back as
-        // the §3-7 "continue taxiing" release, never as a runway-crossing clause. Naming the
+        // 7110.65 P/CG CONTINUE ("continue taxi"); release per 3-7-2.a — never as a runway-crossing clause. Naming the
         // taxiway is not codified, so the clause carries no identifier.
         var runways = cross.RunwayIds.Where(CommandParser.IsRunwayArg).ToList();
         bool releasesTaxiwayHold = cross.RunwayIds.Count > runways.Count;
@@ -566,7 +572,7 @@ public static class PhraseologyVerbalizer
             {
                 body.Append(", ");
             }
-            body.Append("continue taxiing");
+            body.Append(ContinueTaxiRelease);
         }
 
         if (cross.HoldShorts is { Count: > 0 } holdShorts)

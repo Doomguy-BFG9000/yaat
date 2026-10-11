@@ -832,6 +832,13 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     private bool _hasActiveTaxiRoute;
 
     /// <summary>
+    /// True while the route the aircraft drives (the follow route for a FOLLOWG follower) has a taxiway or spot bar as its
+    /// next uncleared hold short ahead, the one a bare RES pre-clears; the menus offer RES to the rolling aircraft on it.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasTaxiwayHoldShortAhead;
+
+    /// <summary>
     /// The parking / spot the taxi clearance ends at, in command form (<c>@22</c>, <c>$E</c>); empty when none.
     /// The ground overlay needs it to redraw a ramp cut the taxiway sequence alone cannot describe.
     /// </summary>
@@ -1296,6 +1303,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             IsSpeedClassified = dto.IsSpeedClassified,
             TaxiRoute = dto.TaxiRoute,
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
+            HasTaxiwayHoldShortAhead = dto.HasTaxiwayHoldShortAhead,
             TaxiDestination = dto.TaxiDestination,
             TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId,
             HoldKind = dto.HoldKind,
@@ -1426,6 +1434,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         IsSpeedClassified = dto.IsSpeedClassified;
         TaxiRoute = dto.TaxiRoute;
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
+        HasTaxiwayHoldShortAhead = dto.HasTaxiwayHoldShortAhead;
         TaxiDestination = dto.TaxiDestination;
         TaxiTurnAboutShape = ParseTaxiTurnAboutShape(dto.TaxiTurnAboutShape);
         TaxiTurnAboutTargetNodeId = dto.TaxiTurnAboutTargetNodeId;

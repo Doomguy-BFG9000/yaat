@@ -343,13 +343,15 @@ public static class AircraftCommandApplicability
     }
 
     /// <summary>
-    /// Resume taxi (<c>RES</c>) out of a stationary hold. GroundCommandHandler.TryResumeTaxi only clears an active
-    /// hold directive and refuses ("Aircraft is not held") without one, and each of these three phases is also
-    /// reachable unheld — Holding In Position after a WARPG, a completed taxi to a spot, or a rejected/cancelled
-    /// takeoff — so the phase alone cannot gate the item. The hold-short holds are a different RES path (satisfying
-    /// a crossing clearance, no hold directive needed) and are deliberately not covered here. The
-    /// <see cref="IsControllable"/> guard keeps surface live-traffic shadows, which are never assumable, out, as
-    /// in <see cref="CanPushBack"/>.
+    /// Resume taxi (<c>RES</c>) out of a stationary hold, or as the pre-clear of the taxiway hold short ahead of a rolling
+    /// aircraft. To a stationary aircraft the sim's RES clears a hold directive or breaks a ground-conflict stall, and
+    /// refuses ("Aircraft is not held") with neither; each of these three phases is also reachable unheld — Holding In
+    /// Position after a WARPG, a completed taxi to a spot, or a rejected/cancelled takeoff — so the phase alone cannot gate
+    /// the item. To an aircraft rolling free (<c>Taxiing</c> or a <c>Following…</c> phase, not held) RES clears the next
+    /// hold short on its route when that is a taxiway or spot bar (<see cref="IMenuAircraft.HasTaxiwayHoldShortAhead"/>),
+    /// and refuses a runway one. The hold-short holds are a different RES path
+    /// (<see cref="CanResumeFromHoldShort"/>). The <see cref="IsControllable"/> guard keeps surface live-traffic shadows,
+    /// which are never assumable, out, as in <see cref="CanPushBack"/>.
     /// </summary>
     public static bool CanResumeTaxi(IMenuAircraft? ac)
     {
@@ -358,7 +360,14 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        return (ac.CurrentPhase is "Holding After Exit" or "Holding After Pushback" or "Holding In Position") && ac.IsHeld;
+        string phase = ac.CurrentPhase;
+        if (ac.IsHeld)
+        {
+            return phase is "Holding After Exit" or "Holding After Pushback" or "Holding In Position";
+        }
+
+        bool rolling = (phase == "Taxiing") || phase.StartsWith("Following", StringComparison.Ordinal);
+        return rolling && ac.HasTaxiwayHoldShortAhead;
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Data.Airport;
@@ -232,6 +233,66 @@ public sealed class TaxiRoute
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The first hold short still ahead of the aircraft and not cleared, in the order the route reaches them rather than the
+    /// order <see cref="HoldShortPoints"/> lists them: a hold short added while taxiing is appended to the list. A bar is ahead
+    /// when a segment from <see cref="CurrentSegmentIndex"/> on ends at its node. "Next" is route order from the current segment
+    /// by design: a bar behind the aircraft is never next, whatever its cleared state. Null when there is none.
+    /// </summary>
+    public HoldShortPoint? NextUnclearedHoldShortAhead()
+    {
+        HoldShortPoint? next = null;
+        int nextIndex = int.MaxValue;
+        foreach (HoldShortPoint hs in HoldShortPoints)
+        {
+            if (hs.IsCleared)
+            {
+                continue;
+            }
+
+            int index = SegmentIndexAhead(hs.NodeId);
+            if (index < nextIndex)
+            {
+                next = hs;
+                nextIndex = index;
+            }
+        }
+
+        return next;
+    }
+
+    /// <summary>
+    /// True while the route is still being taxied and its next uncleared hold short ahead
+    /// (<see cref="NextUnclearedHoldShortAhead"/>) is taxiway-class (<see cref="IsTaxiwayClassHoldShort"/>): the bar a bare
+    /// <c>RES</c> pre-clears.
+    /// </summary>
+    public bool HasTaxiwayHoldShortAhead() => !IsComplete && (NextUnclearedHoldShortAhead() is { } next) && IsTaxiwayClassHoldShort(next);
+
+    /// <summary>
+    /// Whether <paramref name="holdShort"/> is a controller's explicit hold short that protects no runway: a taxiway or a spot
+    /// (<c>HS B</c>, <c>HS $17</c>). A runway crossing, the destination runway, an explicit runway hold short (<c>HS 28R</c>)
+    /// and the bar ending an incomplete route are not.
+    /// </summary>
+    public static bool IsTaxiwayClassHoldShort(HoldShortPoint holdShort) =>
+        (holdShort.Reason == HoldShortReason.ExplicitHoldShort) && !HoldingShortPhase.ProtectsRunway(holdShort);
+
+    /// <summary>
+    /// The index of the first segment from <see cref="CurrentSegmentIndex"/> on that ends at <paramref name="nodeId"/>, or
+    /// <see cref="int.MaxValue"/> when none does — a bar already passed, or one on no segment of the route.
+    /// </summary>
+    private int SegmentIndexAhead(int nodeId)
+    {
+        for (int i = Math.Max(0, CurrentSegmentIndex); i < Segments.Count; i++)
+        {
+            if (Segments[i].ToNodeId == nodeId)
+            {
+                return i;
+            }
+        }
+
+        return int.MaxValue;
     }
 
     /// <summary>

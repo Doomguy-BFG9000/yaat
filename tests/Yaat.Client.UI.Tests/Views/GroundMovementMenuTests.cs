@@ -63,15 +63,29 @@ public class GroundMovementMenuTests
     }
 
     /// <summary>
+    /// A ground aircraft in <paramref name="phase"/> on an active taxi route whose next uncleared hold short ahead is a
+    /// taxiway bar, held or not.
+    /// </summary>
+    private static AircraftModel WithTaxiwayHoldShortAhead(string phase, bool held)
+    {
+        AircraftModel ac = GroundAircraft("UAL100", phase, held);
+        ac.HasActiveTaxiRoute = true;
+        ac.HasTaxiwayHoldShortAhead = true;
+        return ac;
+    }
+
+    /// <summary>
     /// Builds the ground-map right-click menu for a single aircraft in <paramref name="phase"/> through the ground view's
     /// right-click path (<see cref="MenuHostHarness.BuildGroundMenu"/>), over a MainViewModel holding a second ground
     /// aircraft that supplies the follow candidate.
     /// </summary>
     private static ContextMenu BuildGroundMenu(string phase, bool held) => BuildGroundMenu(phase, held, standDeparture: null);
 
-    private static ContextMenu BuildGroundMenu(string phase, bool held, StandDeparture? standDeparture)
+    private static ContextMenu BuildGroundMenu(string phase, bool held, StandDeparture? standDeparture) =>
+        BuildGroundMenu(GroundAircraft("UAL100", phase, held, standDeparture));
+
+    private static ContextMenu BuildGroundMenu(AircraftModel ac)
     {
-        AircraftModel ac = GroundAircraft("UAL100", phase, held, standDeparture);
         var mainVm = new MainViewModel(new FakeFilePickerService());
         mainVm.Aircraft.Add(ac);
         mainVm.Aircraft.Add(GroundAircraft("SWA200", "Taxiing", held: false));
@@ -110,9 +124,11 @@ public class GroundMovementMenuTests
     /// </summary>
     private static ContextMenu BuildAircraftListMenu(string phase, bool held) => BuildAircraftListMenu(phase, held, standDeparture: null);
 
-    private static ContextMenu BuildAircraftListMenu(string phase, bool held, StandDeparture? standDeparture)
+    private static ContextMenu BuildAircraftListMenu(string phase, bool held, StandDeparture? standDeparture) =>
+        BuildAircraftListMenu(GroundAircraft("UAL100", phase, held, standDeparture));
+
+    private static ContextMenu BuildAircraftListMenu(AircraftModel ac)
     {
-        AircraftModel ac = GroundAircraft("UAL100", phase, held, standDeparture);
         var mainVm = new MainViewModel(new FakeFilePickerService());
         mainVm.Aircraft.Add(ac);
         mainVm.Aircraft.Add(GroundAircraft("SWA200", "Taxiing", held: false));
@@ -264,6 +280,28 @@ public class GroundMovementMenuTests
     [InlineData("Holding In Position")]
     public void AircraftListMenu_HidesResumeTaxi_WhenNotHeld(string phase) =>
         Assert.DoesNotContain("Resume taxi", Headers(BuildAircraftListMenu(phase, held: false)));
+
+    // A bare RES to a rolling aircraft pre-clears the taxiway hold short ahead of it, so both menus offer it there — and
+    // only there: a stationary hold that is not held stays hidden even with a taxiway bar ahead,
+    // (a held rolling aircraft is a known gap, filed separately).
+    [AvaloniaTheory]
+    [InlineData("Taxiing")]
+    [InlineData("Following SWA200")]
+    public void GroundMenu_OffersResumeTaxi_WhenRollingWithTaxiwayHoldShortAhead(string phase) =>
+        Assert.Contains("Resume taxi", Headers(BuildGroundMenu(WithTaxiwayHoldShortAhead(phase, held: false))));
+
+    [AvaloniaTheory]
+    [InlineData("Taxiing")]
+    [InlineData("Following SWA200")]
+    public void AircraftListMenu_OffersResumeTaxi_WhenRollingWithTaxiwayHoldShortAhead(string phase) =>
+        Assert.Contains("Resume taxi", Headers(BuildAircraftListMenu(WithTaxiwayHoldShortAhead(phase, held: false))));
+
+    [AvaloniaTheory]
+    [InlineData("Holding After Exit")]
+    [InlineData("Holding After Pushback")]
+    [InlineData("Holding In Position")]
+    public void GroundMenu_HidesResumeTaxi_WhenNotHeld_EvenWithTaxiwayHoldShortAhead(string phase) =>
+        Assert.DoesNotContain("Resume taxi", Headers(BuildGroundMenu(WithTaxiwayHoldShortAhead(phase, held: false))));
 
     // --- Parity harness -------------------------------------------------------------------
     // The ground-movement gates ("Push back", "Hold position", "Resume taxi") live in
@@ -428,6 +466,30 @@ public class GroundMovementMenuTests
     [InlineData("At Parking")]
     public void CanResumeTaxi_RejectsPhasesWithoutAHoldDirective(string phase) =>
         Assert.False(AircraftCommandApplicability.CanResumeTaxi(GroundAircraft("UAL100", phase, held: true)));
+
+    // A rolling aircraft takes RES as the pre-clear of the taxiway hold short ahead: offered while it rolls free with one
+    // ahead, never without one, and never from a stationary hold that is not held.
+    [Theory]
+    [InlineData("Taxiing")]
+    [InlineData("Following SWA200")]
+    public void CanResumeTaxi_AcceptsRollingAircraft_WithTaxiwayHoldShortAhead(string phase) =>
+        Assert.True(AircraftCommandApplicability.CanResumeTaxi(WithTaxiwayHoldShortAhead(phase, held: false)));
+
+    [Theory]
+    [InlineData("Taxiing")]
+    [InlineData("Following SWA200")]
+    public void CanResumeTaxi_RejectsRollingAircraft_WithoutTaxiwayHoldShortAhead(string phase)
+    {
+        AircraftModel ac = GroundAircraft("UAL100", phase, held: false);
+        ac.HasActiveTaxiRoute = true;
+        Assert.False(AircraftCommandApplicability.CanResumeTaxi(ac));
+    }
+
+    [Theory]
+    [InlineData("Holding After Exit")]
+    [InlineData("Holding In Position")]
+    public void CanResumeTaxi_RejectsTaxiwayHoldShortAhead_WhenUnheldWhileStationary(string phase) =>
+        Assert.False(AircraftCommandApplicability.CanResumeTaxi(WithTaxiwayHoldShortAhead(phase, held: false)));
 
     // Every predicate refuses a live-traffic shadow, which takes no ground command until assumed.
     [Fact]

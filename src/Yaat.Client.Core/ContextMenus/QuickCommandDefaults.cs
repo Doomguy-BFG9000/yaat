@@ -35,6 +35,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.Taxiing] =
             [
                 Entry(MenuIds.GroundHoldPosition),
+                Entry(MenuIds.GroundResumeTaxi),
                 Entry(MenuIds.GroundHoldShort),
                 Entry(MenuIds.GroundCrossRunway),
                 Entry(MenuIds.GroundFollow),

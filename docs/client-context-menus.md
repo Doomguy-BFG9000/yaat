@@ -73,7 +73,7 @@ The default list of each situation, most frequent first (`QuickCommandDefaults`)
 | At parking | Push back, Preset taxi route ▸, Draw taxi route…, Push back to…, Check release window |
 | Pushing back | Hold position, Push route… |
 | Holding on ground | Resume taxi, Draw taxi route…, Follow…, Give way to…, Cross |
-| Taxiing | Hold position, Hold short of…, Cross, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff ▸, Cancel takeoff clearance |
+| Taxiing | Hold position, Resume taxi, Hold short of…, Cross, Follow…, Give way to…, Ignore ground conflicts (15 s), Cleared for takeoff ▸, Cancel takeoff clearance |
 | Holding short | Cleared for takeoff ▸, Line up and wait, Cross, Resume taxi |
 | Lined up | Cleared for takeoff ▸, Cancel takeoff clearance, Draw taxi route… |
 | Departing | Fly heading ▸, Maintain altitude, Climb via SID *(IFR)*, Direct to…, Assign speed ▸ |
@@ -103,6 +103,9 @@ A quick command shows when its flight rules fit, its catalog predicate holds (or
   - On the landing rollout it waits until the rollout decelerates, as Exit left / right do: no taxi instruction immediately after touchdown (7110.65 §3-10-9 note).
   - In a rejected takeoff it waits until the aircraft has slowed to taxi speed (30 kt ground speed or less).
   - No Cross is offered for the next runway while the aircraft is still crossing a runway, or while a runway already cleared to cross lies ahead: one crossing at a time (§3-7-2.c). Leaving the runway the aircraft landed on or is clearing does not count as crossing another.
+- **Resume taxi** on a controllable, unheld aircraft in `Taxiing` or a `Following…` phase shows only when `IMenuAircraft.HasTaxiwayHoldShortAhead` is true (the route's next uncleared bar is a taxiway or spot bar, `AircraftCommandApplicability.CanResumeTaxi`), and sends a bare `RES`, which pre-clears that bar.
+
+  The flag reads the route the aircraft drives, and a `FOLLOWG` follower's driven route carries no hold short, so it is false for followers and the row does not show for one. A held aircraft keeps the stationary-phase rule. `QuickCommandDefaults` lists the row (`MenuIds.GroundResumeTaxi`) in the `Taxiing` situation, second after Hold position.
 - **Cancel takeoff clearance** shows only once the aircraft holds a takeoff clearance and is not past V1, where the sim answers "unable" (§3-9-11); it also shows while taxiing with a stored takeoff clearance.
 - **Cleared approach** hides once the aircraft holds an approach clearance with descent on it (a JFAC/JLOC lateral intercept still offers it). After a go-around or a missed approach it shows again only once a new altitude is assigned: an approach clearance carries the altitude to maintain until established (§4-8-1).
 - **Cleared to land** hides on final once a landing clearance is on the aircraft.

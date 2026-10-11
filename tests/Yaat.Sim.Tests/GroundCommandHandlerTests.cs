@@ -1545,6 +1545,253 @@ public class GroundCommandHandlerTests
         Assert.Equal(0.0, ac.Ground.ConflictBreakRemainingSeconds);
     }
 
+    // --- Bare RES pre-clearing the next taxiway hold-short ---
+
+    /// <summary>
+    /// A taxiing aircraft on a three-segment route along A (nodes 1 → 2 → 3 → 4), neither held nor capped by the
+    /// detector, carrying <paramref name="bars"/> in the order given.
+    /// </summary>
+    private static AircraftState MakeRollingAircraftWithBars(params HoldShortPoint[] bars)
+    {
+        AircraftState ac = MakeTaxiingAircraftWithoutRoute();
+        ac.Ground.AssignedTaxiRoute = new TaxiRoute
+        {
+            Segments = [MakeSegment(1, 2, "A"), MakeSegment(2, 3, "A"), MakeSegment(3, 4, "A")],
+            HoldShortPoints = [.. bars],
+        };
+        return ac;
+    }
+
+    /// <summary>A ground aircraft in a started <see cref="TaxiingPhase"/>, neither held nor capped by the detector, with no route.</summary>
+    private static AircraftState MakeTaxiingAircraftWithoutRoute()
+    {
+        AircraftState ac = MakeGroundAircraft();
+        ac.Ground.Hold = null;
+        ac.Ground.SpeedLimit = null;
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new TaxiingPhase());
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = Logger,
+            }
+        );
+        return ac;
+    }
+
+    private static HoldShortPoint Bar(int nodeId, HoldShortReason reason, string target) =>
+        new()
+        {
+            NodeId = nodeId,
+            Reason = reason,
+            TargetName = target,
+        };
+
+    private static CommandResult DispatchBareRes(AircraftState ac) =>
+        CommandDispatcher.DispatchCompound(
+            new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], [])])]),
+            ac,
+            TestDispatch.Context(new SerializableRandom(42))
+        );
+
+    [Fact]
+    public void Res_Bare_PreClearsNextTaxiwayHoldShort_WhenRollingAndNotHeld()
+    {
+        HoldShortPoint b = Bar(2, HoldShortReason.ExplicitHoldShort, "B");
+        AircraftState ac = MakeRollingAircraftWithBars(b);
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(b.IsCleared);
+        Assert.Equal("Continue taxi past B", result.Message);
+    }
+
+    /// <summary>
+    /// Only the bar the aircraft reaches first is cleared. The route lists C before B, as a hold short added while
+    /// taxiing is appended to the list: "next" is the order the route reaches them, not the order they were listed.
+    /// </summary>
+    [Fact]
+    public void Res_Bare_ClearsOnlyTheNextHoldShort_WhenTwoTaxiwayBarsAhead()
+    {
+        HoldShortPoint c = Bar(3, HoldShortReason.ExplicitHoldShort, "C");
+        HoldShortPoint b = Bar(2, HoldShortReason.ExplicitHoldShort, "B");
+        AircraftState ac = MakeRollingAircraftWithBars(c, b);
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(b.IsCleared);
+        Assert.False(c.IsCleared);
+    }
+
+    [Fact]
+    public void Res_Bare_RejectsWhenNextHoldShortIsRunwayCrossing_AndLeavesItArmed()
+    {
+        HoldShortPoint crossing = Bar(2, HoldShortReason.RunwayCrossing, "28R/10L");
+        HoldShortPoint b = Bar(3, HoldShortReason.ExplicitHoldShort, "B");
+        AircraftState ac = MakeRollingAircraftWithBars(crossing, b);
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.False(result.Success);
+        Assert.Contains("CROSS", result.Message);
+        Assert.False(crossing.IsCleared);
+        Assert.False(b.IsCleared);
+    }
+
+    [Fact]
+    public void Res_Bare_RejectsExplicitRunwayHoldShort()
+    {
+        HoldShortPoint runwayBar = Bar(2, HoldShortReason.ExplicitHoldShort, "28R");
+        AircraftState ac = MakeRollingAircraftWithBars(runwayBar);
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.False(result.Success);
+        Assert.Contains("CROSS", result.Message);
+        Assert.False(runwayBar.IsCleared);
+    }
+
+    [Fact]
+    public void Res_Bare_PreClearsSpotHoldShort()
+    {
+        HoldShortPoint spot = Bar(2, HoldShortReason.ExplicitHoldShort, "$17");
+        AircraftState ac = MakeRollingAircraftWithBars(spot);
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(spot.IsCleared);
+        Assert.Equal("Continue taxi past spot 17", result.Message);
+    }
+
+    [Fact]
+    public void Res_Bare_OnHeldAircraft_ReleasesHoldButLeavesLaterTaxiwayHoldShortArmed()
+    {
+        HoldShortPoint b = Bar(2, HoldShortReason.ExplicitHoldShort, "B");
+        AircraftState ac = MakeRollingAircraftWithBars(b);
+        ac.Ground.Hold = HoldDirective.HoldPosition;
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Ground.Hold);
+        Assert.False(b.IsCleared);
+    }
+
+    [Fact]
+    public void Res_Bare_RouteWithNoUnclearedBar_SaysNoUpcomingHoldShort()
+    {
+        HoldShortPoint b = Bar(2, HoldShortReason.ExplicitHoldShort, "B");
+        b.IsCleared = true;
+        AircraftState ac = MakeRollingAircraftWithBars(b);
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.False(result.Success);
+        Assert.Equal("No upcoming hold short to clear", result.Message);
+    }
+
+    [Fact]
+    public void Res_Bare_OnDetectorStalledAircraft_BreaksStallAndLeavesTaxiwayHoldShortArmed()
+    {
+        HoldShortPoint b = Bar(2, HoldShortReason.ExplicitHoldShort, "B");
+        AircraftState ac = MakeRollingAircraftWithBars(b);
+        ac.Ground.SpeedLimit = 0;
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(GroundCommandHandler.BreakDurationSeconds, ac.Ground.ConflictBreakRemainingSeconds);
+        Assert.False(b.IsCleared);
+    }
+
+    [Fact]
+    public void Res_Bare_RouteIncompleteNext_RefusedWithTheIncompleteRouteText()
+    {
+        HoldShortPoint end = Bar(2, HoldShortReason.RouteIncomplete, "C");
+        AircraftState ac = MakeRollingAircraftWithBars(end);
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.False(result.Success);
+        Assert.Equal(HoldingShortPhase.RouteIncompleteMessage("C"), result.Message);
+        Assert.False(end.IsCleared);
+    }
+
+    [Fact]
+    public void Res_Bare_BarBehindTheAircraft_SaysNoUpcomingHoldShort()
+    {
+        HoldShortPoint passed = Bar(2, HoldShortReason.ExplicitHoldShort, "B");
+        AircraftState ac = MakeRollingAircraftWithBars(passed);
+        ac.Ground.AssignedTaxiRoute!.CurrentSegmentIndex = 1;
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.False(result.Success);
+        Assert.Equal("No upcoming hold short to clear", result.Message);
+        Assert.False(passed.IsCleared);
+    }
+
+    [Fact]
+    public void Res_Bare_RejectsWhenNextHoldShortIsDepartureRunway()
+    {
+        HoldShortPoint departure = Bar(2, HoldShortReason.DestinationRunway, "30");
+        AircraftState ac = MakeRollingAircraftWithBars(departure);
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.False(result.Success);
+        Assert.Equal("Next hold short is departure runway 30; issue CTO or LUAW", result.Message);
+        Assert.False(departure.IsCleared);
+    }
+
+    [Fact]
+    public void Res_Bare_NoRoute_StillSaysAircraftIsNotHeld()
+    {
+        AircraftState ac = MakeTaxiingAircraftWithoutRoute();
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.False(result.Success);
+        Assert.Equal("Aircraft is not held", result.Message);
+    }
+
+    /// <summary>
+    /// A FOLLOWG follower drives its follow route, not the assigned route FOLLOWG leaves in place, whose current segment is
+    /// where the taxi was given: a bar that route still lists ahead may be one the follower has long passed. RES reads the
+    /// driven route, so it leaves the stale bar armed for the route the follower resumes when it loses its lead.
+    /// </summary>
+    [Fact]
+    public void Res_Bare_FollowerWithStaleAssignedRouteBar_LeavesItArmed()
+    {
+        HoldShortPoint b = Bar(2, HoldShortReason.ExplicitHoldShort, "B");
+        AircraftState ac = MakeRollingAircraftWithBars(b);
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new FollowingPhase("LEAD1"));
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = Logger,
+            }
+        );
+
+        CommandResult result = DispatchBareRes(ac);
+
+        Assert.False(result.Success);
+        Assert.Equal("Aircraft is not held", result.Message);
+        Assert.False(b.IsCleared, "RES cleared a bar on the assigned route the follower is not driving");
+    }
+
     [Fact]
     public void Resume_ClearsExplicitHoldShortPhase()
     {

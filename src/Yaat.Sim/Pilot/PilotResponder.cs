@@ -104,8 +104,11 @@ public static class PilotResponder
     /// the hearback check only works if the controller hears the substitution. Any other command, or a
     /// result with no <see cref="CommandResult.EffectiveCommand"/>, reads back exactly as issued.
     /// <para>A handler-built readback (<see cref="CommandResult.PilotReadback"/>, every dispatched <c>PUSH</c> /
-    /// <c>PUSHM</c>) replaces the clause of the compound's first push, so the pilot says the goal the handler resolved;
-    /// any later push reads back from its parsed form (<see cref="PushReadbackPhrases.FromCommand(PushbackCommand)"/>).</para>
+    /// <c>PUSHM</c>) replaces the clause of the compound's first command of the type that produced it
+    /// (<see cref="HandlerReadback.Command"/>), so the pilot says the goal the handler resolved; any later push reads back
+    /// from its parsed form (<see cref="PushReadbackPhrases.FromCommand(PushbackCommand)"/>), and no clause of another type
+    /// ever takes it. A bare <c>RES</c> that pre-cleared a taxiway hold short carries one too ("continue taxi"), which
+    /// replaces the clause of the compound's first <c>RES</c>.</para>
     /// </summary>
     /// <param name="compound">The compound the controller issued.</param>
     /// <param name="result">The dispatch's result: its effective command and its handler-built push readback.</param>
@@ -120,7 +123,7 @@ public static class PilotResponder
         FrequencyActivityLevel activityLevel
     )
     {
-        PilotSpeechText? pilotReadback = result.PilotReadback;
+        HandlerReadback? pilotReadback = result.PilotReadback;
         TaxiCommand? issuedTaxi = compound.Blocks.SelectMany(b => b.Commands).OfType<TaxiCommand>().FirstOrDefault();
         if (result.EffectiveCommand is not TaxiCommand effectiveTaxi || issuedTaxi is null)
         {
@@ -165,16 +168,21 @@ public static class PilotResponder
         FrequencyActivityLevel activityLevel
     ) => BuildReadback(compound, aircraft, personality, activityLevel, null);
 
+    /// <summary>Whether <paramref name="cmd"/> is a command of canonical type <paramref name="type"/>; an unsupported command is none.</summary>
+    private static bool IsCommandOfType(ParsedCommand cmd, CanonicalCommandType type) =>
+        (cmd is not UnsupportedCommand) && (CommandDescriber.ToCanonicalType(cmd) == type);
+
     /// <summary>
     /// <see cref="BuildReadback(CompoundCommand, AircraftState, PilotPersonality, FrequencyActivityLevel)"/>, with the
-    /// push command's clause taken from <paramref name="pushReadback"/> when the handler built one.
+    /// clause of the compound's first command of the type that produced <paramref name="handlerReadback"/> taken from it when
+    /// the handler built one.
     /// </summary>
     private static PilotSpeechText? BuildReadback(
         CompoundCommand compound,
         AircraftState aircraft,
         PilotPersonality personality,
         FrequencyActivityLevel activityLevel,
-        PilotSpeechText? pushReadback
+        HandlerReadback? handlerReadback
     )
     {
         // Per-block clause lists are joined internally with ", " (parallel commands within
@@ -197,11 +205,11 @@ public static class PilotResponder
             foreach (ParsedCommand cmd in block.Commands)
             {
                 PilotSpeechText? clause;
-                if ((pushReadback is not null) && (cmd is PushbackCommand or PushbackMultiCommand))
+                if ((handlerReadback is not null) && IsCommandOfType(cmd, handlerReadback.Command))
                 {
-                    // The handler's readback is the dispatched push's; a later push in the compound is its own.
-                    clause = pushReadback;
-                    pushReadback = null;
+                    // The handler's readback is the dispatched command's; a later one of its type in the compound is its own.
+                    clause = handlerReadback.Speech;
+                    handlerReadback = null;
                 }
                 else
                 {

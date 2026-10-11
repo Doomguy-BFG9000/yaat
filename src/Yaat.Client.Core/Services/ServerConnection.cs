@@ -1183,6 +1183,9 @@ public record AircraftDto(
     // rows that are IsUnsupported && !IsGhostOverlay.
     bool IsGhostOverlay = false,
     bool HasActiveTaxiRoute = false,
+    // True while the route the aircraft drives (the follow route for a FOLLOWG follower) has a taxiway or spot bar as its next
+    // uncleared hold short ahead: the bar a bare RES pre-clears, so the menu offers RES to the rolling aircraft.
+    bool HasTaxiwayHoldShortAhead = false,
     string TaxiDestination = "",
     // The shape of the turn about the assigned taxi route starts with on the taxiway the aircraft stood on, while the
     // aircraft has not finished that leg: the Yaat.Sim TaxiTurnAboutShape name ("FromFarEnd" or "InPlace"), null when none

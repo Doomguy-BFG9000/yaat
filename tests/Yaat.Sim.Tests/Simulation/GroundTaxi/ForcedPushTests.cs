@@ -124,8 +124,8 @@ public partial class ForcedPushTests(ITestOutputHelper output)
             Assert.InRange(int.Parse(passes.Groups["ft"].Value, CultureInfo.InvariantCulture), 2, 7);
             Assert.Contains("(forced: will not stop for parked aircraft)", forced.Message);
             Assert.Equal(PlainReadback("F5", "PUSH $7A"), forced.PilotReadback);
-            Assert.DoesNotContain("forced", forced.PilotReadback?.Tts ?? "", StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("forced", forced.PilotReadback?.Terminal ?? "", StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("forced", forced.PilotReadback?.Speech.Tts ?? "", StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("forced", forced.PilotReadback?.Speech.Terminal ?? "", StringComparison.OrdinalIgnoreCase);
             Assert.True(pusher.Ground.ForcedTowIgnoresParked);
 
             second = SfoGroundHarness.TickUntil(
@@ -700,7 +700,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
     // ─── Helpers ───
 
     /// <summary>The pilot's readback of <paramref name="command"/> off <paramref name="gate"/> with no other aircraft about.</summary>
-    private PilotSpeechText? PlainReadback(string gate, string command)
+    private HandlerReadback? PlainReadback(string gate, string command)
     {
         SfoGround ground = SfoGroundHarness.Build(output, autoCross: false)!.Value;
         SfoGroundHarness.SpawnParked(ground, Pusher, Narrowbody, gate);

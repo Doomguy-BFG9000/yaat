@@ -731,7 +731,7 @@ It classifies each aircraft pair into exactly one `PairKind` and resolves it wit
 
 A residual mutual proximity-stop is still possible in pathological geometry, but is usually a **routing-layer** issue, not a detector one: two independently-resolved routes assigned opposing directions on a single-lane segment (AMX669 / SKW3404-vs-SWA2208 class) deadlock *correctly* — one holds until the routing or controller resolves it. That is a separate pathfinder concern.
 
-When the navigator appears "stuck", check `Ground.SpeedLimit` and the `[Classify]` / `[Pair]` diagnostic log lines before assuming a navigator bug. The controller's way out is `BREAK`, or `RES` to the stalled aircraft: `GroundCommandHandler.TryResumeTaxi` treats a detector cap at or below `SlowTaxiSpeedKts` (5 kt) on an aircraft that is not held as a stall and breaks the conflict for the same 15 s; a higher cap is trail-speed behind moving traffic and still refuses "Aircraft is not held".
+When the navigator appears "stuck", check `Ground.SpeedLimit` and the `[Classify]` / `[Pair]` diagnostic log lines before assuming a navigator bug. The controller's way out is `BREAK`, or `RES` to the stalled aircraft: `GroundCommandHandler.TryResumeTaxi` treats a detector cap at or below `SlowTaxiSpeedKts` (5 kt) on an aircraft that is not held as a stall and breaks the conflict for the same 15 s; a higher cap is trail-speed behind moving traffic, and a bare `RES` to it (not stalled, not held, an active route) is not a release but a pre-clear of the route's next taxiway or spot hold short (`TryPreClearNextTaxiwayHoldShort`), refused "Aircraft is not held" only when it has no route.
 
 ### Snapshot round-trip of the active primitive
 

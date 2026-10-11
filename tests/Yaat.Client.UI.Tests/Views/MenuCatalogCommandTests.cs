@@ -2448,16 +2448,22 @@ public class MenuCatalogCommandTests
     // with route left to resume onto. The bars where the sim refuses RES — the departure-runway bar and the end of an
     // incomplete route — both end the route, so "route left" is the whole gate. The departure-runway situation flag is
     // no substitute: it is also set at an intersection-departure explicit bar, where the sim accepts RES. The held
-    // stationary holds resume as well.
+    // stationary holds resume as well, and so does a rolling aircraft with a taxiway hold short ahead, which RES pre-clears;
+    // a rolling aircraft with none ahead, or a held one, is not offered it.
     [AvaloniaTheory]
-    [InlineData("Holding Short 28R/10L", true, "", true)]
-    [InlineData("Holding Short 28R/10L", false, "", false)]
-    [InlineData("Holding In Position", false, "HP", true)]
-    [InlineData("Holding In Position", false, "", false)]
-    public void ResumeTaxi_OnlyWhereTheSimAcceptsRes(string phase, bool hasActiveTaxiRoute, string holdKind, bool offered)
+    [InlineData("Holding Short 28R/10L", true, "", false, true)]
+    [InlineData("Holding Short 28R/10L", false, "", false, false)]
+    [InlineData("Holding In Position", false, "HP", false, true)]
+    [InlineData("Holding In Position", false, "", false, false)]
+    [InlineData("Holding In Position", true, "", true, false)]
+    [InlineData("Taxiing", true, "", true, true)]
+    [InlineData("Taxiing", true, "", false, false)]
+    [InlineData("Taxiing", true, "HP", true, false)]
+    public void ResumeTaxi_OnlyWhereTheSimAcceptsRes(string phase, bool hasActiveTaxiRoute, string holdKind, bool taxiwayHoldShortAhead, bool offered)
     {
         AircraftModel ac = OnGround(phase, "IFR", "28R");
         ac.HasActiveTaxiRoute = hasActiveTaxiRoute;
+        ac.HasTaxiwayHoldShortAhead = taxiwayHoldShortAhead;
         ac.HoldKind = holdKind;
 
         AssertSame(MenuIds.GroundResumeTaxi, ac, offered);
@@ -2952,6 +2958,8 @@ public class MenuCatalogCommandTests
         public string Callsign => MenuCatalogCommandTests.Callsign;
 
         public bool HasActiveTaxiRoute { get; init; }
+
+        public bool HasTaxiwayHoldShortAhead { get; init; }
 
         public bool HasCfrWindow { get; init; }
 

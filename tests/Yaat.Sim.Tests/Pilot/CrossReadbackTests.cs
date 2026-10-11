@@ -43,25 +43,25 @@ public class CrossReadbackTests
 
     // "Cross taxiway bravo" is not codified phraseology — crossing clearances are a runway
     // construct (7110.65 §3-7-2.a.3). CROSS <taxiway> stays a valid input alias, but the pilot
-    // reads back the §3-7 release for a taxiway hold-short: "continue taxiing".
+    // reads back the §3-7 release for a taxiway hold-short: "continue taxi".
 
     [Fact]
-    public void Cross_TaxiwayTarget_Spoken_ReadsContinueTaxiing() =>
-        Assert.Equal("continue taxiing", PhraseologyVerbalizer.Verbalize(new CrossRunwayCommand(["B"], [])));
+    public void Cross_TaxiwayTarget_Spoken_ReadsContinueTaxi() =>
+        Assert.Equal("continue taxi", PhraseologyVerbalizer.Verbalize(new CrossRunwayCommand(["B"], [])));
 
     [Fact]
-    public void Cross_TaxiwayTarget_Terminal_ReadsContinueTaxiing() =>
-        Assert.Equal("continue taxiing", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["B"], [])));
+    public void Cross_TaxiwayTarget_Terminal_ReadsContinueTaxi() =>
+        Assert.Equal("continue taxi", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["B"], [])));
 
     [Fact]
     public void Cross_MixedRunwayAndTaxiway_VoicesRunwayThenContinue() =>
-        Assert.Equal("cross runway 28L, continue taxiing", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28L", "B"], [])));
+        Assert.Equal("cross runway 28L, continue taxi", PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["28L", "B"], [])));
 
     [Fact]
     public void Cross_TaxiwayWithHoldShort_VoicesBothClauses()
     {
         Assert.Equal(
-            "continue taxiing, hold short of runway 28R",
+            "continue taxi, hold short of runway 28R",
             PhraseologyVerbalizer.VerbalizeTerminal(new CrossRunwayCommand(["B"], [HoldShortTarget.Parse("28R")]))
         );
     }

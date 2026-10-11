@@ -17,6 +17,12 @@ public interface IMenuAircraft
     /// <summary>True while the aircraft has a taxi route assigned that it has not finished.</summary>
     bool HasActiveTaxiRoute { get; }
 
+    /// <summary>
+    /// True while the route the aircraft drives (the follow route for a <c>FOLLOWG</c> follower) has a taxiway or spot bar as
+    /// its next uncleared hold short ahead, the one a bare <c>RES</c> pre-clears.
+    /// </summary>
+    bool HasTaxiwayHoldShortAhead { get; }
+
     /// <summary>True when the aircraft has a call-for-release window, which a release-window check reports on.</summary>
     bool HasCfrWindow { get; }
 

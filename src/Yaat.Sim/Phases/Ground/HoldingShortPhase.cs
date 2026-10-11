@@ -334,7 +334,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     {
         if (_holdShort.Reason == HoldShortReason.RouteIncomplete)
         {
-            return $"holding short of {_holdShort.TargetName} where the route issued ends — issue a TAXI that includes {_holdShort.TargetName}";
+            return RouteIncompleteMessage(_holdShort.TargetName);
         }
 
         string target = HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway");
@@ -342,6 +342,13 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             ? $"aircraft is holding short of {target}; only CROSS/LUAW/CTO/HSC, FOLLOWG, a new TAXI, or DEL apply"
             : $"aircraft is holding short of {target}; only RES/FOLLOWG/CROSS/HSC, a new TAXI, or DEL apply";
     }
+
+    /// <summary>
+    /// The refusal for a command the bar ending an incomplete route does not take (<see cref="HoldShortReason.RouteIncomplete"/>):
+    /// only a new TAXI that names the taxiway the route needs moves the aircraft on.
+    /// </summary>
+    public static string RouteIncompleteMessage(string? targetName) =>
+        $"holding short of {targetName} where the route issued ends — issue a TAXI that includes {targetName}";
 
     protected override List<ClearanceRequirement> CreateRequirements() => [new ClearanceRequirement { Type = ClearanceType.RunwayCrossing }];
 

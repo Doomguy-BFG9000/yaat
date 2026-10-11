@@ -777,7 +777,7 @@ public class PilotResponderTests
 
         PilotSpeechText? result = PilotResponder.BuildReadbackAsApplied(
             parsed.Value!,
-            new CommandResult(true) { PilotReadback = new PilotSpeechText("push back, face east", "push back, face east") },
+            new CommandResult(true) { PilotReadback = PushFaceEastReadback },
             ac,
             PilotPersonality.Verbatim,
             FrequencyActivityLevel.Moderate
@@ -786,6 +786,63 @@ public class PilotResponderTests
         Assert.NotNull(result);
         Assert.Equal("push back, face east, then push to spot 7A", result!.Terminal);
     }
+
+    /// <summary>
+    /// The handler's readback replaces a clause of the command type that produced it, and only that: a push's resolved goal
+    /// never lands on a <c>RES</c> ahead of it, which reads back from its own parsed form.
+    /// </summary>
+    [Fact]
+    public void BuildReadbackAsApplied_ResThenPush_PushReadbackReplacesOnlyThePushClause()
+    {
+        AircraftState ac = MakeAircraft("AAL123");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("RES; PUSH FACE E");
+        Assert.True(parsed.IsSuccess, $"'RES; PUSH FACE E' was refused: {parsed.Reason}");
+
+        PilotSpeechText? result = PilotResponder.BuildReadbackAsApplied(
+            parsed.Value!,
+            new CommandResult(true) { PilotReadback = PushFaceEastReadback },
+            ac,
+            PilotPersonality.Verbatim,
+            FrequencyActivityLevel.Moderate
+        );
+
+        Assert.NotNull(result);
+        Assert.Equal("resume taxi, then push back, face east", result!.Terminal);
+    }
+
+    /// <summary>
+    /// A <c>RES</c> that pre-cleared a taxiway hold short reads back "continue taxi" in its own clause; a push ahead of it in
+    /// the compound keeps its parsed form.
+    /// </summary>
+    [Fact]
+    public void BuildReadbackAsApplied_PushThenRes_ResReadbackReplacesOnlyTheResClause()
+    {
+        AircraftState ac = MakeAircraft("AAL123");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("PUSH $7A; RES");
+        Assert.True(parsed.IsSuccess, $"'PUSH $7A; RES' was refused: {parsed.Reason}");
+
+        PilotSpeechText? result = PilotResponder.BuildReadbackAsApplied(
+            parsed.Value!,
+            new CommandResult(true)
+            {
+                PilotReadback = new HandlerReadback(
+                    CanonicalCommandType.Resume,
+                    new PilotSpeechText(PhraseologyVerbalizer.ContinueTaxiRelease, PhraseologyVerbalizer.ContinueTaxiRelease)
+                ),
+            },
+            ac,
+            PilotPersonality.Verbatim,
+            FrequencyActivityLevel.Moderate
+        );
+
+        Assert.NotNull(result);
+        Assert.Equal("push to spot 7A, then continue taxi", result!.Terminal);
+    }
+
+    private static readonly HandlerReadback PushFaceEastReadback = new(
+        CanonicalCommandType.Pushback,
+        new PilotSpeechText("push back, face east", "push back, face east")
+    );
 
     // --- A4-2: runway L/R/C suffix is never dropped from a taxi readback ---
 

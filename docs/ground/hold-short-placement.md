@@ -173,6 +173,14 @@ Measured (B738 on B westbound at 30 kt): issued 584 ft out → holds 271 ft from
 
 It takes the firm rate when only that makes the stop and, at a runway bar whose line is not yet lost, a last-resort dead stop with the nose short of the marking. A taxiway bar is never stopped dead: the hold is taken where the firm rate stops the aircraft. The braking ladder is in [navigator.md](./navigator.md) § Stopping at an uncleared bar.
 
+**Releasing an explicit taxiway or spot bar before the aircraft arrives.** A bare `RES` to a rolling aircraft driving a route pre-clears the next uncleared taxiway or spot bar (`HS B`, `HS $17`) ahead, the way a bare `CROSS` does: `GroundCommandHandler.TryPreClearNextTaxiwayHoldShort` sets `IsCleared` on that one `HoldShortPoint` and answers `Continue taxi past B`. Later bars stay armed.
+
+"Next" is route order (`TaxiRoute.NextUnclearedHoldShortAhead`, by the segment that reaches the bar's node), not the order of `HoldShortPoints`, which appends a bar added mid-taxi. `CROSS` stays the clearance for a runway bar: when the next bar is a runway one (crossing, explicit `HS 28R` — `TaxiRoute.IsTaxiwayClassHoldShort` is false), `RES` is refused with `Next hold short is runway 28R/10L; use CROSS` and the bar stays armed; the destination runway's bar is refused `Next hold short is departure runway 28R/10L; issue CTO or LUAW`.
+
+A bar that reads taxiway-class but stands at a layout `RunwayHoldShort` node, or shares its node with another uncleared runway-class bar, is refused as a runway bar too (`GroundCommandHandler.GuardsARunway`).
+
+The route read is the one the aircraft drives (`FollowingPhase.DrivenRouteOf`), so a `FOLLOWG` follower, whose follow route has no hold short, answers `No upcoming hold short to clear`. `RES` at a runway bar the aircraft is already holding short of is unchanged: it releases the bar, with no held-bar refusal.
+
 ## Route-incomplete holds
 
 A `HoldShortReason.RouteIncomplete` point ends a route that could not reach its destination as cleared. The TAXI handler cuts the route before the taxiway X the destination needs and the clearance did not name (the fallback is described in [pathfinder.md](./pathfinder.md#incomplete-clearances--the-route-incomplete-hold-issue-461)).

@@ -3497,7 +3497,7 @@ public static class GroundCommandHandler
         TugAmendment? amendment = atStand ? TugAmendment.For(target.Goal, start) : null;
         string? standNote = push.Forced ? null : TaxiOutStandNote(aircraft, groundLayout);
         InstallTugMove(aircraft, groundLayout, plan, new TugTow(target.Terminus, amendment, KeepsItsPlan(target.Goal), push.Forced));
-        return PushAccepted(WithRpoNote(target.Readback(plan), standNote), plan);
+        return PushAccepted(CanonicalCommandType.Pushback, WithRpoNote(target.Readback(plan), standNote), plan);
     }
 
     /// <summary>
@@ -3631,14 +3631,15 @@ public static class GroundCommandHandler
     /// note and the plan's notes (<see cref="WithPushNotes"/>); the pilot's readback
     /// (<see cref="CommandResult.PilotReadback"/>) is the same sentence without any note, so the two cannot drift.
     /// </summary>
+    /// <param name="command">The push's command type, <see cref="CanonicalCommandType.Pushback"/> or <see cref="CanonicalCommandType.PushbackMulti"/>.</param>
     /// <param name="readback">What the push reads back.</param>
     /// <param name="plan">The accepted plan.</param>
     /// <returns>The acceptance.</returns>
-    private static CommandResult PushAccepted(PushReadback readback, TugPlan plan)
+    private static CommandResult PushAccepted(CanonicalCommandType command, PushReadback readback, TugPlan plan)
     {
         string sentence = char.ToUpperInvariant(readback.Words.Terminal[0]) + readback.Words.Terminal[1..];
         string message = readback.RpoNote is { } note ? $"{sentence} {note}" : sentence;
-        return CommandDispatcher.Ok(WithPushNotes(message, plan)) with { PilotReadback = readback.Words.ToSpeech() };
+        return CommandDispatcher.Ok(WithPushNotes(message, plan)) with { PilotReadback = new HandlerReadback(command, readback.Words.ToSpeech()) };
     }
 
     /// <summary>
@@ -4422,7 +4423,7 @@ public static class GroundCommandHandler
             facingTrueDeg,
             DescribeMoves(plan)
         );
-        return PushAccepted(new PushReadback(PushReadbackPhrases.Amended(push), null), plan);
+        return PushAccepted(CanonicalCommandType.Pushback, new PushReadback(PushReadbackPhrases.Amended(push), null), plan);
     }
 
     /// <summary>
@@ -4561,7 +4562,7 @@ public static class GroundCommandHandler
 
         string? standNote = move.Forced ? null : TaxiOutStandNote(aircraft, groundLayout);
         InstallTugMove(aircraft, groundLayout, plan, new TugTow(terminus, null, goals.Any(KeepsItsPlan), move.Forced));
-        return PushAccepted(WithRpoNote(PushMultiReadback(goals, move), standNote), plan);
+        return PushAccepted(CanonicalCommandType.PushbackMulti, WithRpoNote(PushMultiReadback(goals, move), standNote), plan);
     }
 
     /// <summary>
@@ -4977,7 +4978,7 @@ public static class GroundCommandHandler
     {
         if (!aircraft.Ground.IsImmobile)
         {
-            if (aircraft.Ground.SpeedLimit is not { } limit || limit > GroundConflictDetector.SlowTaxiSpeedKts)
+            if (!IsDetectorStalled(aircraft))
             {
                 return new CommandResult(false, "Aircraft is not held");
             }
@@ -4989,6 +4990,73 @@ public static class GroundCommandHandler
         aircraft.Ground.Hold = null;
         aircraft.Ground.IsExpeditingTaxi = false;
         return CommandDispatcher.Ok("Resume taxi");
+    }
+
+    /// <summary>
+    /// True when the ground conflict detector has the aircraft stopped or crawling — its cap at or below
+    /// <see cref="GroundConflictDetector.SlowTaxiSpeedKts"/> — the stall a bare RES breaks (<see cref="TryResumeTaxi"/>).
+    /// </summary>
+    internal static bool IsDetectorStalled(AircraftState aircraft) =>
+        (aircraft.Ground.SpeedLimit is { } limit) && (limit <= GroundConflictDetector.SlowTaxiSpeedKts);
+
+    /// <summary>
+    /// Bare <c>RES</c> to an aircraft rolling on <paramref name="route"/>, neither held nor stalled by the detector: clears the
+    /// next uncleared hold short ahead when it is a taxiway or spot bar (<see cref="TaxiRoute.IsTaxiwayClassHoldShort"/>), the
+    /// way bare <c>CROSS</c> does, so the aircraft taxis through without stopping. Only that one bar: a later one stays armed.
+    ///
+    /// <para>A runway bar is refused and stays armed — crossing a runway is its own clearance, <c>CROSS</c> (7110.65
+    /// §3-7-2.a.3) — and so is the bar ending a route that could not reach its destination, which takes a new TAXI. The
+    /// pilot reads it back as 7110.65 P/CG CONTINUE ("continue taxi"); release per 3-7-2.a.</para>
+    /// </summary>
+    internal static CommandResult TryPreClearNextTaxiwayHoldShort(AircraftState aircraft, TaxiRoute route)
+    {
+        if (route.NextUnclearedHoldShortAhead() is not { } next)
+        {
+            return new CommandResult(false, "No upcoming hold short to clear");
+        }
+
+        if (next.Reason == HoldShortReason.RouteIncomplete)
+        {
+            return new CommandResult(false, HoldingShortPhase.RouteIncompleteMessage(next.TargetName));
+        }
+
+        string runway = string.IsNullOrWhiteSpace(next.TargetName) ? "" : $" {HoldShortTarget.Describe(next.TargetName)}";
+        if (next.Reason == HoldShortReason.DestinationRunway)
+        {
+            return new CommandResult(false, $"Next hold short is departure runway{runway}; issue CTO or LUAW");
+        }
+
+        if (!TaxiRoute.IsTaxiwayClassHoldShort(next) || GuardsARunway(aircraft.Ground.Layout, route, next))
+        {
+            return new CommandResult(false, $"Next hold short is runway{runway}; use CROSS");
+        }
+
+        next.IsCleared = true;
+        NotifyTaxiHoldShortsChanged(aircraft);
+        return CommandDispatcher.Ok(DescribeTaxiwayHoldShortRelease(next.TargetName)) with
+        {
+            PilotReadback = new HandlerReadback(
+                CanonicalCommandType.Resume,
+                new PilotSpeechText(PhraseologyVerbalizer.ContinueTaxiRelease, PhraseologyVerbalizer.ContinueTaxiRelease)
+            ),
+        };
+    }
+
+    /// <summary>
+    /// Whether the node a taxiway-class bar stands at also guards a runway: it is a layout
+    /// <see cref="GroundNodeType.RunwayHoldShort"/> node — the ground truth the target-name test
+    /// can only approximate — or another uncleared runway-class bar on the route shares it. RES never clears such a bar.
+    /// </summary>
+    private static bool GuardsARunway(AirportGroundLayout? layout, TaxiRoute route, HoldShortPoint bar)
+    {
+        if ((layout is not null) && layout.Nodes.TryGetValue(bar.NodeId, out GroundNode? node) && (node.Type == GroundNodeType.RunwayHoldShort))
+        {
+            return true;
+        }
+
+        return route.HoldShortPoints.Any(other =>
+            !ReferenceEquals(other, bar) && !other.IsCleared && (other.NodeId == bar.NodeId) && HoldingShortPhase.ProtectsRunway(other)
+        );
     }
 
     /// <summary>
@@ -5710,15 +5778,19 @@ public static class GroundCommandHandler
 
     /// <summary>
     /// Echo for a bare <c>CROSS</c> release. "Cross" is runway vocabulary (7110.65 §3-7-2.a.3); releasing a
-    /// spot hold-short is the §3-7-2.a.1 "continue taxiing", so the echo names the spot that way instead.
+    /// spot hold-short is 7110.65 P/CG CONTINUE ("continue taxi"); release per 3-7-2.a, so the echo names the spot that way instead.
     /// </summary>
     private static string DescribeHoldShortRelease(string? targetName) =>
         targetName switch
         {
             null => "Cross next hold-short",
-            var spot when HoldShortTarget.IsSpotTargetName(spot) => $"Continue taxi past {HoldShortTarget.Describe(spot)}",
+            var spot when HoldShortTarget.IsSpotTargetName(spot) => DescribeTaxiwayHoldShortRelease(spot),
             var target => $"Cross {target}",
         };
+
+    /// <summary>Echo for releasing a taxiway or spot hold short ahead: "Continue taxi past B", "Continue taxi past spot 17".</summary>
+    private static string DescribeTaxiwayHoldShortRelease(string? targetName) =>
+        targetName is null ? "Continue taxi" : $"Continue taxi past {HoldShortTarget.Describe(targetName)}";
 
     internal static CommandResult TryHoldShort(AircraftState aircraft, HoldShortCommand hs, AirportGroundLayout? groundLayout)
     {
