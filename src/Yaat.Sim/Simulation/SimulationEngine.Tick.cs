@@ -1162,8 +1162,8 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// True when the session's <see cref="SimScenarioState.DepartureAutoDeleteDistanceNm"/> is set and this is an airborne
     /// departure from the primary airport, farther from the airport's reference point than that distance, that no controller
-    /// has kept with <c>NODEL</c>. A track owner does not keep it. A local flight filed back to the primary airport is kept. Live-traffic shadows are left to the feed, which owns
-    /// their lifetime and would re-spawn a removed one on its next sync.
+    /// has kept with <c>NODEL</c>. A track owner does not keep it. A local flight filed back to the primary airport is kept.
+    /// Live-traffic shadows are left to the feed, which owns their lifetime and would re-spawn a removed one on its next sync.
     /// </summary>
     private static bool IsDepartureBeyondAutoDeleteDistance(AircraftState aircraft, SimScenarioState scenario)
     {
@@ -1366,15 +1366,18 @@ public sealed partial class SimulationEngine
         }
 
         ai.Tick(
-            new AiTickInputs(
-                scenario,
-                World,
-                World.GetSnapshot(),
-                ResolveGroundLayout,
-                RunwayOccupancy.AirportRunways,
-                [.. ConflictAlerts.Conflicts.Values],
-                [.. EramConflicts.Conflicts.Values]
-            )
+            new AiTickInputs
+            {
+                Scenario = scenario,
+                World = World,
+                Aircraft = World.GetSnapshot(),
+                LayoutFor = ResolveGroundLayout,
+                RunwaysFor = RunwayOccupancy.AirportRunways,
+                ActiveConflicts = [.. ConflictAlerts.Conflicts.Values],
+                EramConflicts = [.. EramConflicts.Conflicts.Values],
+                Attendance = Attendance,
+                ConsolidationState = ConsolidationState,
+            }
         );
     }
 
@@ -1626,7 +1629,8 @@ public sealed partial class SimulationEngine
         }
 
         ExitCapacityLog.LogDebug(
-            "[ExitCapacity] {Callsign} ({Type}, CWT {Cwt}): exit {Twy} off {Rwy} full at {Count}/{Capacity}, taking a later exit; inside: {Occupants}",
+            "[ExitCapacity] {Callsign} ({Type}, CWT {Cwt}): exit {Twy} off {Rwy} full at {Count}/{Capacity}, "
+                + "taking a later exit; inside: {Occupants}",
             arrival.Callsign,
             arrival.AircraftType,
             arrivalCwt ?? "?",

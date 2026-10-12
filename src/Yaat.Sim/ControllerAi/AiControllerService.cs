@@ -69,6 +69,8 @@ public sealed class AiControllerService(IReadOnlyList<IPositionBrain> brains, IA
             ActiveConflicts = inputs.ActiveConflicts,
             EramConflicts = inputs.EramConflicts,
             AutoAcceptDelaySeconds = scenario.EffectiveAutoAcceptDelaySeconds,
+            Attendance = inputs.Attendance,
+            ConsolidationState = inputs.ConsolidationState,
             NavDb = NavigationDatabase.Instance,
             LayoutFor = inputs.LayoutFor,
             RunwaysFor = inputs.RunwaysFor,

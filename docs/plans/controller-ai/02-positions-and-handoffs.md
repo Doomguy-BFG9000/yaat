@@ -105,7 +105,7 @@ The server already "plays" unstaffed positions. An AI-staffed position must be t
 *human-staffed* one by those services, or they race the brain:
 
 - `SimulationEngine.TickAutoAccept` (was `TickProcessor.ProcessAutoAccept`): already skips CRC-controlled TCPs
-  (`PositionRegistry.IsTcpControlledByCrc`) and the solo `StudentPosition`. Add a third skip:
+  (`TrackEngine.IsHandoffPeerControlledByCrc`, shared with `HandoffUnacceptedRule`) and the solo `StudentPosition`. Add a third skip:
   `IAiStaffing.IsAiControlled(handoffPeer)`. The AI brain ACCEPTs on its own (deterministic 5–15 s
   delay from the AI RNG stream), exercising the real accept path.
 - `TickPointoutTimeout` (was the auto-ack): same skip, and it is load-bearing now — the body withdraws a point-out nobody acts on after 30 s, so an AI-attended recipient must be skipped or its legitimately pending point-outs are pulled; AI acknowledges pointouts by rule.

@@ -214,6 +214,19 @@ public static partial class TrackEngine
         ac.Eram.IsCoastTrack || ac.Eram.IsCoverageCoasting || !(ac.Eram.IsVisibleOnEramCoverage ?? DisconnectCoastRules.IsVisibleOnEram(ac, navDb));
 
     /// <summary>
+    /// True when a CRC client works the handoff's receiving position <paramref name="peer"/>: its TCP is attended, or has
+    /// consolidated under an attended position. Auto-accept leaves such a handoff for that controller to take. A peer whose
+    /// TCP the scenario cannot resolve counts as unattended. Shared by the auto-accept timer and the controller-AI handoff
+    /// watchdog so they cannot drift.
+    /// </summary>
+    public static bool IsHandoffPeerControlledByCrc(
+        TrackOwner peer,
+        SimScenarioState scenario,
+        Attendance attendance,
+        ConsolidationState consolidation
+    ) => TrackResolver.FindTcpForOwner(peer, scenario) is { } tcp && attendance.IsTcpControlledByCrc(tcp, scenario, consolidation);
+
+    /// <summary>
     /// Flags the previous owner's STARS <c>SharedState</c> entry as previously-owned so that, after a
     /// handoff is accepted, that controller's datablock stays a white FDB (CRC's <c>WasPreviouslyOwned</c>
     /// semantics) until they slew to acknowledge — instead of dropping straight to an unowned green PDB.

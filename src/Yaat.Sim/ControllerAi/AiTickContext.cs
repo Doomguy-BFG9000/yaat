@@ -5,16 +5,30 @@ using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.ControllerAi;
 
-/// <summary>What the host hands <see cref="AiControllerService.Tick"/> each second; the service turns it into an <see cref="AiTickContext"/>.</summary>
-public sealed record AiTickInputs(
-    SimScenarioState Scenario,
-    SimulationWorld World,
-    IReadOnlyList<AircraftState> Aircraft,
-    Func<AircraftState, AirportGroundLayout?> LayoutFor,
-    Func<string?, IReadOnlyList<RunwayInfo>> RunwaysFor,
-    IReadOnlyList<ActiveConflict> ActiveConflicts,
-    IReadOnlyList<EramActiveConflict> EramConflicts
-);
+/// <summary>
+/// What the host hands <see cref="AiControllerService.Tick"/> each second; the service turns it into an
+/// <see cref="AiTickContext"/>.
+/// </summary>
+public sealed record AiTickInputs
+{
+    public required SimScenarioState Scenario { get; init; }
+
+    public required SimulationWorld World { get; init; }
+
+    public required IReadOnlyList<AircraftState> Aircraft { get; init; }
+
+    public required Func<AircraftState, AirportGroundLayout?> LayoutFor { get; init; }
+
+    public required Func<string?, IReadOnlyList<RunwayInfo>> RunwaysFor { get; init; }
+
+    public required IReadOnlyList<ActiveConflict> ActiveConflicts { get; init; }
+
+    public required IReadOnlyList<EramActiveConflict> EramConflicts { get; init; }
+
+    public required Attendance Attendance { get; init; }
+
+    public required ConsolidationState ConsolidationState { get; init; }
+}
 
 /// <summary>Everything a brain may read or act on during one AI tick. Read-only views of the sim plus the AI's own state.</summary>
 public sealed class AiTickContext
@@ -47,6 +61,12 @@ public sealed class AiTickContext
     public required IReadOnlyList<EramActiveConflict> EramConflicts { get; init; }
 
     public required double AutoAcceptDelaySeconds { get; init; }
+
+    /// <summary>The positions CRC clients work in the room, as the auto-accept timer reads them.</summary>
+    public required Attendance Attendance { get; init; }
+
+    /// <summary>The room's manual consolidation overrides, which the attendance check resolves a TCP's owner through.</summary>
+    public required ConsolidationState ConsolidationState { get; init; }
 
     /// <summary>The navigation data the room runs on: field elevations for the ERAM coverage check, among others.</summary>
     public required NavigationDatabase NavDb { get; init; }

@@ -167,6 +167,8 @@ internal static class AiTestFixture
             ActiveConflicts = conflicts,
             EramConflicts = [],
             AutoAcceptDelaySeconds = scenario.EffectiveAutoAcceptDelaySeconds,
+            Attendance = engine.Attendance,
+            ConsolidationState = engine.ConsolidationState,
             NavDb = NavigationDatabase.Instance,
             LayoutFor = engine.ResolveGroundLayout,
             RunwaysFor = RunwayOccupancy.AirportRunways,

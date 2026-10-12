@@ -53,7 +53,7 @@ attended-position predicate, the manual-override store, and the CRC broadcast.
 | Attended-position registry + CRC-control test | `../yaat-server/src/Yaat.Server/Data/PositionRegistry.cs` | yaat-server |
 | `CONS` / `DECON` command handlers + track transfer | `../yaat-server/src/Yaat.Server/Simulation/RoomEngine.cs` | yaat-server |
 | Handoff / point-out consolidation redirect | `src/Yaat.Sim/Commands/ConsolidationRedirect.cs` (`TryRedirect`; the attendance answer is the host's) | Yaat.Sim |
-| Auto-accept suppression for CRC-controlled targets | `src/Yaat.Sim/Simulation/SimulationEngine.TrackAutomation.cs` (`TickAutoAccept`, `TickDelayedHandoffs` — the `Attendance` gate) | yaat |
+| Auto-accept suppression for CRC-controlled targets | `src/Yaat.Sim/Simulation/SimulationEngine.TrackAutomation.cs` (`TickAutoAccept`, `TickDelayedHandoffs` — the `Attendance` gate; `TrackEngine.IsHandoffPeerControlledByCrc` is the shared check) | yaat |
 | `StarsConsolidation` topic broadcast | `../yaat-server/src/Yaat.Server/Simulation/CrcBroadcastService.cs` (`BuildConsolidationData`, `BroadcastStarsConsolidationAsync`) | yaat-server |
 | DTO mappers (shared state, STARS/ERAM pointouts, consolidation item) | `../yaat-server/src/Yaat.Server/Simulation/DtoConverter.cs` | yaat-server |
 | CRC-side consolidate/deconsolidate + cleanup | `../yaat-server/src/Yaat.Server/Hubs/CrcClientState.Stars.cs`, `CrcClientState.Session.cs` | yaat-server |
@@ -213,8 +213,9 @@ point-out sticks pending forever. Unlike the handoff path, the originally-target
 The engine normally auto-accepts handoffs after `AutoAcceptDelay`. But if the handoff peer is **CRC-controlled** — either directly
 attended or attended via consolidation — it must NOT auto-accept; the real CRC controller owns that action.
 `SimulationEngine.TickAutoAccept` (`SimulationEngine.TrackAutomation.cs`) calls
-`Attendance.IsTcpControlledByCrc(tcp, scenario, ConsolidationState)` (`Simulation/Attendance.cs`) over the recorded attendance and skips the
-target when it returns true. The same consolidation check guards delayed scenario handoffs (`TickDelayedHandoffs`): a handoff to a
+`TrackEngine.IsHandoffPeerControlledByCrc(peer, scenario, Attendance, ConsolidationState)` (`Commands/TrackEngine.cs`), which resolves the peer's TCP and asks
+`Attendance.IsTcpControlledByCrc` (`Simulation/Attendance.cs`) over the recorded attendance, and skips the
+target when it returns true (a peer with no resolvable TCP counts as unattended). The controller-AI `HandoffUnacceptedRule` calls the same check, so a withheld handoff to a CRC-attended position still raises the anomaly. The same consolidation check guards delayed scenario handoffs (`TickDelayedHandoffs`): a handoff to a
 TCP consolidated under another attended TCP is held until that TCP activates (otherwise it would be a handoff to oneself).
 
 ## Per-track shared display state

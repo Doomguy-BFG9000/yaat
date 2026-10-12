@@ -621,7 +621,8 @@ public sealed partial class SimulationEngine
                 EmitTerminal(
                     "System",
                     aircraft.Callsign,
-                    $"[Pointout] {pointout.Sender} → {pointout.Recipient}: no action taken — point-out withdrawn, coordinate verbally before entering their airspace"
+                    $"[Pointout] {pointout.Sender} → {pointout.Recipient}: no action taken — point-out withdrawn, "
+                        + "coordinate verbally before entering their airspace"
                 );
                 _logger.LogInformation(
                     "Point-out withdrawn (no action): {Callsign} {Sender}→{Recipient} at t={T}s",
@@ -694,8 +695,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            Tcp? tcp = TrackResolver.FindTcpForOwner(aircraft.Track.HandoffPeer, scenario);
-            if (tcp is not null && Attendance.IsTcpControlledByCrc(tcp, scenario, ConsolidationState))
+            if (TrackEngine.IsHandoffPeerControlledByCrc(aircraft.Track.HandoffPeer, scenario, Attendance, ConsolidationState))
             {
                 _logger.LogTrace("TickAutoAccept: {Callsign} handoff pending to CRC-controlled position, skipping", aircraft.Callsign);
                 continue;

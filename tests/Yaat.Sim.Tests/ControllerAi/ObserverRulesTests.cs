@@ -1,12 +1,16 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.ControllerAi.Rules;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.ControllerAi;
@@ -14,6 +18,10 @@ namespace Yaat.Sim.Tests.ControllerAi;
 /// <summary>The four observer watchdogs, each driven through a hand-built tick context so the clock can jump.</summary>
 public class ObserverRulesTests
 {
+    private static readonly TrackOwner Nct2B = TrackOwner.CreateStars("NCT_2B", "NCT", 2, "B");
+    private static readonly TrackOwner Nct4Q = TrackOwner.CreateStars("NCT_4Q", "NCT", 4, "Q");
+    private static readonly TrackOwner Nct4U = TrackOwner.CreateStars("NCT_4U", "NCT", 4, "U");
+
     private readonly ArtccConfigRoot? _zoa = TestArtccConfig.LoadZoa();
 
     public ObserverRulesTests()
@@ -306,6 +314,172 @@ public class ObserverRulesTests
         rule.Evaluate(ConflictScope(engine, [aircraft], approach, 100 + horizon + 5, []));
 
         Assert.Empty(engine.Scenario.AiAnomalies.Drain());
+    }
+
+    [Theory]
+    [InlineData(500)]
+    [InlineData(8000)]
+    public void HandoffOfLiveFeedOwnedTrack_NeverRaisesAnomaly(double feetAboveField)
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig approach = TestAiPositions.NorCalApproach(_zoa);
+        SimulationEngine engine = NctEngine(_zoa);
+        AttendanceTestSupport.Attend(engine, "4U");
+        AircraftState aircraft = AiTestFixture.Airborne("AAL1", 37.75, -122.25, 0);
+        aircraft.Altitude = FieldElevationResolver.Resolve(aircraft, NavigationDatabase.Instance) + feetAboveField;
+        aircraft.Track.SetOwnerFromLiveFeed(approach.Identity);
+        aircraft.Track.HandoffPeer = Nct4U;
+        aircraft.Track.OnHandoff = true;
+        aircraft.Track.HandoffInitiatedAt = 100;
+
+        // Withheld or not, the peer is attended, so only the feed ownership keeps the watchdog quiet.
+        bool belowCoverage = feetAboveField < DisconnectCoastRules.EramCoverageFloorAglFt;
+        Assert.Equal(belowCoverage, TrackEngine.IsAutoAcceptWithheld(aircraft, NavigationDatabase.Instance));
+        Assert.True(TrackEngine.IsHandoffPeerControlledByCrc(Nct4U, engine.Scenario!, engine.Attendance, engine.ConsolidationState));
+        var rule = new HandoffUnacceptedRule();
+        double horizon = engine.Scenario!.EffectiveAutoAcceptDelaySeconds + HandoffUnacceptedRule.GraceSeconds;
+
+        // A handoff mirrored from the live feed completes when the feed says so, not on the room's clock.
+        rule.Evaluate(ConflictScope(engine, [aircraft], approach, 100 + horizon + 5, []));
+
+        Assert.Empty(engine.Scenario.AiAnomalies.Drain());
+    }
+
+    [Fact]
+    public void GroundHandoffToCrcAttendedPeer_NeverRaisesAnomaly()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig approach = TestAiPositions.NorCalApproach(_zoa);
+        SimulationEngine engine = NctEngine(_zoa);
+        AttendanceTestSupport.Attend(engine, "4U");
+        AircraftState parked = engine.FindAircraft(AiTestFixture.Callsign)!;
+        parked.Track.Owner = approach.Identity;
+        parked.Track.HandoffPeer = Nct4U;
+        parked.Track.OnHandoff = true;
+        parked.Track.HandoffInitiatedAt = 100;
+        Assert.True(parked.IsOnGround);
+        Assert.True(TrackEngine.IsHandoffPeerControlledByCrc(Nct4U, engine.Scenario!, engine.Attendance, engine.ConsolidationState));
+        var rule = new HandoffUnacceptedRule();
+        double horizon = engine.Scenario!.EffectiveAutoAcceptDelaySeconds + HandoffUnacceptedRule.GraceSeconds;
+
+        // A radar controller takes a surface aircraft only once it is airborne and tagged (7110.65 5-4-6.a, 2-1-15.c):
+        // the human attending 4U is not behind while it taxis.
+        rule.Evaluate(ConflictScope(engine, [parked], approach, 100 + horizon + 5, []));
+
+        Assert.Empty(engine.Scenario.AiAnomalies.Drain());
+    }
+
+    [Fact]
+    public void LowHandoffToCrcAttendedPeer_RaisesAnomalyAfterHorizon()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig approach = TestAiPositions.NorCalApproach(_zoa);
+        SimulationEngine engine = NctEngine(_zoa);
+        AttendanceTestSupport.Attend(engine, "4U");
+
+        // Auto-accept withholds the low handoff, but it never takes one for an attended position anyway: the human
+        // working 4U has to accept it, so the watchdog still flags it.
+        AssertLowHandoffOpensPastTheHorizon(engine, approach, Nct4U);
+    }
+
+    [Fact]
+    public void LowHandoffToPeerConsolidatedUnderAttended_RaisesAnomaly()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig approach = TestAiPositions.NorCalApproach(_zoa);
+        SimulationEngine engine = NctEngine(_zoa);
+        AttendanceTestSupport.Attend(engine, "4U");
+
+        // 4Q is unattended, but its airspace has consolidated under the attended 4U.
+        SimScenarioState scenario = engine.Scenario!;
+        Assert.False(engine.Attendance.IsTcpAttended(TrackResolver.FindTcpByCode(scenario, "4Q")!));
+        Assert.True(TrackEngine.IsHandoffPeerControlledByCrc(Nct4Q, scenario, engine.Attendance, engine.ConsolidationState));
+        AssertLowHandoffOpensPastTheHorizon(engine, approach, Nct4Q);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void LowHandoffToStudentPosition_RaisesAnomaly_InSoloAndNonSolo(bool soloTrainingMode)
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig approach = TestAiPositions.NorCalApproach(_zoa);
+        SimulationEngine engine = NctEngine(_zoa);
+        engine.Scenario!.SoloTrainingMode = soloTrainingMode;
+
+        AssertLowHandoffOpensPastTheHorizon(engine, approach, Nct2B);
+    }
+
+    /// <summary>
+    /// The OAK scenario with the student on NCT 2B and the NCT 4U and 4Q positions in the scenario's ATC list, so a
+    /// handoff to either resolves to a TCP the attendance check can see. The real NCT hierarchy makes 4U 4Q's parent.
+    /// </summary>
+    private static SimulationEngine NctEngine(ArtccConfigRoot zoa)
+    {
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.StudentPosition = Nct2B;
+        scenario.StudentTcp = TrackResolver.FindTcpByCode(scenario, "2B")!;
+        AddAtcPosition(scenario, Nct4U, "4U");
+        AddAtcPosition(scenario, Nct4Q, "4Q");
+        return engine;
+    }
+
+    private static void AddAtcPosition(SimScenarioState scenario, TrackOwner owner, string tcpCode) =>
+        scenario.AtcPositions.Add(
+            new ResolvedAtcPosition
+            {
+                Source = new ScenarioAtc(),
+                Owner = owner,
+                Tcp = TrackResolver.FindTcpByCode(scenario, tcpCode)!,
+            }
+        );
+
+    /// <summary>
+    /// A handoff from <paramref name="approach"/> to <paramref name="peer"/> of a track 500 ft above the field, below
+    /// the ERAM coverage floor, so auto-accept withholds it; the watchdog stays quiet up to the auto-accept delay plus
+    /// grace and opens the anomaly past it.
+    /// </summary>
+    private static void AssertLowHandoffOpensPastTheHorizon(SimulationEngine engine, AiPositionConfig approach, TrackOwner peer)
+    {
+        AircraftState aircraft = AiTestFixture.Airborne("AAL1", 37.75, -122.25, 0);
+        aircraft.Altitude = FieldElevationResolver.Resolve(aircraft, NavigationDatabase.Instance) + 500;
+        aircraft.Track.Owner = approach.Identity;
+        aircraft.Track.HandoffPeer = peer;
+        aircraft.Track.OnHandoff = true;
+        aircraft.Track.HandoffInitiatedAt = 100;
+        Assert.True(TrackEngine.IsAutoAcceptWithheld(aircraft, NavigationDatabase.Instance));
+        var rule = new HandoffUnacceptedRule();
+        SimScenarioState scenario = engine.Scenario!;
+        double horizon = scenario.EffectiveAutoAcceptDelaySeconds + HandoffUnacceptedRule.GraceSeconds;
+
+        rule.Evaluate(ConflictScope(engine, [aircraft], approach, 100 + horizon - 1, []));
+        Assert.Empty(scenario.AiAnomalies.Drain());
+
+        rule.Evaluate(ConflictScope(engine, [aircraft], approach, 100 + horizon + 1, []));
+        AiAnomalyEvent opened = Assert.Single(scenario.AiAnomalies.Drain());
+        Assert.Equal(AiAnomalyKind.HandoffUnaccepted, opened.Kind);
+        Assert.Contains(peer.Callsign, opened.Detail);
     }
 
     [Fact]
