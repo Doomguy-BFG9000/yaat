@@ -873,9 +873,9 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Indexes the snapshot by callsign for pair classification. Correlation (<see cref="TrackCorrelation.IsEramCorrelated"/>)
-    /// is a filed flight plan with a discrete beacon (the non-discrete VFR code 1200 never correlates, AIM §4-1-20) on a
-    /// target that is tracked or squawking its assigned code: before a track exists only the assigned code correlates
-    /// (7110.65 §5-2-1b2 NOTE), and a track keeps the association through a code change (§5-4-6e2 NOTE). It is the same
+    /// is a filed flight plan on a target that is tracked or squawking its assigned beacon code: before a track exists only
+    /// the assigned code correlates (7110.65 §5-2-1b2 NOTE) and the non-discrete VFR code 1200 never starts a correlation
+    /// (AIM §4-1-20); a track keeps the association through a code change, 1200 included (§5-4-6e2 NOTE). It is the same
     /// rule the ERAM target symbol uses.
     /// </summary>
     private static Dictionary<string, EramPairSide> IndexEramPairSides(List<AircraftState> snapshot)

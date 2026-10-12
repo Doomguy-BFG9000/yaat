@@ -30,6 +30,7 @@
 - The ground view's Hold short of… menu no longer lists the runway the taxi already ends at, whose row did nothing.
 - The context menu's heading pickers and Warp popup start from the datablock's magnetic heading, so an unchanged Warp no longer turns the aircraft.
 - Cleared visual approach defaults to the runway of an expected approach written in shorthand, such as `R28L` at KOAK.
+- On ERAM, a tracked aircraft that squawks 1200 stays correlated, and an untracked filed aircraft on standby shows as an uncorrelated primary.
 - `CTO` signature help no longer lists a "360 overhead" departure; `CTO 360` is cleared for takeoff, fly heading 360.
 - Ground view: Taxi here to a taxiway node or intersection now stops at that node instead of the junction before it.
 - Ground view: right-clicking a runway centerline node opens the runway menu, with taxi to either end for departure.

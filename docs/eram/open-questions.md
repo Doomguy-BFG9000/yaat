@@ -11,7 +11,7 @@ YAAT (a VATSIM ATC trainer) emulates the ERAM display that CRC draws. Where the 
 ## Conflict alert
 
 4. **IFR against a Mode C intruder already inside minima.** If a Mode C intruder is first detected already inside 5 NM / 1,000 ft of an IFR track (a pop-up), does ERAM alert? *Our guess:* yes, as an ordinary current alert; the SRS note that immediate alerts are not reported for IFR/MCI pairs applies only to the immediate kind.
-5. **MCI floor and 1200.** With no floor adapted, is 12,500 ft the floor for both the MCI symbol and MCI alerts, and is a 1200 VFR inside that band an MCI that alerts against IFR traffic? *Our guess:* yes to both; below the floor a 1200 draws as a VFR target and anything else uncorrelated as an Uncorrelated Beacon.
+5. **MCI floor and 1200.** With no floor adapted, is 12,500 ft the floor for both the MCI symbol and MCI alerts, and is an untracked 1200 VFR inside that band an MCI that alerts against IFR traffic? *Our guess:* yes to both; below the floor an untracked 1200 draws as a VFR target and anything else uncorrelated as an Uncorrelated Beacon. A tracked 1200 stays correlated and is never an MCI (`rulings.md`).
 
 ## Departure message (`DM`)
 

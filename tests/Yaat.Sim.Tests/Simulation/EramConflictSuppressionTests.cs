@@ -248,7 +248,10 @@ public class EramConflictSuppressionTests
         Assert.Equal("UAL200", alert.IntruderCallsign);
     }
 
-    /// <summary>UAL200 untracked and squawking 1200 with its filed flight plan: 1200 never correlates, so it is a Mode-C intruder.</summary>
+    /// <summary>
+    /// UAL200 untracked and squawking 1200 with its filed flight plan: 1200 never starts a correlation for an untracked
+    /// target, so it is a Mode-C intruder.
+    /// </summary>
     private static void MakeCode1200Intruder(SimulationEngine engine)
     {
         AircraftState ual = engine.FindAircraft("UAL200")!;
@@ -270,6 +273,29 @@ public class EramConflictSuppressionTests
         PlaceHeadOn(belowFloor, 12000);
         Assert.Empty(belowFloor.TickEramConflictAlerts().New);
         Assert.Null(belowFloor.EramConflicts.FindPair("AAL100", "UAL200"));
+    }
+
+    [Fact]
+    public void TrackedAircraftChangedTo1200_AgainstATrackedAircraft_AlertsWithNoIntruder()
+    {
+        SimulationEngine engine = Load();
+        engine.FindAircraft("AAL100")!.Transponder.Code = 1200;
+
+        EramActiveConflict alert = Assert.Single(engine.TickEramConflictAlerts().New);
+
+        Assert.Null(alert.IntruderCallsign);
+    }
+
+    [Fact]
+    public void TrackedAircraftOn1200_AgainstAnUntracked1200Intruder_PicksTheUntrackedOne()
+    {
+        SimulationEngine engine = Load();
+        engine.FindAircraft("AAL100")!.Transponder.Code = 1200;
+        MakeCode1200Intruder(engine);
+
+        EramActiveConflict alert = Assert.Single(engine.TickEramConflictAlerts().New);
+
+        Assert.Equal("UAL200", alert.IntruderCallsign);
     }
 
     [Fact]

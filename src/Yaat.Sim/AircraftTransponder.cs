@@ -35,8 +35,14 @@ public class AircraftTransponder
         }
     }
 
-    /// <summary>The non-discrete universal VFR code 1200 (AIM §4-1-20): it never correlates and never alerts as an intruder.</summary>
+    /// <summary>
+    /// The non-discrete universal VFR code 1200 (AIM §4-1-20): it never starts a correlation, though a track keeps one
+    /// through a change to it.
+    /// </summary>
     public bool IsVfrCode => Code == 1200;
+
+    /// <summary>The transponder is on standby: it sends no beacon code or altitude, so the target is a primary return.</summary>
+    public bool IsStandby => string.Equals(Mode, "Standby", StringComparison.OrdinalIgnoreCase);
 
     public bool IsIdenting { get; set; }
     public double? IdentStartedAt { get; set; }

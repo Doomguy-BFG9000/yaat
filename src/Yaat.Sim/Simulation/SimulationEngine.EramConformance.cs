@@ -22,7 +22,7 @@ public sealed partial class SimulationEngine
         foreach (AircraftState ac in World.GetSnapshot())
         {
             AircraftEramState eram = ac.Eram;
-            bool standby = string.Equals(ac.Transponder.Mode, "Standby", StringComparison.OrdinalIgnoreCase);
+            bool standby = ac.Transponder.IsStandby;
             if (standby || eram.IsFrozen || eram.IsCoastTrack)
             {
                 continue;

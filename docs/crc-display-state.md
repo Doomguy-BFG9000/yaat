@@ -158,18 +158,20 @@ Pure transformations from internal state to wire DTOs:
 `ToEramTarget(ac, swept, conflictAlertFloorFeet, asrSites)` resolves the radar-target symbol (`docs/crc/eram.md` Table 1) from the
 transponder plus the subscribing facility's ERAM config. Precedence:
 
-1. **Standby transponder → primary**: `CorrelatedPrimary` with a flight plan, else `UncorrelatedPrimaryStrong`. Standby
+1. **Standby transponder (`AircraftTransponder.IsStandby`) → primary**: `CorrelatedPrimary` when `IsEramCorrelated` (filed and tracked: the track continues, 7110.65 §5-2-10), else `UncorrelatedPrimaryStrong` (filed untracked, or no flight plan). Standby
    precedes ident (a standby transponder cannot ident) and nulls `BeaconCode` / `AdjustedAltitude` / `VerticalSpeed`;
    `GroundSpeed` / `GroundTrack` stay (primary radar still gives position). `WasModeCPreviouslyReceived` comes from the
    sim-side `Transponder.HasReportedModeC` latch, so an aircraft that reported Mode C before going standby renders CRC's
    "recently lost Mode C" forms — CRC only consults that field when the altitude is null.
 2. **Ident** → `IdentingBeacon`, a transient override on any beacon target, correlated or not.
-3. **Correlated** = `TrackCorrelation.IsEramCorrelated`: a flight plan, a code other than 1200, and either a track (any
-   owner) or the code its flight plan assigned (7110.65 5-2-1b2 NOTE: the assigned code is what auto-acquires; 5-4-6e2
-   NOTE: a tracked aircraft that changes code stays associated). 1200 is the non-discrete universal VFR code and never
-   correlates (AIM §4-1-20); an untracked filed aircraft squawking another code (after `RANDSQ`) is uncorrelated. Correlated →
-   `ReducedSeparation` inside single-sensor ASR coverage, else `CorrelatedBeacon`.
-4. **Uncorrelated** → `Mci` inside the MCI band (`EramConflictDetector.IsMciAltitudeEligible`: the floor below to 99,500 ft, inclusive), 1200 included; outside it `Vfr` for 1200, else `UncorrelatedBeacon` (CRC manual Table 1).
+3. **Correlated** = `TrackCorrelation.IsEramCorrelated`: a flight plan and either a track (any owner, on any code, 1200
+   included, or on standby; 7110.65 5-4-6e2 NOTE: a tracked aircraft that changes code stays associated) or, with the
+   transponder on, the code its flight plan assigned when that is not 1200 (5-2-1b2 NOTE, §5-3-3d: automatic association
+   needs a discrete assigned code). 1200 is the non-discrete universal VFR code and never starts a correlation (AIM §4-1-20);
+   an untracked filed aircraft squawking another code (after `RANDSQ`) is uncorrelated. Correlated →
+   `ReducedSeparation` inside single-sensor ASR coverage, else `CorrelatedBeacon`, so a tracked aircraft that changes to 1200
+   never draws `Vfr` or `Mci`.
+4. **Uncorrelated** (so never a tracked aircraft) → `Mci` inside the MCI band (`EramConflictDetector.IsMciAltitudeEligible`: the floor below to 99,500 ft, inclusive), 1200 included; outside it `Vfr` for 1200, else `UncorrelatedBeacon` (CRC manual Table 1).
 
 Other target and track fields that follow ERAM rather than the raw state: a standby aircraft's ERAM **track** `Altitude` is null too while the track is `Normal` (a frozen or coasting track keeps its snapshot), so CRC draws `X`/`XXX`.
 

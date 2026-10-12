@@ -16,7 +16,10 @@ To read a page: `pdftotext -layout <pdf> eram.txt`, split on `\f`; with 1-based 
 
   The **ERAM history trail follows the sweep**: one dot per 12 s update, from an ERAM-specific sample (today's 5 s `PositionHistory` stays for STARS and YAAT's radar). STARS is untouched. Keep `EramCoastSeconds` (24 s = 2 sweeps) consistent. Red test model: `tests/Yaat.Server.Tests/CrcAcceptedIndicatorTests.cs` (`RoomEngineTestHarness`, `RecordingWebSocket`), asserting ≤ 2 position `ReceiveEramTracks` in 12 broadcasts for a moving aircraft and a handoff sent on the next tick.
 - **MCI alert floor**: the ARTCC's `ConflictAlertFloor` when non-zero, else the SRS 12,500 ft; the 99,500 ft ceiling applies.
-- **1200 code**: never an MCI — excluded from the MCI symbol (it draws as VFR) and from conflict-alert intruder eligibility. This departs from `docs/crc/eram.md:358`.
+- **1200 code**: an untracked 1200 target is uncorrelated, so inside the MCI band it is an MCI (symbol and conflict-alert intruder) and outside it draws as VFR; a tracked one is never an MCI (it is correlated, below).
+- **Correlation** (`TrackCorrelation.IsEramCorrelated`; 7110.65 §5-4-6e2 NOTE, §5-2-10, §5-3-3d; CRC ERAM Table 1, `docs/crc/eram.md:356-357`): a flight plan and either a controller's track (on any code, 1200 included, or on standby) or, with the transponder on, a code that is not 1200 and is the assigned code. 1200 never starts a correlation.
+
+  On standby (`AircraftTransponder.IsStandby`) a filed, tracked aircraft is `CorrelatedPrimary`; a filed untracked one, or one with no flight plan, is `UncorrelatedPrimaryStrong`. A tracked aircraft that changes to 1200 draws `CorrelatedBeacon` (`ReducedSeparation` in ASR coverage), never `Vfr` or `Mci`. The conflict pass is unchanged.
 - **Vertical-conformance latch**: set when within ±200 ft of the assigned altitude (a block altitude uses its own floor and ceiling), cleared only when the assigned altitude changes. Latched in a Yaat.Sim post-physics step for replay determinism.
 - **Handoff retract**: show `O` plus the retracted recipient to the initiator (send the recipient as the recent-handoff peer).
 - **SPC blink**: a named 30 s constant after the code first appears (latched like `IdentStartedAt`), in the target fingerprint so a stationary aircraft re-sends.
@@ -37,7 +40,7 @@ To read a page: `pdftotext -layout <pdf> eram.txt`, split on `\f`; with 1-based 
   LB's bearing runs from the track to the fix, as the text says. A three-letter operand that matches an ASR site's `AsrId` is the site, ahead of a fix of the same name; the SRS's `2116 ACP` line has no data source and is omitted. Distances use the invariant culture.
 - **Conflict pass** (SRS H.1, CRC manual Table 1; the aviation review reversed the first reading): a 5 s pass on `(int)ElapsedSeconds % 5 == 0`, `CO` still reported the same second.
 
-  A Mode-C intruder (untracked and uncorrelated: no flight plan, a 1200 code, or a code other than the one its flight plan assigned; `TrackCorrelation.IsEramCorrelated`) alerts inside the MCI band, the owning ERAM facility's `ConflictAlertFloor` (12,500 ft when 0) to 99,500 ft, even when first seen inside minima (H.1 exempts IFR/MCI pairs only from *immediate* alerts); the MCI symbol uses the same band, and outside it a 1200 draws as VFR and anything else as an Uncorrelated Beacon.
+  A Mode-C intruder (untracked and uncorrelated: no flight plan, a standby transponder, a 1200 code, or a code other than the one its flight plan assigned; `TrackCorrelation.IsEramCorrelated`) alerts inside the MCI band, the owning ERAM facility's `ConflictAlertFloor` (12,500 ft when 0) to 99,500 ft, even when first seen inside minima (H.1 exempts IFR/MCI pairs only from *immediate* alerts); the MCI symbol uses the same band, and outside it a 1200 draws as VFR and anything else as an Uncorrelated Beacon.
 
 Checked against the code: coast marking the previous owner `K` is **not a bug** — `ApplyCoast` refuses a track owned by another position, so it never has a previous owner. Ground speed 0 matters for the ERAM target only (Field E reads `target.GroundSpeed`; the track's speed drives only the vector). The `AM.yaml` 918 claim is wrong as worded — SWIM and scenario remarks carry REG/, PBN/, DOF/ as unparsed text in `AircraftFlightPlan.Remarks` — but nothing parses them; reword the `na` reason.
 
@@ -54,7 +57,7 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 - **FLID**: purely by length (3 = CID, 4 = beacon, else ACID); no `dLd`, no lists.
 - **Reached assigned altitude**: symmetric ±200 ft, computed once when the track DTO is built (an accidental latch; an earlier climb-only rule was dropped). Matches the latch ruling.
 - **Per-sector state**: leader and dwell are global per aircraft there, a known shortcut ("per-sector eram config?"); FDB-open, QL, RD, QU are per sector. Nothing to copy for per-sector state.
-- **1200**: it removed the ERAM VFR target symbol (every target `CorrelatedBeacon`) with no reason given; YAAT's ruling (1200 draws as VFR, never MCI) stands.
+- **1200**: it removed the ERAM VFR target symbol (every target `CorrelatedBeacon`) with no reason given; YAAT's ruling (an untracked 1200 draws as VFR outside the MCI band, a tracked one as `CorrelatedBeacon`) stands.
 - **DM**: only coordination-time letter meanings (`TODO.md`: A, D departed, E, F, P proposed) — input to the DM design pass.
 - It answers every entry `is_success = true` with empty feedback; YAAT's refusals stay.
 

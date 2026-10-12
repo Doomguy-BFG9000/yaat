@@ -16,10 +16,11 @@ public static class TrackCorrelation
         ac.FlightPlan.HasFlightPlan && (ac.Transponder.AssignedCode != 0) && (ac.Transponder.Code == ac.Transponder.AssignedCode);
 
     /// <summary>
-    /// True when an ERAM target is correlated: it has a flight plan, squawks a discrete code (the non-discrete VFR code
-    /// 1200 never correlates, AIM 4-1-20), and is either tracked, which keeps the association through a code change,
-    /// or squawking its assigned code.
+    /// True when an ERAM target is correlated: it has a flight plan and is either tracked (on any code, 1200 included, or
+    /// on standby) or squawking its assigned code with the transponder on and not 1200 (the non-discrete VFR code never
+    /// starts a correlation, AIM 4-1-20).
     /// </summary>
     public static bool IsEramCorrelated(AircraftState ac) =>
-        ac.FlightPlan.HasFlightPlan && !ac.Transponder.IsVfrCode && ((ac.Track.Owner is not null) || SquawksAssignedCode(ac));
+        ac.FlightPlan.HasFlightPlan
+        && ((ac.Track.Owner is not null) || (!ac.Transponder.IsStandby && !ac.Transponder.IsVfrCode && SquawksAssignedCode(ac)));
 }
