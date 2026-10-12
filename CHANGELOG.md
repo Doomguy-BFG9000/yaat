@@ -8,7 +8,7 @@
 - `RES` to a taxiing aircraft clears its next taxiway or spot hold short, read back as "continue taxi"; runway hold shorts still need `CROSS`.
 - A taxiing aircraft's right-click quick commands offer Resume taxi when a taxiway or spot hold short lies ahead.
 - A feed consumer such as vTBFM can list the YAAT rooms its VATSIM user may see: their ARTCC's rooms and rooms they are in.
-- Tower Cab 3D joins a YAAT room without CRC and shows in Room Members; a kick removes all of a person's connections until pulled back.
+- Tower Cab 3D joins a YAAT room without CRC and shows in Room Members; a kick removes all of a person's connections until pulled back, tells CRC why, and survives a planned restart.
 
 ### Changed
 

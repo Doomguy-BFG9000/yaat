@@ -210,7 +210,7 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 
 ### Messaging
 
-- [x] `ReceiveServerMessage(string)` — helper method available on CrcClientState
+- [x] `ReceiveServerMessage(string)` — `CrcClientState.SendServerMessageAsync`, the single path (queued before the handshake, flushed after it). Sent from "SERVER" as "You were kicked from this room. Wait for an instructor to pull you back in." (`TrainingRoom.KickedFromRoomMessage`) to a CRC client whose CID is kicked and has no bindable room, once right after the handshake, and by `TrainingHub.KickMember` to each CRC client the kick unbinds
 - [x] `ReceiveServerError(string)` — helper method available on CrcClientState
 - [x] `ReceivePrivateMessage(TextMessageDto)` — routed from SendPrivateMessage
 - [x] `ReceiveAtcMessage(TextMessageDto)` — routed from SendAtcMessage

@@ -41,7 +41,7 @@ Without it the tick loop could advance a half-restored room between the awaits. 
 
 Restored rooms report **zero members** until someone reconnects. A room member is a SignalR connection, and
 `TrainingRoomManager.CreateRestoredRoom` deliberately does not repopulate `TrainingRoom.Members` — only the restored-member CIDs
-(the rejoin whitelist, `TrainingRoom.AddRestoredMember`) and the CID→room mappings. A room's invited and kicked CIDs are not saved, so a restored room forgets who was pulled in as an RPO and who was kicked. It also arms **no** abandoned-room cleanup timer; a restored room nobody
+(the rejoin whitelist, `TrainingRoom.AddRestoredMember`) and the CID→room mappings. A room's invited and kicked CIDs are saved (`RoomStateSnapshotDto.InvitedCids` / `KickedCids` in `room-state.json`) and restored with the room, so a restored room still knows who was pulled in as an RPO and who was kicked; an archive written before they existed reads none. It also arms **no** abandoned-room cleanup timer; a restored room nobody
 reclaims is retired by the paused-retirement sweep instead. `GET /admin/status` cannot tell the two cases apart, so do not
 assert that an occupied-looking room is "held open by its cleanup timer".
 
