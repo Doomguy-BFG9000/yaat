@@ -5,6 +5,8 @@
 ### Added
 
 - The right-click menu offers Resume taxi for an aircraft held while taxiing or following.
+- A feed tool's room list shows each room's member count, aircraft count and whether it is paused.
+- A server run from source accepts VATSIM sandbox sign-ins for the feed tools' room list.
 
 ### Fixed
 
