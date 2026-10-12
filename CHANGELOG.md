@@ -9,6 +9,7 @@
 ### Fixed
 
 - The room title's ARTCC label now follows the room when a scenario or recording is loaded or unloaded.
+- In replay, stepping by quarter seconds spawns delayed aircraft and fires timed presets in the same second as stepping by whole seconds.
 
 ## v0.16.2-beta [2026/10/11]
 

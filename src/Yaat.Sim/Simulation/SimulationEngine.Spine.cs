@@ -45,8 +45,8 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Opens the second the clock now points at: resets the trace for it and applies the host's pre-tick recorded
     /// actions, so a recorded spawn flies its first second and a live-traffic sample resyncs against the coming
-    /// second (#404). The second is the ceiling of the clock, so the sub-tick step — which opens at a quarter past
-    /// the previous integer — and the whole-second step agree on which second is opening.
+    /// second (#404). The whole-second step and the sub-tick step both call this with the clock at the integer second
+    /// being opened.
     /// </summary>
     public void OpenSecond(ISimulationHost host)
     {

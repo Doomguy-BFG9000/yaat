@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Spine;
 using Yaat.Sim.Tests.Helpers;
@@ -114,9 +115,8 @@ public class SpineTraceTests
 
     /// <summary>
     /// Four sub-tick steps from an integer second must compose the same second as one whole-second step: same
-    /// trace digest, same captured state. The sub-tick path opens the second at a quarter past the previous integer
-    /// where the whole-second path opens it at the integer; the digest cannot see that (both open second N), so the
-    /// snapshot compare is what would catch a delayed spawn or a timed preset landing a second apart.
+    /// trace digest, same captured state. The digest sees only which second opened, not the clock the segments ran
+    /// at, so the snapshot compare is what would catch a delayed spawn or a timed preset landing a second apart.
     /// </summary>
     [Fact]
     public void ReplayOneSubTick_TimesFour_MatchesReplayOneSecond()
@@ -128,17 +128,63 @@ public class SpineTraceTests
 
         for (int second = 0; second < 3; second++)
         {
-            whole.ReplayOneSecond();
-            for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
-            {
-                split.ReplayOneSubTick();
-            }
-
-            Assert.Equal(whole.StepTrace.LastSecond, split.StepTrace.LastSecond);
-            Assert.Equal(whole.StepTrace.LastSequence, split.StepTrace.LastSequence);
-            Assert.Equal(whole.StepTrace.LastDigest, split.StepTrace.LastDigest);
-            Assert.Equal(Serialize(whole), Serialize(split));
+            StepOneSecondOnBoth(whole, split);
         }
+    }
+
+    /// <summary>
+    /// A delayed spawn due at an integer second appears in that second on both paths: the sub-tick path opens the
+    /// second at the integer clock, as the whole-second path does, so the spawn is neither a second late nor stamped
+    /// with a different <see cref="AircraftState.SpawnedAtSeconds"/>.
+    /// </summary>
+    [Fact]
+    public void ReplayOneSubTick_TimesFour_MatchesReplayOneSecond_WithADelayedSpawn()
+    {
+        TestVnasData.EnsureInitialized();
+        SimulationEngine whole = BuildEngine();
+        SimulationEngine split = BuildEngine();
+        AddDelayedSpawn(whole, spawnAtSeconds: 2);
+        AddDelayedSpawn(split, spawnAtSeconds: 2);
+        whole.ArmReplay([]);
+        split.ArmReplay([]);
+
+        int? wholeSpawnedAfter = null;
+        int? splitSpawnedAfter = null;
+        for (int second = 1; second <= 3; second++)
+        {
+            StepOneSecondOnBoth(whole, split);
+            wholeSpawnedAfter ??= whole.FindAircraft(DelayedCallsign) is null ? null : second;
+            splitSpawnedAfter ??= split.FindAircraft(DelayedCallsign) is null ? null : second;
+        }
+
+        Assert.Equal(2, wholeSpawnedAfter);
+        Assert.Equal(wholeSpawnedAfter, splitSpawnedAfter);
+        Assert.Equal(whole.FindAircraft(DelayedCallsign)!.SpawnedAtSeconds, split.FindAircraft(DelayedCallsign)!.SpawnedAtSeconds);
+    }
+
+    /// <summary>A timed preset due at an integer second fires in that second on both paths.</summary>
+    [Fact]
+    public void ReplayOneSubTick_TimesFour_MatchesReplayOneSecond_WithATimedPreset()
+    {
+        TestVnasData.EnsureInitialized();
+        SimulationEngine whole = BuildEngine();
+        SimulationEngine split = BuildEngine();
+        AddTimedPreset(whole, fireAtSeconds: 2);
+        AddTimedPreset(split, fireAtSeconds: 2);
+        whole.ArmReplay([]);
+        split.ArmReplay([]);
+
+        int? wholeFiredAfter = null;
+        int? splitFiredAfter = null;
+        for (int second = 1; second <= 3; second++)
+        {
+            StepOneSecondOnBoth(whole, split);
+            wholeFiredAfter ??= whole.Scenario!.PresetQueue.Count == 0 ? second : null;
+            splitFiredAfter ??= split.Scenario!.PresetQueue.Count == 0 ? second : null;
+        }
+
+        Assert.Equal(2, wholeFiredAfter);
+        Assert.Equal(wholeFiredAfter, splitFiredAfter);
     }
 
     [Fact]
@@ -159,6 +205,57 @@ public class SpineTraceTests
         other.TickOneSecond();
         Assert.Equal(first, other.StepTrace.LastDigest);
     }
+
+    private const string DelayedCallsign = "SWA456";
+
+    /// <summary>One <see cref="SimulationEngine.ReplayOneSecond"/> on one engine, four sub-ticks on the other, then the same second on both.</summary>
+    private static void StepOneSecondOnBoth(SimulationEngine whole, SimulationEngine split)
+    {
+        whole.ReplayOneSecond();
+        for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
+        {
+            split.ReplayOneSubTick();
+        }
+
+        Assert.Equal(whole.StepTrace.LastSecond, split.StepTrace.LastSecond);
+        Assert.Equal(whole.StepTrace.LastSequence, split.StepTrace.LastSequence);
+        Assert.Equal(whole.StepTrace.LastDigest, split.StepTrace.LastDigest);
+        Assert.Equal(Serialize(whole), Serialize(split));
+    }
+
+    private static void AddDelayedSpawn(SimulationEngine engine, int spawnAtSeconds)
+    {
+        var aircraft = new LoadedAircraft
+        {
+            State = new AircraftState
+            {
+                Callsign = DelayedCallsign,
+                AircraftType = "B738",
+                Position = new LatLon(37.75, -122.10),
+                TrueHeading = new TrueHeading(090),
+                Altitude = 5000,
+                IndicatedAirspeed = 250,
+                IsOnGround = false,
+                FlightPlan = new AircraftFlightPlan
+                {
+                    Departure = "OAK",
+                    Altitude = PlannedAltitude.Ifr(10000),
+                    FlightRules = "IFR",
+                },
+            },
+        };
+        engine.Scenario!.DelayedQueue.Add(new DelayedSpawn { Aircraft = aircraft, SpawnAtSeconds = spawnAtSeconds });
+    }
+
+    private static void AddTimedPreset(SimulationEngine engine, double fireAtSeconds) =>
+        engine.Scenario!.PresetQueue.Add(
+            new ScheduledPreset
+            {
+                Callsign = "SWA123",
+                Command = "FH 090",
+                FireAtSeconds = fireAtSeconds,
+            }
+        );
 
     private static string Serialize(SimulationEngine engine) => JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
 

@@ -208,10 +208,11 @@ internal sealed class ReplayDriver(SimulationEngine engine)
     }
 
     /// <summary>
-    /// One physics sub-tick. The clock advances by a quarter second; the second opens on the first sub-tick and
-    /// closes on the fourth, so four calls from an integer second run the same segments as <see cref="OneSecond"/>.
-    /// Pre-physics runs at a quarter past the previous integer here, where <see cref="OneSecond"/> runs it at the
-    /// integer — a pre-existing difference the trace and the spine parity test make visible rather than hide.
+    /// One physics sub-tick. The second opens on the first sub-tick and closes on the fourth, so four calls from an
+    /// integer second run the same segments as <see cref="OneSecond"/>. Every segment runs with the clock at the
+    /// integer second being simulated, the clock <see cref="SimulationEngine.RunSecond"/> gives them all, so a delayed
+    /// spawn, a timed preset or a trigger due at that second fires in it on both paths. Between calls the clock reads
+    /// the quarter second just reached, so a caller stepping by quarters sees it advance by a quarter each time.
     /// </summary>
     public void OneSubTick()
     {
@@ -224,7 +225,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         const double eps = 1e-9;
         double prev = scenario.ElapsedSeconds;
         double subDelta = 1.0 / SimulationEngine.PhysicsSubTickRate;
-        scenario.ElapsedSeconds = prev + subDelta;
+        double next = prev + subDelta;
 
         // "We just started a new integer second" — the previous ElapsedSeconds
         // sat exactly on an integer, so this sub-tick is the first of four.
@@ -232,12 +233,16 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
         // "We just finished an integer second" — the new ElapsedSeconds lands
         // exactly on an integer, so this sub-tick is the last of four.
-        bool atSecondEnd = Math.Abs(scenario.ElapsedSeconds - Math.Round(scenario.ElapsedSeconds)) < eps;
+        bool atSecondEnd = Math.Abs(next - Math.Round(next)) < eps;
 
-        int subTick = (int)Math.Round((scenario.ElapsedSeconds - Math.Floor(prev + eps)) / subDelta) - 1;
+        // The integer second this sub-tick belongs to: the one it closes on.
+        double second = Math.Floor(prev + eps) + 1;
+        int subTick = (int)Math.Round((next - Math.Floor(prev + eps)) / subDelta) - 1;
 
         using (_engine.EnterReplay())
         {
+            scenario.ElapsedSeconds = second;
+
             if (atSecondStart)
             {
                 _engine.OpenSecond(host);
@@ -248,12 +253,12 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
             if (atSecondEnd)
             {
-                // Snap away any floating-point drift accumulated across sub-ticks.
-                scenario.ElapsedSeconds = Math.Round(scenario.ElapsedSeconds);
-
                 _engine.RunPostPhysics(host);
                 _engine.RunEndOfSecond(host);
             }
         }
+
+        // The integer itself on the fourth sub-tick, which also snaps away any floating-point drift across the four.
+        scenario.ElapsedSeconds = atSecondEnd ? second : next;
     }
 }
