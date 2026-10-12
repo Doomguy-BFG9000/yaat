@@ -129,7 +129,11 @@ Some state is intentionally runtime-only:
 
   So are the disconnect coasts, `SimScenarioState.DisconnectCoasts` (`ScenarioSnapshotDto.DisconnectCoasts`: a nullable list of `DisconnectCoastDto` in ordinal callsign order, each with its facets in registration order, absent ⇒ empty); a restore replaces the set and empties the pending cleared-callsign list, so a rewind drops a coast registered in the undone future.
 
-  Until the server reads them (tick-path step 4 coast D), the wire side of a coast — the cached DTOs in `AsdexRoomState` / `SaidRoomState` above and the server's wall-clock surface deadline — is still room-owned.
+  Facet selection is the Sim's, so every run kind (live, bare test, replay, reconstruction) computes the same facets. ASDE-X / SAID membership is per-aircraft snapshotted state on `AircraftStarsState` with its own spine step (`SurfaceMembership`), not a stateless range recheck, so the coast of an aircraft that disconnects inside the hysteresis band is kept.
+
+  A spawn under a coasting callsign ends the whole entry in the Sim (`SimulationEngine.AfterAircraftSpawned`), even when it spawns at another airport than the facet's, and the server then ends every store entry it held for that callsign.
+
+  What stays server-side in `RoomStateSnapshotDto` is identity and display state no tick body reads; state a tick body reads belongs in the Sim snapshot.
 
   Flight strips, the vTDLS session and the tower lists are *not* on this list. The tower lists are captured in `ServerSnapshotDto.TowerLists` via `TowerListSnapshotMapper`, schema 23 — the per-list dwell entries, so a restore keeps the P-list's entry order; the list airports are re-derived from the ARTCC at load and never snapshotted.
 

@@ -256,7 +256,7 @@ The fixture's `ADD V S P @NEW1` is a parking spawn, and a parking spawn files no
 
 Coordination is reached: the `actions` fixture scripts `RD` / `RDH` / `RDACK` / `RDR` on NCT's `POAK` list (the student OAK_TWR is its only sender, 4U a receiver), the acknowledgement at t=54 crosses the expiration warning at t=114 and the recall at t=64 its removal at t=74, and the deterministic item id (`POAK-1`) is what lets two live passes agree.
 
-Solo-training evaluation is unreached by every fixture.
+Solo-training evaluation is unreached by every fixture: the evaluator keeps its own record of what it scored and mutates no aircraft from `Evaluate`, so a replayed solo session rebuilds that record, and no fixture is a solo room.
 
 And **the replay leg is weaker than it looks**: no fixture declares a runtime generator, so no action log carries a `RecordedAircraftSpawn` (asserted in the sweep, not assumed) and the generator stand-down in replay never has anything to stand down (it is pinned by `ReplayGeneratorStandDownTests` in Yaat.Sim.Tests instead), while recording suppression is invisible in principle because the action log is not part of `ScenarioSnapshotDto` — it is not simulation state.
 
@@ -289,4 +289,5 @@ The client receives `AircraftSnapshot` DTOs each sim-second. It does not run phy
 - **Removing an aircraft must clear its tracker entry.** `DetectChanges` returns `DtoChangeFlags.All` only for a callsign it has never seen. Any path that removes an aircraft has to call `room.ChangeTracker.Remove(callsign)` (and `room.AircraftAssignments.Remove(callsign)`) alongside the delete broadcast — otherwise a same-callsign recurrence is diffed against the *dead* aircraft and every category that still matches is silently dropped from its initial CRC push.
 
   CRC has no out-of-band spawn message to paper over this; the training hub does (`AircraftSpawned`), which is why the client looks fine while CRC shows no track.
+- **`AutoDelete` and `SoloTrainingEvaluation` run on every path.** A test that asserts on an arrival still parked after the second it parked sees a state only the bare path used to keep, since a live room removes it that second; send `NODEL` first (the instructor's own way to keep it) or step by segment.
 - **Pause halts everything for that room.** Don't put background work in the tick path expecting it to keep ticking when paused.

@@ -416,6 +416,8 @@ While a replay is on, the sync's "now" is `replay.TargetUtc`, the source store i
 
 `RoomEngine.SeekLiveTrafficAsync(utc)` (hub `SeekLiveTraffic`, `StartLiveSession.StartUtc`) drops every non-shadow aircraft (they belong to the timeline being left), removes the shadows (`Reanchored`), opens a fresh replay there and records `RecordedSettingChange("LiveTrafficFeedTimeUtc")` (a no-op on replay — the recorded samples drive it).
 
+The deletions a `SEEK` makes are not replayed: `SimulationEngine.RecordedAppliers` treats `LiveTrafficFeedTimeUtc` as diagnostic, so a replay does not re-run them, and the disconnect coasts they register inherit the gap.
+
 `GoLive` disposes the replay and sets `RoomLiveTrafficState.RejoinLive` so the next sync reacquires from the shared store instead of opening another replay.
 
 `LiveTrafficStatusDto` carries `FeedTimeUtc`, `BehindSeconds` (null while live) and `Preparing`; the client badge shows `LIVE −mm:ss` / `PREPARING`, and clicking it opens `LiveTrafficDvrFlyout` (window from `GetLiveTrafficWindow`, slider + HH:mm → `SeekLiveTraffic`, Go Live).

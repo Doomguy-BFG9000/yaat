@@ -1,7 +1,7 @@
 # v1 slice — radio model, CA2 Tower brain, H1 soak
 
-**Status:** scoped, on hold behind the tick-path work. Phase 1 is superseded — tick-path unification is now
-its own top-priority programme, decided in ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)-[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md);
+**Status:** scoped. Phase 1 is superseded — tick-path unification shipped as its own programme,
+decided in ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)-[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md);
 Phases 2–3 have one ([`11-radio-model.md`](./11-radio-model.md)); Phases 4–7 build against the existing
 subdesigns [`05`](./05-tower-brain.md), [`07`](./07-soak-runner.md), [`08`](./08-detectors-and-findings.md).
 
@@ -60,7 +60,7 @@ No phase is a technical layer, and no phase leaves either repo broken: `Yaat.Sim
 
 ### Phase 1 — One tick spine
 
-**Shipped 2026-09-04 as tick step 3c** — the tick-path unification programme ([`docs/plans/tick-path/`](../tick-path/README.md), ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)-[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md)) owns it now.
+**Shipped 2026-09-04 as tick step 3c** — the tick-path unification programme ([`docs/tick-loop.md`](../../tick-loop.md), ADRs [0001](../../adr/0001-state-equivalence-is-the-tick-contract.md)-[0006](../../adr/0006-decompose-simulationengine-before-adding-to-it.md)) owns it now.
 
 Every host that advances a sim-second runs one spine of typed steps in live order; adding a step to one host and not another is a compile error; the tick oracle records predicted-vs-got per sub-commit; desyncing recordings are triaged by name (ADR 0004), never silenced. **Requirements:** DET-03, subsumed. Phases 2–7 wait on the rest of that programme (steer 2026-09-02, `MAIN.md` Current focus).
 

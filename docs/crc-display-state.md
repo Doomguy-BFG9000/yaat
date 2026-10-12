@@ -321,7 +321,7 @@ The safety-logic configuration is scenario state — `SimScenarioState.AsdexSafe
 
 A push with no scenario loaded is refused by `ApplyAndRecord` (`No scenario loaded`) and acked without an echo.
 
-A rewind to before the push drops the configuration, a rewind to after it rebuilds it from the record, and a prepared restart restores it with the snapshot. **Accepted gap:** the `AsdexSafetyLogicConfiguration` topic builder returns nothing for a null configuration and the topic has no clear, so a configuration dropped by a rewind (or a scenario unload) is not withdrawn from displays already showing it — the server stops alerting on it, the display keeps drawing it until a display pushes again.
+A rewind to before the push drops the configuration, a rewind to after it rebuilds it from the record, and a prepared restart restores it with the snapshot. **Accepted gap:** the `AsdexSafetyLogicConfiguration` topic builder returns nothing for a null configuration and the topic has no clear, so a configuration dropped by a rewind (or a scenario unload) is not withdrawn from displays already showing it — the server stops alerting on it, the display keeps drawing it until a display pushes again. The standing alert set has the same gap: a scenario unload or a rewind empties it with the engine (or replaces it by the restore) and no `DeleteAsdexAlerts` follows, and `RecordingManager.ResyncEngineStateAsync` re-pushes no alert set when a rewind lands.
 
 Pushing an empty configuration in its place is deliberately not done: it is unverified whether CRC would read it as "no closed runways" or overwrite its own console configuration with it.
 

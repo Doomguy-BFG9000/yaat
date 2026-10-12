@@ -314,7 +314,7 @@ When invoking aviation-sim-expert, always include:
 - **Issue plans**: Write plans to `docs/plans/open-issues/`, linked from the issue's Linear description. Delete plan file after implementing. Folding the open tracker into the plan is the `triage-open-issues` skill.
 - **Plans**: every task is a Linear issue in team YAAT (which also plans yaat-server), grouped into projects worked in the order the `yaat-nextup` profile gives; the operations (**add**, **land**, **triage** and the rest) are in `~/.claude/docs/plan-operations.md`. [`docs/plans/MAIN.md`](docs/plans/MAIN.md) is a generated snapshot of it, never edited by hand: change Linear, then regenerate it. A steer or finding mid-task gets an **add** first, before any reply in prose.
 
-  Design files stay in `docs/plans/` while an open issue links them ([`docs/plans/README.md`](docs/plans/README.md)). The active programme is the tick-path unification ([`docs/plans/tick-path/README.md`](docs/plans/tick-path/README.md)); YAAT Scope ([`docs/plans/yaat-scope/README.md`](docs/plans/yaat-scope/README.md)) follows it, then controller AI ([`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md)). Finished plans are deleted — git history is the archive.
+  Design files stay in `docs/plans/` while an open issue links them ([`docs/plans/README.md`](docs/plans/README.md)). The active programme is YAAT Scope ([`docs/plans/yaat-scope/README.md`](docs/plans/yaat-scope/README.md)), then controller AI ([`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md)). Finished plans are deleted — git history is the archive.
 
 ### Misc
 

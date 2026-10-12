@@ -254,6 +254,10 @@ See [tick-loop.md](tick-loop.md) for where these steps sit in the 8-step `Flight
   Snapshots serialize `World.Weather` as JSON (`SimulationEngine.cs:135`, `:148`) plus `Scenario.WeatherSourceJson`; `RestoreFromSnapshot` rebuilds `Scenario.WeatherTimeline` from that source so v2 evolution survives a snapshot-based rewind (the parsed timeline object itself is not snapshotted).
 - **Every run kind, every second** (the `WeatherAdvance` spine step, `SimulationEngine.AdvanceWeatherTimeline` — [tick-loop.md](tick-loop.md)): if a timeline is active, `GetWeatherAt(elapsed)` is recomputed into `World.Weather` ungated, to drive physics/visual acquisition; the live host mirrors it onto `Room.Weather`. This does not broadcast. Broadcasts are driven by the reported-METAR issuer (see below), which has its own SPECI criteria.
 
+  The continuous advance is the faithful semantic, aviation-reviewed: 7110.65 §2-6-3/-4/-5, §3-1-8, §3-5-1, §3-5-3, §13-1-14 and AIM 7-1 / 4-3 are silent on how a simulated wind field is discretised, because every FAA quantisation is a reporting one and lives in `MetarIssuer` / `SpeciCriteria`. Runway-in-use selection (30° / 5 kt hysteresis) and SPECI (45° / 10 kt) cannot chatter on sub-degree ticks.
+
+  `WeatherProfile` carries per-instance METAR caches, so `WeatherTimeline.BuildProfile` hands back the same instance for the same static period (inside a transition a new profile per second is inherent).
+
 ### Reported METAR reconstruction (`MetarIssuer`, `MetarComposer`, `SpeciCriteria`)
 
 The METAR *string* broadcast to clients (`WeatherChangedDto.Metars`) is reconstructed from the continuous weather and re-issued like a real observation, rather than echoing the static loaded text:
