@@ -414,9 +414,11 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Replay twin of <see cref="ApplyLiveTrafficSample"/> (no recording). Public so the server brain's
     /// reconstruction and tape playback apply the same action the same way — including the
-    /// <see cref="LiveTrafficKinematics.Resync"/> that ages the sample to the replayed second.
+    /// <see cref="LiveTrafficKinematics.Resync"/> that ages the sample to the replayed second. Returns whether it spawned
+    /// the shadow — never for a callsign already in the world, whatever spawn state the sample carries — so the caller
+    /// hands a spawn over exactly when the live sync would have.
     /// </summary>
-    public void ApplyRecordedLiveTrafficSample(RecordedLiveTrafficSample recorded)
+    public bool ApplyRecordedLiveTrafficSample(RecordedLiveTrafficSample recorded)
     {
         bool spawned = false;
         AircraftState? ac = World.FindAircraft(recorded.Callsign);
@@ -425,7 +427,7 @@ public sealed partial class SimulationEngine
             if (recorded.SpawnState is null)
             {
                 _logger.LogWarning("Replayed live sample for unknown aircraft {Callsign} without spawn state; ignored", recorded.Callsign);
-                return;
+                return false;
             }
 
             ac = SpawnShadow(recorded.SpawnState);
@@ -436,13 +438,13 @@ public sealed partial class SimulationEngine
         {
             if (!ac.IsShadow)
             {
-                return;
+                return false;
             }
 
             uint codeBefore = ac.Transponder.Code;
             if (!LiveTrafficKinematics.Apply(ac, recorded.Sample))
             {
-                return;
+                return false;
             }
 
             TrackShadowBeacon(codeBefore, ac.Transponder.Code);
@@ -459,6 +461,8 @@ public sealed partial class SimulationEngine
         {
             LiveTrafficOwnerResolver.Apply(ac, recorded.Sample, Scenario);
         }
+
+        return spawned;
     }
 
     /// <summary>

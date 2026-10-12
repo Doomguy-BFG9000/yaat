@@ -109,7 +109,7 @@ The coordination verbs (`CoordinationCommandHandler` in `Simulation/Coordination
 
 **`IHostSteps` has no simulation-affecting member left** (ADR 0001's residue is gone as of tick-path 04e): the last one, `LiveTrafficSync`, became `SimulationEngine.TickLiveTrafficSync` over a feed port the host supplies (`IHostConsumers.LiveTrafficFeed`, `Yaat.Sim.LiveTraffic.ILiveTrafficFeedPort`).
 
-The port answers "what does the feed say this second" (`BeginSecond` → `LiveTrafficFeedSecond`: sync or inert, a clear-all reason, the scoped tracks already on sim time; `ShadowStatus(callsign)` per standing shadow; `EndSecond`); the engine decides spawn vs refresh, the collision and filter gates and the removal tiers, and reports each outcome through `IHostConsumers.OnLiveTraffic*` consumers.
+The port answers "what does the feed say this second" (`BeginSecond` → `LiveTrafficFeedSecond`: sync or inert, a clear-all reason, the scoped tracks already on sim time; `ShadowStatus(callsign)` per standing shadow; `EndSecond`); the engine decides spawn vs refresh, the collision and filter gates and the removal tiers, and reports each outcome through the `OnLiveTraffic*` consumers (`OnLiveTrafficSpawned` is on `IStateChangeConsumer`, since a replayed sample hands a spawn over too; the rest are on `IHostConsumers`).
 
 `BareHost` and `ReplayHost` answer with `EmptyLiveTrafficFeedPort`, which is always inert. The wall clock never enters the Sim: the port converts observation times to sim seconds.
 

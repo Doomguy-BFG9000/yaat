@@ -1,5 +1,6 @@
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Simulation.Strips;
@@ -30,6 +31,11 @@ public sealed class AttendanceActionHost : IActionHost
     public void OnConsolidationChanged() => ConsolidationChanges++;
 
     public void OnAircraftSpawned(AircraftState aircraft) => SpawnedCallsigns.Add(aircraft.Callsign);
+
+    /// <summary>Every shadow spawn handed over, by callsign with the source of its first track, in order.</summary>
+    public List<(string Callsign, LiveTrafficSource Source)> LiveTrafficSpawns { get; } = [];
+
+    public void OnLiveTrafficSpawned(AircraftState shadow, LiveTrafficSource source) => LiveTrafficSpawns.Add((shadow.Callsign, source));
 
     public void OnAircraftDeleted(string callsign, AircraftState? lastState) => DeletedCallsigns.Add(callsign);
 

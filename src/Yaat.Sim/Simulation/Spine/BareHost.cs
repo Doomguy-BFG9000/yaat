@@ -57,7 +57,10 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     /// <summary>No feed: every second of the live-traffic sync is inert.</summary>
     public ILiveTrafficFeedPort LiveTrafficFeed => EmptyLiveTrafficFeedPort.Instance;
 
-    /// <summary>Unreachable through the empty feed; a caller driving the step with its own port gets nothing to tear down here.</summary>
+    /// <summary>
+    /// Discarded: a bare engine has no room for the shadow to join. Reached by a recorded sample applied on this host
+    /// or by a caller driving the sync step with its own port, never through the empty feed.
+    /// </summary>
     public void OnLiveTrafficSpawned(AircraftState shadow, LiveTrafficSource source) { }
 
     public void OnLiveTrafficRemoved(AircraftState shadow, LiveTrafficRemovalReason reason) { }

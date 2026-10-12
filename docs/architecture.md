@@ -2106,7 +2106,7 @@ IHostSteps.cs                  # The host's step view — every server-owned bod
                                # (SimulationEngine.TickAsdexAlerts)
 IHostConsumers.cs              # The host's consumer view — OnPrePhysics / OnTerminalEntries / OnConflictAlerts / the drains / OnStripsChanged / OnTdlsChanged / OnCoordinationChanged
                                # (IStateChangeConsumer, shared with IActionHost) for what the strip, TDLS and coordination mutations touched
-IStateChangeConsumer.cs        # Where a drained StripChangeSet / TdlsChangeSet and the coordination dirty flag (OnCoordinationChanged, payload-less) go. Declared on its own because both halves of a host reach it: the action
+IStateChangeConsumer.cs        # Where a drained StripChangeSet / TdlsChangeSet and the coordination dirty flag (OnCoordinationChanged, payload-less) go, and OnLiveTrafficSpawned (a shadow's spawn hand-over, from the feed's sync and from a replayed sample alike). Declared on its own because both halves of a host reach it: the action
                                # router holds the action view (IActionHost) and the post-physics drain step the consumer view (IHostConsumers), and one
                                # implementation on a host answers both. OnStripsChanged / OnTdlsChanged: the host broadcasts unless suppressed; a
                                # reconstruction drops them and the room re-syncs afterwards. OnAsdexAlertsChanged(newAlerts, clearedAlertIds): the ASDE-X

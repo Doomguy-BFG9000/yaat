@@ -77,10 +77,11 @@ public sealed class ActionRouter
                 }
                 return Applied;
             case RecordedLiveTrafficSample sample:
-                _engine.ApplyRecordedLiveTrafficSample(sample);
-                if ((sample.SpawnState is not null) && (_engine.World.FindAircraft(sample.Callsign) is { } shadow))
+                // A shadow skips the spawn hooks on replay as it does live, and the host hears of a spawn the way the
+                // sync tells it — only when the sample did spawn one.
+                if (_engine.ApplyRecordedLiveTrafficSample(sample))
                 {
-                    HandOverSpawn(host, shadow);
+                    host.OnLiveTrafficSpawned(_engine.World.FindAircraft(sample.Callsign)!, sample.Sample.Source);
                 }
                 return Applied;
             case RecordedLiveTrafficRemoval removal:

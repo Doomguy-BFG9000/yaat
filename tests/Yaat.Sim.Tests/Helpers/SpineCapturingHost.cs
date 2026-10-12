@@ -166,7 +166,10 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
 
     public ILiveTrafficFeedPort LiveTrafficFeed => _inner.LiveTrafficFeed;
 
-    /// <summary>Every shadow the live-traffic sync spawned, with the source of its first track, in order.</summary>
+    /// <summary>
+    /// Every shadow spawn handed over — by the live-traffic sync or by a replayed sample through the action router — with
+    /// the source of its first track, in order.
+    /// </summary>
     public List<(AircraftState Shadow, LiveTrafficSource Source)> LiveTrafficSpawns { get; } = [];
 
     /// <summary>Every shadow the live-traffic sync removed, with the reason, in order.</summary>
@@ -213,7 +216,14 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
 
     // --- IActionHost ---
 
-    public void OnAircraftSpawned(AircraftState aircraft) => _inner.OnAircraftSpawned(aircraft);
+    /// <summary>Every aircraft an action handed over as spawned, in order.</summary>
+    public List<AircraftState> AircraftSpawns { get; } = [];
+
+    public void OnAircraftSpawned(AircraftState aircraft)
+    {
+        AircraftSpawns.Add(aircraft);
+        _inner.OnAircraftSpawned(aircraft);
+    }
 
     public void OnAircraftDeleted(string callsign, AircraftState? lastState) => _inner.OnAircraftDeleted(callsign, lastState);
 

@@ -1,4 +1,5 @@
 using Yaat.Sim.Asdex;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
@@ -7,13 +8,21 @@ namespace Yaat.Sim.Simulation.Spine;
 
 /// <summary>
 /// Where the drained state changes go — the strip and TDLS change sets, the coordination dirty flag the
-/// channels and the tower lists share, the bookmark one, the session clock's and the ERAM CRR groups'. Declared on
+/// channels and the tower lists share, the bookmark one, the session clock's and the ERAM CRR groups' — and the
+/// hand-over of a live-traffic shadow's spawn, which the feed's sync and a replayed sample both make. Declared on
 /// its own because both halves of a host reach it: the action router holds the action view (<c>IActionHost</c>) and
-/// the post-physics drain step the consumer view (<see cref="IHostConsumers"/>), and one implementation on a host
-/// answers both.
+/// the post-physics drain step and the live-traffic sync the consumer view (<see cref="IHostConsumers"/>), and one
+/// implementation on a host answers both.
 /// </summary>
 public interface IStateChangeConsumer
 {
+    /// <summary>
+    /// <paramref name="shadow"/> (in the world) was spawned from a <paramref name="source"/> track: by the live-traffic
+    /// sync, which recorded the sample, or by a recorded sample applied back on replay. A shadow's only spawn
+    /// hand-over: it never reaches <c>IActionHost.OnAircraftSpawned</c> or <see cref="SimulationEngine.AfterAircraftSpawned"/>.
+    /// </summary>
+    void OnLiveTrafficSpawned(AircraftState shadow, LiveTrafficSource source);
+
     /// <summary>
     /// What the strip bodies touched since the last drain: the items whose records changed and whether a full state is
     /// owed. The host broadcasts them unless it is suppressed; a reconstruction drops them and the room re-syncs

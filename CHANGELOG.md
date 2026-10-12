@@ -10,6 +10,7 @@
 
 - The room title's ARTCC label now follows the room when a scenario or recording is loaded or unloaded.
 - In replay, stepping by quarter seconds spawns delayed aircraft and fires timed presets in the same second as stepping by whole seconds.
+- In replay, a recorded live-traffic aircraft appears once, with no extra PDC or printed strip the live session never had.
 
 ## v0.16.2-beta [2026/10/11]
 

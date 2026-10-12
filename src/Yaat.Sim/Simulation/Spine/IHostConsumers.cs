@@ -50,9 +50,6 @@ public interface IHostConsumers : IStateChangeConsumer
     /// </summary>
     ILiveTrafficFeedPort LiveTrafficFeed { get; }
 
-    /// <summary>The live-traffic sync spawned <paramref name="shadow"/> (recorded, in the world) from a <paramref name="source"/> track.</summary>
-    void OnLiveTrafficSpawned(AircraftState shadow, LiveTrafficSource source);
-
     /// <summary>
     /// The live-traffic sync removed <paramref name="shadow"/> — already out of the world with the removal recorded;
     /// the state is its last, for the room's per-callsign teardown.
