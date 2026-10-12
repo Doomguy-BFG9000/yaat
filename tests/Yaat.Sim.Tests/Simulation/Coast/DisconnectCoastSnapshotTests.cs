@@ -88,6 +88,46 @@ public class DisconnectCoastSnapshotTests
     }
 
     [Fact]
+    public void Snapshot_RoundTripsTheEramAnchorOfACarriedOnCoverageCoast()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        // Coverage-coasting at removal: the ERAM facet carries the running coast's anchor.
+        var spine = new SpineCapturingHost(engine);
+        engine.RunSecond(spine);
+        AircraftState ac = engine.World.GetSnapshot()[0];
+        ac.Altitude = InsideTheSurfaceBandsFt;
+        ac.IsOnGround = false;
+        double now = engine.Scenario!.ElapsedSeconds;
+        ac.Eram.IsCoverageCoasting = true;
+        ac.Eram.CoverageCoastStartSeconds = now;
+        ac.Eram.CoverageCoastAnchor = new EramSweepSample(ac.Position, 270, 120, now - 3);
+        engine.TickSurfaceMembership();
+        engine.RegisterDisconnectCoast(ac);
+        AircraftDisconnectCoast live = Assert.Single(engine.Scenario.DisconnectCoasts).Value;
+        Assert.Equal(ac.Eram.CoverageCoastAnchor, Assert.Single(live.Facets, f => f.Scope == DisconnectCoastScope.Eram).EramAnchor);
+
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
+        StateSnapshotDto reread = JsonSerializer.Deserialize<StateSnapshotDto>(
+            JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default),
+            RecordingJsonOptions.Default
+        )!;
+
+        if (Engine() is not { } target)
+        {
+            return;
+        }
+
+        target.RestoreFromSnapshot(reread);
+
+        KeyValuePair<string, AircraftDisconnectCoast> entry = Assert.Single(target.Scenario!.DisconnectCoasts);
+        Assert.Equal<DisconnectCoastFacet>(live.Facets, entry.Value.Facets);
+    }
+
+    [Fact]
     public void Restore_DropsACoastRegisteredAfterTheSnapshot()
     {
         if (Engine() is not { } engine)

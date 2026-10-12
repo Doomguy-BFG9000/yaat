@@ -10,4 +10,15 @@ namespace Yaat.Sim.Simulation.Coast;
 /// false for ERAM.
 /// </param>
 /// <param name="DeadlineSimSeconds">The scenario-elapsed second at or after which the facet expires.</param>
-public sealed record DisconnectCoastFacet(DisconnectCoastScope Scope, string? FacilityId, bool IsDrop, double DeadlineSimSeconds);
+/// <param name="EramAnchor">
+/// The sweep an ERAM facet dead-reckons from when it carries on the coverage coast the track was already running
+/// (<see cref="AircraftEramState.CoverageCoastAnchor"/>); null for a fresh ERAM disconnect coast, which coasts from the
+/// track's last sweep, and for every surface facet.
+/// </param>
+public sealed record DisconnectCoastFacet(
+    DisconnectCoastScope Scope,
+    string? FacilityId,
+    bool IsDrop,
+    double DeadlineSimSeconds,
+    EramSweepSample? EramAnchor
+);

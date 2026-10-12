@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Yaat.Sim.Simulation.Coast;
 
 /// <summary>
@@ -13,16 +11,17 @@ public static class EramSweepGrid
     public const int SweepSeconds = 12;
 
     /// <summary>
-    /// The callsign's sweep phase in seconds (0-11): FNV-1a 32-bit over the callsign's UTF-8 bytes, mod
-    /// <see cref="SweepSeconds"/>. Stable across processes, unlike <see cref="string.GetHashCode()"/>, so replays and
-    /// every server agree.
+    /// The callsign's sweep phase in seconds (0-11): FNV-1a 32-bit over the callsign's characters, mod
+    /// <see cref="SweepSeconds"/>; for an ASCII callsign (every real one) that is FNV-1a over its UTF-8 bytes. Stable
+    /// across processes, unlike <see cref="string.GetHashCode()"/>, so replays and every server agree. Hashing the
+    /// characters directly allocates nothing, which matters because the coverage step asks every aircraft every second.
     /// </summary>
     public static int OffsetSeconds(string callsign)
     {
         uint hash = 2166136261;
-        foreach (byte b in Encoding.UTF8.GetBytes(callsign))
+        foreach (char c in callsign)
         {
-            hash = unchecked((hash ^ b) * 16777619);
+            hash = unchecked((hash ^ c) * 16777619);
         }
         return (int)(hash % SweepSeconds);
     }

@@ -247,6 +247,33 @@ public class AircraftEramState
     /// <summary>The assignment <see cref="ReachedAssignedAltitude"/> was latched against. Null = never evaluated.</summary>
     public EramConformanceKey? ConformanceKey { get; set; }
 
+    /// <summary>
+    /// The ERAM coverage hysteresis side: true while the track shows on ERAM (in coverage, or a frozen, QT-coasted or
+    /// unsupported track), false below coverage, coverage-coasting, or a vehicle or surface target. A visible track stays
+    /// visible down to the floor less <see cref="Simulation.Coast.DisconnectCoastRules.EramCoverageHysteresisFt"/>; any other
+    /// is acquired only at the full floor. Null = not yet evaluated. Maintained by <c>SimulationEngine.TickEramCoverageCoast</c>.
+    /// </summary>
+    public bool? IsVisibleOnEramCoverage { get; set; }
+
+    /// <summary>
+    /// The ERAM coverage-loss coast: the target dropped below coverage, so the track coasts (CST) from
+    /// <see cref="CoverageCoastAnchor"/> until it reacquires at the full floor or
+    /// <see cref="Simulation.Coast.DisconnectCoastRules.EramCoverageCoastSeconds"/> pass.
+    /// </summary>
+    public bool IsCoverageCoasting { get; set; }
+
+    /// <summary>Sim-elapsed seconds at which the coverage coast started. Null unless <see cref="IsCoverageCoasting"/>.</summary>
+    public double? CoverageCoastStartSeconds { get; set; }
+
+    /// <summary>The sweep the coverage coast dead-reckons from: <see cref="LastEramSweep"/> as the coast started. Null unless coasting.</summary>
+    public EramSweepSample? CoverageCoastAnchor { get; set; }
+
+    /// <summary>
+    /// The aircraft's last ERAM sweep, the position CRC shows: taken on each <see cref="Simulation.Coast.EramSweepGrid"/>
+    /// sweep second and the second the track turns visible on ERAM. Null before the first.
+    /// </summary>
+    public EramSweepSample? LastEramSweep { get; set; }
+
     public AircraftEramStateDto ToSnapshot() =>
         new()
         {
@@ -277,6 +304,11 @@ public class AircraftEramState
             RecentHandoffAcceptedAtSeconds = RecentHandoffAcceptedAtSeconds,
             ReachedAssignedAltitude = ReachedAssignedAltitude,
             ConformanceKey = ConformanceKey?.ToSnapshot(),
+            IsVisibleOnEramCoverage = IsVisibleOnEramCoverage,
+            IsCoverageCoasting = IsCoverageCoasting ? true : null,
+            CoverageCoastStartSeconds = CoverageCoastStartSeconds,
+            CoverageCoastAnchor = CoverageCoastAnchor?.ToSnapshot(),
+            LastEramSweep = LastEramSweep?.ToSnapshot(),
             Pointouts =
                 Pointouts.Count > 0
                     ?
@@ -343,6 +375,11 @@ public class AircraftEramState
             RecentHandoffAcceptedAtSeconds = dto.RecentHandoffAcceptedAtSeconds,
             ReachedAssignedAltitude = dto.ReachedAssignedAltitude,
             ConformanceKey = dto.ConformanceKey is null ? null : EramConformanceKey.FromSnapshot(dto.ConformanceKey),
+            IsVisibleOnEramCoverage = dto.IsVisibleOnEramCoverage,
+            IsCoverageCoasting = dto.IsCoverageCoasting == true,
+            CoverageCoastStartSeconds = dto.CoverageCoastStartSeconds,
+            CoverageCoastAnchor = dto.CoverageCoastAnchor is null ? null : EramSweepSample.FromSnapshot(dto.CoverageCoastAnchor),
+            LastEramSweep = dto.LastEramSweep is null ? null : EramSweepSample.FromSnapshot(dto.LastEramSweep),
             Pointouts = dto.Pointouts is null
                 ? []
                 :
@@ -444,4 +481,31 @@ public readonly record struct EramConformanceKey(int? AssignedFeet, int? BlockFl
         };
 
     public static EramConformanceKey FromSnapshot(EramConformanceKeyDto dto) => new(dto.AssignedFeet, dto.BlockFloorFeet, dto.IsAbove);
+}
+
+/// <summary>
+/// One ERAM sweep of an aircraft: its position, ground track (degrees true) and ground speed (knots) at
+/// <paramref name="SimSeconds"/>.
+/// </summary>
+/// <param name="Position">The swept position.</param>
+/// <param name="GroundTrackDeg">The swept ground track, degrees true.</param>
+/// <param name="GroundSpeed">The swept ground speed, knots.</param>
+/// <param name="SimSeconds">The sim-elapsed second of the sweep.</param>
+public readonly record struct EramSweepSample(LatLon Position, double GroundTrackDeg, double GroundSpeed, double SimSeconds)
+{
+    /// <summary>The aircraft's live values, stamped <paramref name="simSeconds"/>.</summary>
+    public static EramSweepSample FromLive(AircraftState ac, double simSeconds) => new(ac.Position, ac.TrueTrack.Degrees, ac.GroundSpeed, simSeconds);
+
+    public EramSweepSampleDto ToSnapshot() =>
+        new()
+        {
+            Lat = Position.Lat,
+            Lon = Position.Lon,
+            GroundTrackDeg = GroundTrackDeg,
+            GroundSpeed = GroundSpeed,
+            SimSeconds = SimSeconds,
+        };
+
+    public static EramSweepSample FromSnapshot(EramSweepSampleDto dto) =>
+        new(new LatLon(dto.Lat, dto.Lon), dto.GroundTrackDeg, dto.GroundSpeed, dto.SimSeconds);
 }

@@ -739,6 +739,7 @@ public sealed class SimScenarioState
                         FacilityId = f.FacilityId,
                         IsDrop = f.IsDrop,
                         DeadlineSimSeconds = f.DeadlineSimSeconds,
+                        EramAnchor = f.EramAnchor?.ToSnapshot(),
                     }),
                 ],
             }),

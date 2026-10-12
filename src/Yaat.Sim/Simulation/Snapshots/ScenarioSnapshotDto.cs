@@ -199,6 +199,10 @@ public sealed class DisconnectCoastFacetDto
     public required string? FacilityId { get; init; }
     public required bool IsDrop { get; init; }
     public required double DeadlineSimSeconds { get; init; }
+
+    // The running coverage coast an ERAM facet carries on; left out while null, so older data restores without one.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public EramSweepSampleDto? EramAnchor { get; init; }
 }
 
 /// <summary>Snapshot of <c>AsdexSafetyLogicConfig</c>: the configured runway footprints, the runway-configuration id they came from,

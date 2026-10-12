@@ -364,7 +364,7 @@ public sealed partial class SimulationEngine
                     coastDto.AnchorTrackDeg,
                     coastDto.AnchorGroundSpeed,
                     coastDto.CoastStartSimSeconds,
-                    [.. coastDto.Facets.Select(f => new DisconnectCoastFacet(f.Scope, f.FacilityId, f.IsDrop, f.DeadlineSimSeconds))]
+                    [.. coastDto.Facets.Select(RestoreDisconnectCoastFacet)]
                 );
             }
 
@@ -682,6 +682,15 @@ public sealed partial class SimulationEngine
             BeaconCodePool.RestoreCursors(beaconPool.NextCandidate, beaconPool.BankCursors);
         }
     }
+
+    private static DisconnectCoastFacet RestoreDisconnectCoastFacet(DisconnectCoastFacetDto dto) =>
+        new(
+            dto.Scope,
+            dto.FacilityId,
+            dto.IsDrop,
+            dto.DeadlineSimSeconds,
+            dto.EramAnchor is null ? null : EramSweepSample.FromSnapshot(dto.EramAnchor)
+        );
 
     // --- Scenario loading ---
 }

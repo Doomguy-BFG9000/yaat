@@ -702,10 +702,10 @@ public sealed partial class SimulationEngine
             }
 
             // Auto-accept never takes a track ERAM may show as CST (7110.65 §5-4-5.e, §5-4-6.f.3 require verbal
-            // coordination then). The check is stateless (below ERAM coverage, on the ground, or a QT coast track) and
-            // applies to every handoff, STARS included, by design: a low STARS handoff waits until the aircraft climbs
-            // into ERAM coverage. It also holds inside the display's hysteresis band and after the coast has expired,
-            // both of which only keep the handoff pending longer.
+            // coordination then). The check reads the ERAM coverage state the step before this one left (coverage-coasting,
+            // below coverage on the display's hysteresis side, on the ground, or a QT coast track) and applies to every
+            // handoff, STARS included, by design: a low STARS handoff waits until ERAM shows the track again. It also holds
+            // after the coverage coast has expired, which only keeps the handoff pending longer.
             if (TrackEngine.IsAutoAcceptWithheld(aircraft, NavigationDatabase.Instance))
             {
                 _logger.LogTrace("TickAutoAccept: {Callsign} handoff withheld below ERAM coverage or on a QT coast, skipping", aircraft.Callsign);

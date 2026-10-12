@@ -205,12 +205,13 @@ public static partial class TrackEngine
     }
 
     /// <summary>
-    /// True when auto-accept leaves a pending handoff alone because ERAM may show the track as CST: below ERAM coverage,
-    /// on the ground, or a QT coast track (7110.65 §5-4-5.e, §5-4-6.f.3 require verbal coordination then). Shared by the
-    /// auto-accept timer and the controller-AI handoff watchdog so they cannot drift.
+    /// True when auto-accept leaves a pending handoff alone because ERAM may show the track as CST: coverage-coasting, not
+    /// visible on ERAM's coverage hysteresis side (below coverage, on the ground), or a QT coast track (7110.65 §5-4-5.e,
+    /// §5-4-6.f.3 require verbal coordination then). An aircraft the coverage step has not yet evaluated falls back to the
+    /// stateless floor check. Shared by the auto-accept timer and the controller-AI handoff watchdog so they cannot drift.
     /// </summary>
     public static bool IsAutoAcceptWithheld(AircraftState ac, NavigationDatabase navDb) =>
-        !DisconnectCoastRules.IsVisibleOnEram(ac, navDb) || ac.Eram.IsCoastTrack;
+        ac.Eram.IsCoastTrack || ac.Eram.IsCoverageCoasting || !(ac.Eram.IsVisibleOnEramCoverage ?? DisconnectCoastRules.IsVisibleOnEram(ac, navDb));
 
     /// <summary>
     /// Flags the previous owner's STARS <c>SharedState</c> entry as previously-owned so that, after a

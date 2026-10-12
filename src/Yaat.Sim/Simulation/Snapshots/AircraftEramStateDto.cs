@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 public sealed class AircraftEramStateDto
@@ -53,6 +55,33 @@ public sealed class AircraftEramStateDto
     // next tick, as a new aircraft does.
     public bool ReachedAssignedAltitude { get; init; }
     public EramConformanceKeyDto? ConformanceKey { get; init; }
+
+    // ERAM coverage-loss coast: the hysteresis side (null = not yet evaluated), the coast flag (null = not coasting), its
+    // start second and anchor, and the last ERAM sweep. All left out while null, so older data restores unevaluated.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? IsVisibleOnEramCoverage { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? IsCoverageCoasting { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CoverageCoastStartSeconds { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public EramSweepSampleDto? CoverageCoastAnchor { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public EramSweepSampleDto? LastEramSweep { get; init; }
+}
+
+// One ERAM sweep: position, ground track (degrees true), ground speed (knots) and its sim-elapsed second.
+public sealed class EramSweepSampleDto
+{
+    public double Lat { get; init; }
+    public double Lon { get; init; }
+    public double GroundTrackDeg { get; init; }
+    public double GroundSpeed { get; init; }
+    public double SimSeconds { get; init; }
 }
 
 public sealed class EramConformanceKeyDto

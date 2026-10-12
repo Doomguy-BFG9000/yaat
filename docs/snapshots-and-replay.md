@@ -127,7 +127,9 @@ Some state is intentionally runtime-only:
 
   `ActiveAsdexAlerts` is a nullable list of `AsdexSafetyAlertDto`, ordinal-sorted by id, absent ⇒ empty, and a restore replaces the set rather than merging into it, so the first tick after a restore diffs against what the displays were already told and does not re-announce it. The live-traffic `DEL` set is scenario state too, `SimScenarioState.SuppressedLiveTraffic` (`ScenarioSnapshotDto.SuppressedLiveTraffic`, ordinal-sorted callsigns, absent ⇒ empty, replaced on restore).
 
-  So are the disconnect coasts, `SimScenarioState.DisconnectCoasts` (`ScenarioSnapshotDto.DisconnectCoasts`: a nullable list of `DisconnectCoastDto` in ordinal callsign order, each with its facets in registration order, absent ⇒ empty); a restore replaces the set and empties the pending cleared-callsign list, so a rewind drops a coast registered in the undone future.
+  So are the disconnect coasts, `SimScenarioState.DisconnectCoasts` (`ScenarioSnapshotDto.DisconnectCoasts`: a nullable list of `DisconnectCoastDto` in ordinal callsign order, each with its facets in registration order, absent ⇒ empty); a restore replaces the set and empties the pending cleared-callsign list, so a rewind drops a coast registered in the undone future. A facet carries `EramAnchor` (`EramSweepSampleDto`, the coverage coast an ERAM facet carries on) only when set.
+
+  The ERAM coverage-loss coast is per-aircraft Sim state on `AircraftEramStateDto`: `IsVisibleOnEramCoverage`, `IsCoverageCoasting`, `CoverageCoastStartSeconds`, `CoverageCoastAnchor` and `LastEramSweep` (both `EramSweepSampleDto`: lat, lon, ground track, ground speed, sim second). Each is left out while null, so older data restores unevaluated and the schema version is unchanged.
 
   Facet selection is the Sim's, so every run kind (live, bare test, replay, reconstruction) computes the same facets. ASDE-X / SAID membership is per-aircraft snapshotted state on `AircraftStarsState` with its own spine step (`SurfaceMembership`), not a stateless range recheck, so the coast of an aircraft that disconnects inside the hysteresis band is kept.
 

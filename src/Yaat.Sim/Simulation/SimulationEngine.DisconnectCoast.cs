@@ -19,7 +19,8 @@ public sealed partial class SimulationEngine
     /// Records what <paramref name="ac"/> — about to leave the world — coasts on: an ERAM facet when the en-route radar
     /// still sees it and its track is not QH-frozen (ending <see cref="SimScenarioState.EramDisconnectCoastSeconds"/>
     /// after its last grid sweep on the <see cref="EramSweepGrid"/>, or after its spawn when that came later; a forced
-    /// off-grid sweep is not seen), then one facet per ASDE-X airport and per SAID airport it is a member of, a surface
+    /// off-grid sweep is not seen), or, while it is coverage-coasting, an ERAM facet that carries that coast on to its own
+    /// expiry from its own anchor; then one facet per ASDE-X airport and per SAID airport it is a member of, a surface
     /// facet at its destination marked a drop. The entry replaces any the callsign already has; a track with no facet
     /// leaves no entry. With no scenario this does nothing.
     /// </summary>
@@ -49,13 +50,9 @@ public sealed partial class SimulationEngine
     private static ImmutableArray<DisconnectCoastFacet> BuildDisconnectCoastFacets(AircraftState ac, double nowSimSeconds)
     {
         ImmutableArray<DisconnectCoastFacet>.Builder facets = ImmutableArray.CreateBuilder<DisconnectCoastFacet>();
-        if (DisconnectCoastRules.IsVisibleOnEram(ac, NavigationDatabase.Instance) && !ac.Eram.IsFrozen && !ac.Eram.IsCoastTrack)
+        if (BuildEramFacet(ac, nowSimSeconds) is { } eram)
         {
-            // The ERAM track coasts from its last grid sweep; an aircraft that spawned after it counts from its spawn. A
-            // forced off-grid sweep (first sight ~1 s after the spawn, ERAM newly visible, a coverage return) is not seen
-            // here: after one, the coast ends less than one sweep period short of 24 s after CRC last drew the track.
-            double lastSweep = Math.Max(EramSweepGrid.LastSweepSimSeconds(ac.Callsign, nowSimSeconds), ac.SpawnedAtSeconds);
-            facets.Add(new DisconnectCoastFacet(DisconnectCoastScope.Eram, null, false, lastSweep + SimScenarioState.EramDisconnectCoastSeconds));
+            facets.Add(eram);
         }
 
         string destination = NavigationDatabase.NormalizeAirport(ac.FlightPlan.Destination);
@@ -63,6 +60,50 @@ public sealed partial class SimulationEngine
         AddSurfaceFacets(facets, DisconnectCoastScope.Asdex, ac.Stars.VisibleAsdexAirports, destination, surfaceDeadline);
         AddSurfaceFacets(facets, DisconnectCoastScope.Said, ac.Stars.VisibleSaidAirports, destination, surfaceDeadline);
         return facets.ToImmutable();
+    }
+
+    /// <summary>
+    /// The ERAM facet of a removed track, or null when ERAM drops it at once (QH-frozen, QT-coasted, or not seen by the
+    /// en-route radar).
+    /// </summary>
+    private static DisconnectCoastFacet? BuildEramFacet(AircraftState ac, double nowSimSeconds)
+    {
+        AircraftEramState eram = ac.Eram;
+        if (eram.IsFrozen || eram.IsCoastTrack)
+        {
+            return null;
+        }
+
+        // A track already coverage-coasting keeps that one coast: it ends when the coverage coast would have, and
+        // dead-reckons from the coverage coast's anchor, exactly as if the aircraft were still in the world. ERAM cannot
+        // tell a disconnect from a coverage loss, so no fresh window starts at the removal.
+        if (eram is { IsCoverageCoasting: true, CoverageCoastStartSeconds: { } coastStart, CoverageCoastAnchor: { } anchor })
+        {
+            return new DisconnectCoastFacet(
+                DisconnectCoastScope.Eram,
+                null,
+                false,
+                coastStart + DisconnectCoastRules.EramCoverageCoastSeconds,
+                anchor
+            );
+        }
+
+        if (!DisconnectCoastRules.IsVisibleOnEram(ac, NavigationDatabase.Instance))
+        {
+            return null;
+        }
+
+        // The ERAM track coasts from its last grid sweep; an aircraft that spawned after it counts from its spawn. A
+        // forced off-grid sweep (first sight ~1 s after the spawn, ERAM newly visible, a coverage return) is not seen
+        // here: after one, the coast ends less than one sweep period short of 24 s after CRC last drew the track.
+        double lastSweep = Math.Max(EramSweepGrid.LastSweepSimSeconds(ac.Callsign, nowSimSeconds), ac.SpawnedAtSeconds);
+        return new DisconnectCoastFacet(
+            DisconnectCoastScope.Eram,
+            null,
+            false,
+            lastSweep + SimScenarioState.EramDisconnectCoastSeconds,
+            EramAnchor: null
+        );
     }
 
     private static void AddSurfaceFacets(
@@ -76,7 +117,7 @@ public sealed partial class SimulationEngine
         foreach (string facilityId in airports)
         {
             bool isDrop = DisconnectCoastRules.IsDestinationFacility(destination, facilityId);
-            facets.Add(new DisconnectCoastFacet(scope, facilityId, isDrop, deadlineSimSeconds));
+            facets.Add(new DisconnectCoastFacet(scope, facilityId, isDrop, deadlineSimSeconds, EramAnchor: null));
         }
     }
 

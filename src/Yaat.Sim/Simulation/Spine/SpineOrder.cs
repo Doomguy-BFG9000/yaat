@@ -46,6 +46,8 @@ public static class SpineOrder
         SpineStep.Sim(StepId.AltitudeFixPassage, static (engine, _) => engine.TickAltitudeFixPassage()),
         // After the fix passage, so an after-fix altitude taking over resets the vertical-conformance latch the same second.
         SpineStep.Sim(StepId.EramVerticalConformance, static (engine, _) => engine.TickEramVerticalConformance()),
+        // Immediately before auto-accept, which withholds a handoff while the track is coverage-coasting or below coverage.
+        SpineStep.Sim(StepId.EramCoverageCoast, static (engine, _) => engine.TickEramCoverageCoast()),
         SpineStep.Sim(StepId.AutoAccept, static (engine, _) => engine.TickAutoAccept()),
         SpineStep.Sim(StepId.PointoutTimeout, static (engine, _) => engine.TickPointoutTimeout()),
         // FP-creator autotrack runs before the airport-based deferred autotrack so a controller who explicitly

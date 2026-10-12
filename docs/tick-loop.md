@@ -48,11 +48,12 @@ Physics ×4     sim TickPhysics(0.25)                                 (fixed cod
                    ├─ [IsShadow] LiveTrafficKinematics.Advance + airborne latch, then continue (no PreTick, no physics — live-traffic.md)
                    ├─ PreTick → PhaseRunner.Tick   (per aircraft)
                    └─ FlightPhysics.Update         (per aircraft, 8 steps)
-PostPhysics    SpineOrder.PostPhysics — the live server's 35-step order
+PostPhysics    SpineOrder.PostPhysics — the live server's 40-step order
                ├─ sim TickTaxiEdgeTrails                              each moving ground aircraft's TaxiEdgeTrail: the taxi edges it drove, oldest dropped past ~3,000 ft; nothing recorded on a runway roll (line-up, takeoff, rejected takeoff, landing, touch-and-go, stop-and-go); emptied when airborne or warped
                ├─ sim TickLiveTrafficRunwayUse, TickTransponders
                ├─ sim TickAltitudeFixPassage                          an ERAM fix-qualified altitude (170/SJC/110) latches to its second altitude once the aircraft has closed within 10 nm of the fix (≤90° off track) and then has it >90° off; data only (Field B, QF), never flown
                ├─ sim TickEramVerticalConformance                     the ERAM vertical-conformance latch: AircraftEramState.ReachedAssignedAltitude sets inside the assigned band and clears only when the assignment changes, so CRC draws - or + instead of the climb/descent arrow once reached; paused while QT-coasted, frozen or without Mode C
+               ├─ sim TickEramCoverageCoast                           the ERAM coverage-loss coast (Coast/EramCoverageCoast): per aircraft, hysteresis 200 ft over the 1,500 ft AGL floor and a 24 s coast on AircraftEramState, plus the 12 s ERAM sweep sample (LastEramSweep); before TickAutoAccept, which withholds a handoff while the track is coverage-coasting or below coverage
                ├─ sim TickAutoAccept, TickPointoutTimeout                a pending handoff to an unattended position auto-accepts after AutoAcceptDelay; a pending point-out to one is withdrawn after PointoutNoActionSeconds (Attendance)
                ├─ sim TickFlightPlanCreatorAutoTrack, TickDeferredAutoTrack  an untracked aircraft squawking its assigned code → the FP creator; one crossing the display floor → the autoTrackAirportIds position
                ├─ sim TickCoordinationTimers                           an acknowledged release warns at CoordinationExpiryWarningSeconds remaining and voids at CoordinationAckExpirySeconds; a recalled item reverts to Unsent after CoordinationRecallLingerSeconds (the sender keeps it with its text; CRC hides an Unsent item from every receiver)

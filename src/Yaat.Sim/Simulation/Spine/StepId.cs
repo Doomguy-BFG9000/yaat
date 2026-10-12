@@ -24,6 +24,7 @@ public enum StepId
     Transponders,
     AltitudeFixPassage,
     EramVerticalConformance,
+    EramCoverageCoast,
     AutoAccept,
     PointoutTimeout,
     FlightPlanCreatorAutoTrack,

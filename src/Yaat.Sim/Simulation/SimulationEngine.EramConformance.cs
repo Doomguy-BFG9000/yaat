@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data;
+using Yaat.Sim.Simulation.Coast;
 
 namespace Yaat.Sim.Simulation;
 
@@ -28,6 +30,24 @@ public sealed partial class SimulationEngine
                 continue;
             }
             EvaluateEramVerticalConformance(ac, eram);
+        }
+    }
+
+    /// <summary>
+    /// Advances each aircraft's ERAM coverage-loss coast and takes its ERAM sweep (<see cref="EramCoverageCoast"/>). Derived
+    /// state, not a brain: a spine step (<see cref="Spine.StepId.EramCoverageCoast"/>) just before auto-accept, which reads
+    /// it, so it runs on every run kind and a replay or rewind coasts from the same anchor as the original run.
+    /// </summary>
+    public void TickEramCoverageCoast()
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        foreach (AircraftState ac in World.GetSnapshot())
+        {
+            EramCoverageCoast.Evaluate(ac, NavigationDatabase.Instance, scenario.ElapsedSeconds);
         }
     }
 
