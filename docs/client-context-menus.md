@@ -148,7 +148,7 @@ Settings › Input › **Quick commands** (`SettingsSectionId.QuickCommands`) ed
 
   A blocked target's row is enabled but faded, sends nothing and leaves the menu open; `blocked by SWA919` sits on a second line with a `push anyway` chip sending `MenuPushTarget.ForcedCommand` (`PUSHF TF`, `PUSHF $C` for a spot). A chip's accessible name is its command.
 
-  Hold short of… is `IMenuHost.GetHoldShortChoices` → `HoldShortMenu`: the route line (`route S T V W4 · RWY 30`), shown as a disabled row over a separator, and one `HoldShortChoice` per bar along the route, nearest first (badge `TW`/`RW`, name, where, distance rounded to 50 ft, `HS` command, preview route).
+  Hold short of… is `IMenuHost.GetHoldShortChoices` → `HoldShortMenu`: the route line (`route S T V W4 · RWY 30`), shown as a disabled row over a separator, and one `HoldShortChoice` per bar along the route, nearest first (not the destination runway whose bar ends the route, which the taxi already holds short of) (badge `TW`/`RW`, name, where, distance rounded to 50 ft, `HS` command, preview route).
 
   Preset taxi route is `IMenuHost.GetPresetTaxiChoices` → `TaxiRouteRow` (name, taxiways, distance from the aircraft, finished `TAXI` command, resolved path to preview), resolved for the aircraft's own category and wake class from where it starts its taxi; a preset ending where the aircraft stands is left out. Rows draw through the same command-row template and preview on hover.
 

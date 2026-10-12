@@ -1987,7 +1987,8 @@ public partial class GroundViewModel : ObservableObject
     /// The Hold short of… rows for <paramref name="ac"/>'s remaining route: one per bar the route passes, nearest first,
     /// each sending the <c>HS</c> that arms that bar and previewing the route up to it. A taxiway the route meets on more
     /// than one of its taxiways gets one located row per crossing (<c>X@A</c>, <c>X@B</c>), since a bare <c>HS X</c> only
-    /// ever binds the first; a runway gets one row, for its first bar, named by <see cref="RunwayRowName"/>. A junction
+    /// ever binds the first; a runway gets one row, for its first bar, named by <see cref="RunwayRowName"/>, except the
+    /// destination runway whose bar the route ends at (the taxi already holds short of it). A junction
     /// arc's joined name ("X - Y") is never a row, and a bar at the aircraft's own position (0 ft once rounded) is not
     /// listed. The node the route starts at is a bar like any other: an aircraft short of a holding position starts
     /// there with no free-space leg (<see cref="TaxiApproachLeg"/>), so every distance is measured from the aircraft
@@ -2090,9 +2091,10 @@ public partial class GroundViewModel : ObservableObject
 
     /// <summary>
     /// The <c>HS</c> target of every row <paramref name="route"/> offers, with its badge and name: one per runway whose
-    /// bar it passes, then the taxiways it meets off its own (<paramref name="routeTaxiways"/>), bare when met on one
-    /// route taxiway and located once per route taxiway otherwise. The walk starts at <paramref name="firstPosition"/>
-    /// (<see cref="RouteStart"/>); runway rows are named from <paramref name="activeEnds"/>.
+    /// bar it passes but the runway whose bar it ends at (its destination), then the taxiways it meets off its own
+    /// (<paramref name="routeTaxiways"/>), bare when met on one route taxiway and located once per route taxiway
+    /// otherwise. The walk starts at <paramref name="firstPosition"/> (<see cref="RouteStart"/>); runway rows are named
+    /// from <paramref name="activeEnds"/>.
     /// </summary>
     private List<(string Target, string Badge, string Name)> HoldShortRowTargets(
         AirportGroundLayout layout,
@@ -2112,7 +2114,14 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            if ((node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } runway) && runways.Add(runway))
+            // The bar the route ends at is its destination runway's: the taxi already holds short there and the server
+            // takes HS of it as a no-op, so that runway is no row.
+            if (
+                (node.Type == GroundNodeType.RunwayHoldShort)
+                && (node.RunwayId is { } runway)
+                && runways.Add(runway)
+                && (position < route.Segments.Count)
+            )
             {
                 (string name, string end) = RunwayRowName(layout, runway, node, activeEnds);
                 targets.Add((end, HoldShortChoice.RunwayBadge, name));

@@ -11,14 +11,15 @@ namespace Yaat.Client.Tests;
 
 /// <summary>
 /// The ground context menu's "Hold short of…" rows on the real KOAK layout: one row per bar along the remaining route,
-/// nearest first, each with its distance from the aircraft rounded to 50 ft; one row per runway, named by the room's
-/// active runways (the active end; else the end on the side of a full-length crossing; else both ends); and never a
-/// junction arc's joined name. The layout is parsed under the server's lower-case id (<c>oak</c>) while the room keys
-/// its active runways by the FAA id (<c>OAK</c>), as in production.
+/// nearest first, each with its distance from the aircraft rounded to 50 ft; one row per runway but the destination
+/// runway the route ends at, named by the room's active runways (the active end; else the end on the side of a
+/// full-length crossing; else both ends); and never a junction arc's joined name. The layout is parsed under the
+/// server's lower-case id (<c>oak</c>) while the room keys its active runways by the FAA id (<c>OAK</c>), as in production.
 ///
-/// Routes: the mock's <c>S T V W4</c> to runway 30 (ends at the W4 bar, mid-way along 12/30); <c>W1</c> and <c>W7</c>
-/// to their 12/30 bars (the full-length crossings at the 30 and 12 ends); <c>G</c> south across 28R to 28L; <c>K</c>
-/// across 15/33; <c>W W3</c> round the fillet from W onto W3 to runway 30.
+/// Routes: the mock's <c>S T V W4</c> to runway 30 (ends at the W4 bar, mid-way along 12/30, so 12/30 is no row);
+/// <c>W1</c> and <c>W7</c> with no runway assigned, across their 12/30 bars (the full-length crossings at the 30 and 12
+/// ends); <c>G</c> south across 28R (mid-runway) to 28L; <c>K</c> across 15/33; <c>W W3</c> round the fillet from W
+/// onto W3 to runway 30.
 /// </summary>
 public class GroundViewModelHoldShortMenuOrderTests
 {
@@ -35,7 +36,7 @@ public class GroundViewModelHoldShortMenuOrderTests
 
         string dump = Dump(rows);
         // B and W are each met on two route taxiways, on their own edges and on the junction fillets the route rounds.
-        Assert.Equal("HS S1@S, HS S1@T, HS B@T, HS B@V, HS W@V, HS W@W4, HS 12", string.Join(", ", rows.Select(r => r.Command)));
+        Assert.Equal("HS S1@S, HS S1@T, HS B@T, HS B@V, HS W@V, HS W@W4", string.Join(", ", rows.Select(r => r.Command)));
         Assert.All(rows, r => Assert.True(r.Label.DistanceFt > 0, dump));
         Assert.All(rows, r => Assert.Equal(0, r.Label.DistanceFt % TugMovePlanner.NoteRoundingFt));
         Assert.Equal(rows.Select(r => r.Label.DistanceFt).Order(), rows.Select(r => r.Label.DistanceFt));
@@ -44,8 +45,26 @@ public class GroundViewModelHoldShortMenuOrderTests
         Assert.Equal((HoldShortChoice.TaxiwayBadge, "S1", "crossing on S"), (first.Label.Badge, first.Label.Name, first.Label.Where));
 
         HoldShortChoice last = rows[^1];
-        Assert.Equal(HoldShortChoice.RunwayBadge, last.Label.Badge);
-        Assert.Equal("at W4, end of route", last.Label.Where);
+        Assert.Equal((HoldShortChoice.TaxiwayBadge, "W", "before turning onto W4"), (last.Label.Badge, last.Label.Name, last.Label.Where));
+    }
+
+    /// <summary>
+    /// The mock route ends at the W4 bar of 12/30, its destination runway: a taxi to a runway already ends holding short
+    /// of it and the server takes <c>HS 12</c> there as a no-op, so the runway is no row.
+    /// </summary>
+    [Fact]
+    public void MockRoute_DestinationRunwayIsNotARow()
+    {
+        (GroundViewModel vm, AircraftModel ac) = MockRoute(NoActiveRunways);
+        TaxiRoute route = vm.ResolveRemainingRoute(ac)!;
+
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
+
+        string dump = Dump(rows);
+        Assert.NotEmpty(rows);
+        Assert.DoesNotContain(rows, r => (r.Command == "HS 12") || (r.Command == "HS 30"));
+        Assert.DoesNotContain(rows, r => (r.Label.Badge == HoldShortChoice.RunwayBadge) && (r.Preview.Segments.Count == route.Segments.Count));
+        Assert.True(rows.All(r => r.Label.Badge == HoldShortChoice.TaxiwayBadge), dump);
     }
 
     [Fact]
@@ -74,17 +93,15 @@ public class GroundViewModelHoldShortMenuOrderTests
     }
 
     [Fact]
-    public void RouteAcrossTwoRunways_OneRowPerRunway_InRouteOrder()
+    public void RouteAcrossOneRunwayToAnother_OnlyTheCrossedRunwayIsARow()
     {
-        AirportGroundLayout layout = LoadOak();
-        (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, NorthBar28ROnG(layout), "G", "28L", NoActiveRunways);
+        (GroundViewModel vm, AircraftModel ac) = AcrossMidRunway(NoActiveRunways);
 
         IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortTargets(ac);
 
-        List<HoldShortChoice> runways = [.. rows.Where(r => r.Label.Badge == HoldShortChoice.RunwayBadge)];
-        Assert.True(runways.Count == 2, Dump(rows));
-        Assert.Equal(["Runway 10L/28R", "Runway 10R/28L"], runways.Select(r => r.Label.Name));
-        Assert.Equal(["HS 10L", "HS 10R"], runways.Select(r => r.Command));
+        HoldShortChoice runway = RunwayRow(rows);
+        Assert.Equal(("Runway 10L/28R", "HS 10L"), (runway.Label.Name, runway.Command));
+        Assert.DoesNotContain(rows, r => (r.Command == "HS 10R") || (r.Command == "HS 28L"));
     }
 
     [Fact]
@@ -194,7 +211,8 @@ public class GroundViewModelHoldShortMenuOrderTests
     }
 
     /// <summary>
-    /// A B738 lined up mid-way along C west of H, cleared <c>C J</c> to 28R (behind it) and sent a turn about in place: its
+    /// A B738 lined up mid-way along C west of H, cleared <c>C J</c> to 28L (so 28R, crossed on the way, is a row; the
+    /// destination runway is none) and sent a turn about in place: its
     /// route starts at the C node ahead of its nose and segment 0 runs back over the aircraft to the far node (the shape
     /// <c>GroundViewModelMidEdgeStartOverlayTests</c> pins). The aircraft is past that start node, so the node is no bar
     /// of its own (the server walks from the end of segment 0), and every distance is the route's less the stretch of
@@ -217,7 +235,7 @@ public class GroundViewModelHoldShortMenuOrderTests
             Heading = new TrueHeading(GeoMath.BearingTo(farEnd.Position, tangentCut.Position)),
             CurrentTaxiway = "C",
             TaxiRoute = "C J",
-            AssignedRunway = "28R",
+            AssignedRunway = "28L",
             HasActiveTaxiRoute = true,
             TaxiTurnAboutShape = TaxiTurnAboutShape.InPlace,
             TaxiTurnAboutTargetNodeId = farEnd.Id,
@@ -234,6 +252,7 @@ public class GroundViewModelHoldShortMenuOrderTests
 
         string dump = Dump(rows);
         Assert.True(rows.Count > 0, "no rows");
+        Assert.True(rows.Any(r => r.Command == "HS 10L"), dump);
         // A row at the start node would preview no segments.
         Assert.All(rows, r => Assert.True(r.Preview.Segments.Count > 0, dump));
         // The expected distance is rounded to 50 ft like the row's, so it may land up to 25 ft away, plus 10 ft of slack.
@@ -244,12 +263,12 @@ public class GroundViewModelHoldShortMenuOrderTests
     }
 
     [Theory]
-    [InlineData("30", "Runway 30", "HS 30")]
-    [InlineData("D12", "Runway 12", "HS 12")]
-    [InlineData("A30,28L", "Runway 30", "HS 30")]
+    [InlineData("28R", "Runway 28R", "HS 28R")]
+    [InlineData("D10L", "Runway 10L", "HS 10L")]
+    [InlineData("A28R,30", "Runway 28R", "HS 28R")]
     public void OneEndActive_TheActiveEndNamesTheRow(string active, string name, string command)
     {
-        (GroundViewModel vm, AircraftModel ac) = MockRoute(Active(active));
+        (GroundViewModel vm, AircraftModel ac) = AcrossMidRunway(Active(active));
 
         HoldShortChoice runway = RunwayRow(vm.GetHoldShortTargets(ac));
 
@@ -263,7 +282,7 @@ public class GroundViewModelHoldShortMenuOrderTests
     {
         AirportGroundLayout layout = LoadOak();
         GroundNode bar = layout.Nodes.Values.Single(n => IsBar(n, barEnd, taxiway));
-        (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, bar, taxiway, "30", Active("12,30"));
+        (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, bar, taxiway, "", Active("12,30"));
 
         HoldShortChoice runway = RunwayRow(vm.GetHoldShortTargets(ac));
 
@@ -273,11 +292,11 @@ public class GroundViewModelHoldShortMenuOrderTests
     [Fact]
     public void BothEndsActive_MidRunwayCrossing_NamesBothEnds()
     {
-        (GroundViewModel vm, AircraftModel ac) = MockRoute(Active("12,30"));
+        (GroundViewModel vm, AircraftModel ac) = AcrossMidRunway(Active("10L,28R"));
 
         HoldShortChoice runway = RunwayRow(vm.GetHoldShortTargets(ac));
 
-        Assert.Equal(("Runway 12/30", "HS 12"), (runway.Label.Name, runway.Command));
+        Assert.Equal(("Runway 10L/28R", "HS 10L"), (runway.Label.Name, runway.Command));
     }
 
     [Fact]
@@ -285,14 +304,14 @@ public class GroundViewModelHoldShortMenuOrderTests
     {
         AirportGroundLayout layout = LoadOak();
         GroundNode w1Bar = layout.Nodes.Values.Single(n => IsBar(n, "30", "W1"));
-        (GroundViewModel w1Vm, AircraftModel w1Ac) = OnTheWayTo(layout, w1Bar, "W1", "30", NoActiveRunways);
-        (GroundViewModel mockVm, AircraftModel mockAc) = MockRoute(NoActiveRunways);
+        (GroundViewModel w1Vm, AircraftModel w1Ac) = OnTheWayTo(layout, w1Bar, "W1", "", NoActiveRunways);
+        (GroundViewModel gVm, AircraftModel gAc) = AcrossMidRunway(NoActiveRunways);
 
         HoldShortChoice fullLength = RunwayRow(w1Vm.GetHoldShortTargets(w1Ac));
-        HoldShortChoice midRunway = RunwayRow(mockVm.GetHoldShortTargets(mockAc));
+        HoldShortChoice midRunway = RunwayRow(gVm.GetHoldShortTargets(gAc));
 
         Assert.Equal(("Runway 30", "HS 30"), (fullLength.Label.Name, fullLength.Command));
-        Assert.Equal(("Runway 12/30", "HS 12"), (midRunway.Label.Name, midRunway.Command));
+        Assert.Equal(("Runway 10L/28R", "HS 10L"), (midRunway.Label.Name, midRunway.Command));
     }
 
     [Fact]
@@ -301,7 +320,7 @@ public class GroundViewModelHoldShortMenuOrderTests
         AirportGroundLayout layout = LoadOak();
         layout.Runways.Clear();
         GroundNode w1Bar = layout.Nodes.Values.Single(n => IsBar(n, "30", "W1"));
-        (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, w1Bar, "W1", "30", NoActiveRunways);
+        (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, w1Bar, "W1", "", NoActiveRunways);
 
         HoldShortChoice runway = RunwayRow(vm.GetHoldShortTargets(ac));
 
@@ -346,6 +365,16 @@ public class GroundViewModelHoldShortMenuOrderTests
             AssignedRunway = "30",
         };
         return (ViewModel(layout, active), ac);
+    }
+
+    /// <summary>
+    /// A southbound G taxi to 28L, crossing 10L/28R mid-runway on the way: the route's one runway row, since 28L is its
+    /// destination.
+    /// </summary>
+    private static (GroundViewModel Vm, AircraftModel Ac) AcrossMidRunway(IReadOnlyDictionary<string, IReadOnlyList<string>> active)
+    {
+        AirportGroundLayout layout = LoadOak();
+        return OnTheWayTo(layout, NorthBar28ROnG(layout), "G", "28L", active);
     }
 
     /// <summary>The 28R bar on G north of the runway: the first a southbound G taxi meets.</summary>
