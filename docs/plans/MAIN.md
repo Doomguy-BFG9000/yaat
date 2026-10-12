@@ -23,16 +23,15 @@
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
-- [/] YAAT-636 Refresh the room title's ARTCC label when a scenario load changes it · release vNext
 - [ ] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext
-- [ ] YAAT-644 Accept VATSIM sandbox tokens on /feed/rooms in a development yaat-server · release vNext
-- [ ] YAAT-645 List member count, aircraft count and paused per room on /feed/rooms · release vNext
+- [/] YAAT-644 Accept VATSIM sandbox tokens on /feed/rooms in a development yaat-server · release vNext
+- [/] YAAT-645 List member count, aircraft count and paused per room on /feed/rooms · release vNext
 
 ## Tick-path unification
 
 - [ ] YAAT-272 Shadow spawns run AfterAircraftSpawned on replay only (PDC queue, strip print) · release vNext
 - [ ] YAAT-320 Retire the tick-path plan folder now every step has shipped · release vNext
-- [ ] YAAT-322 Pin a spawn due at second t on the sub-tick replay path · release vNext
+- [/] YAAT-322 Pin a spawn due at second t on the sub-tick replay path · release vNext
 
 ## Say again
 
