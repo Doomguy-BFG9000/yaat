@@ -585,23 +585,31 @@ public partial class MainViewModel
 
         try
         {
-            UnloadScenarioResultDto result = await _connection.UnloadScenarioAircraftAsync();
-
-            if (result.RequiresConfirmation)
-            {
-                PendingUnloadScenarioWarning = result.Message;
-                ShowUnloadScenarioConfirmation = true;
-                return;
-            }
-
-            ClearScenarioState();
-            StatusText = "Scenario unloaded";
+            ApplyUnloadResult(await _connection.UnloadScenarioAircraftAsync());
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "UnloadScenario failed");
             ReportScenarioActionFailure("Unload", ex.Message);
         }
+    }
+
+    /// <summary>
+    /// The server's answer to this client's unload: a confirmation to ask for while other clients are in the room, else the
+    /// unload is done and the room title takes the label the room fell back to.
+    /// </summary>
+    internal void ApplyUnloadResult(UnloadScenarioResultDto result)
+    {
+        if (result.RequiresConfirmation)
+        {
+            PendingUnloadScenarioWarning = result.Message;
+            ShowUnloadScenarioConfirmation = true;
+            return;
+        }
+
+        ClearScenarioState();
+        RelabelRoomTitle(result.ArtccId);
+        StatusText = "Scenario unloaded";
     }
 
     private bool CanUnloadScenario() => CanExecuteInRoom && HasScenario && !IsNonMentor && !IsRoomLoading;
@@ -685,8 +693,9 @@ public partial class MainViewModel
         PendingUnloadScenarioWarning = null;
     }
 
-    private void ApplyScenarioResult(LoadScenarioResultDto result)
+    internal void ApplyScenarioResult(LoadScenarioResultDto result)
     {
+        RelabelRoomTitle(result.ArtccId);
         ResetPilotVoiceWarningSession();
         SetStudentPositionType(result.StudentPositionType);
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
@@ -734,6 +743,7 @@ public partial class MainViewModel
         {
             _log.LogInformation("Scenario loaded by another client: '{Name}' ({Id})", dto.ScenarioName, dto.ScenarioId);
             RoomLoadingBy = null;
+            RelabelRoomTitle(dto.ArtccId);
             ResetPilotVoiceWarningSession();
 
             SetStudentPositionType(dto.StudentPositionType);
@@ -971,12 +981,13 @@ public partial class MainViewModel
         return (leaf ?? facilities[0]).FacilityId;
     }
 
-    private void OnScenarioUnloaded()
+    internal void OnScenarioUnloaded(ScenarioUnloadedDto dto)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             _log.LogInformation("Scenario unloaded by another client");
             ClearScenarioState();
+            RelabelRoomTitle(dto.ArtccId);
             StatusText = "Scenario unloaded";
             AddSystemEntry("Scenario unloaded by another user");
         });

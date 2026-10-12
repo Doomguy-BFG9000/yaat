@@ -37,4 +37,5 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(BrowserRoomInfoDto))]
 [JsonSerializable(typeof(BrowserJoinRoomResultDto))]
 [JsonSerializable(typeof(BrowserScenarioLoadedDto))]
+[JsonSerializable(typeof(BrowserScenarioUnloadedDto))]
 internal partial class YaatStripsHubJsonContext : JsonSerializerContext;

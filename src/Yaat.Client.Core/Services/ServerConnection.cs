@@ -97,7 +97,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<AtpaResultsChangedDto>? AtpaResultsChanged;
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
-    public event Action? ScenarioUnloaded;
+    public event Action<ScenarioUnloadedDto>? ScenarioUnloaded;
     public event Action<AircraftAssignmentsDto>? AircraftAssignmentsChanged;
     public event Action<SessionSettingsDto>? SessionSettingsChanged;
     public event Action<LiveTrafficStatusDto>? LiveTrafficStatusChanged;
@@ -250,11 +250,11 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
                 StripsConfigChanged?.Invoke(dto.FlightStripsConfig);
             }
         );
-        _connection.On(
+        _connection.On<ScenarioUnloadedDto>(
             "ScenarioUnloaded",
-            () =>
+            dto =>
             {
-                ScenarioUnloaded?.Invoke();
+                ScenarioUnloaded?.Invoke(dto);
                 StripsConfigChanged?.Invoke(null);
             }
         );
@@ -1410,7 +1410,10 @@ public record LoadScenarioResultDto(
     bool LiveTrafficEnabled = false,
     int LiveTrafficCeilingFt = 0,
     string LiveTrafficFilter = "",
-    bool IsLiveSession = false
+    bool IsLiveSession = false,
+    // The ARTCC the room is labelled with, as in the room list (TrainingRoomInfoDto.ArtccId): its loaded scenario's,
+    // else the creator's.
+    string? ArtccId = null
 )
 {
     /// <summary>
@@ -1682,8 +1685,17 @@ public record ScenarioLoadedDto(
     bool LiveTrafficEnabled = false,
     int LiveTrafficCeilingFt = 0,
     string LiveTrafficFilter = "",
-    bool IsLiveSession = false
+    bool IsLiveSession = false,
+    // The ARTCC the room is labelled with, as in the room list (TrainingRoomInfoDto.ArtccId): its loaded scenario's,
+    // else the creator's.
+    string? ArtccId = null
 );
+
+/// <summary>The <c>ScenarioUnloaded</c> event.</summary>
+/// <param name="ArtccId">
+/// The ARTCC the room is labelled with after the unload, as in the room list (TrainingRoomInfoDto.ArtccId): the creator's.
+/// </param>
+public record ScenarioUnloadedDto(string ArtccId);
 
 public record ScenarioPositionDto(string Id, string Callsign, string Name);
 
@@ -1789,7 +1801,14 @@ public record RoomMemberDto(string Cid, string Initials, string ArtccId, string 
 
 public record RoomMemberChangedDto(string RoomId, List<RoomMemberDto> Members, string? ScenarioName);
 
-public record UnloadScenarioResultDto(bool RequiresConfirmation, int OtherClientCount, string? Message);
+public record UnloadScenarioResultDto(
+    bool RequiresConfirmation,
+    int OtherClientCount,
+    string? Message,
+    // The ARTCC the room is labelled with after the call, as in the room list (TrainingRoomInfoDto.ArtccId): with no scenario,
+    // the creator's. Null when the unload waits on a confirmation or the caller has no room.
+    string? ArtccId = null
+);
 
 public record TerminalBroadcastDto(string Initials, string Kind, string Callsign, string Message, DateTime Timestamp, double? ElapsedSeconds);
 
@@ -2038,6 +2057,8 @@ public record RewindResultDto(
     string? ScenarioId = null,
     string? ScenarioName = null,
     string? PrimaryAirportId = null,
+    // The room's label (its loaded scenario's ARTCC, else the creator's), as in the room list; also read for video-map and
+    // tower-cab loading.
     string? ArtccId = null,
     string? StudentPositionType = null,
     bool IsPaused = true,

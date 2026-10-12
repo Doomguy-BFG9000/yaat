@@ -6,6 +6,10 @@
 
 - The right-click menu offers Resume taxi for an aircraft held while taxiing or following.
 
+### Fixed
+
+- The room title's ARTCC label now follows the room when a scenario or recording is loaded or unloaded.
+
 ## v0.16.2-beta [2026/10/11]
 
 ### Highlights

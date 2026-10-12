@@ -746,6 +746,7 @@ public partial class MainViewModel
 
     internal void ApplyRecordingResult(RewindResultDto result)
     {
+        RelabelRoomTitle(result.ArtccId);
         ResetPilotVoiceWarningSession();
         ActiveScenarioId = result.ScenarioId;
         ActiveScenarioName = result.ScenarioName;

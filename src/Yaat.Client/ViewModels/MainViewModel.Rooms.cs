@@ -869,6 +869,26 @@ public partial class MainViewModel
 
     // --- Room state helpers ---
 
+    /// <summary>The initials of the room's creator, which the room title carries; null outside a room.</summary>
+    private string? _roomCreatorInitials;
+
+    /// <summary>The room title: the room's ARTCC label, as in the room list, and its creator's initials.</summary>
+    private string RoomTitle(string? artccLabel) => $"({artccLabel}) {_roomCreatorInitials}'s Room";
+
+    /// <summary>
+    /// Rebuilds the room title from the ARTCC label a scenario load, recording load or unload gave the room. A null or
+    /// blank label leaves the title as it is.
+    /// </summary>
+    private void RelabelRoomTitle(string? artccLabel)
+    {
+        if ((ActiveRoomId is null) || string.IsNullOrWhiteSpace(artccLabel))
+        {
+            return;
+        }
+
+        ActiveRoomName = RoomTitle(artccLabel);
+    }
+
     public void ApplyRoomState(RoomStateDto state)
     {
         // The room's ARTCC is the one in effect for the session — before the scenario bootstrap below,
@@ -877,7 +897,8 @@ public partial class MainViewModel
 
         ActiveRoomId = state.RoomId;
         _preferences.LastActiveRoomId = state.RoomId;
-        ActiveRoomName = $"({state.ArtccId}) {state.CreatorInitials}'s Room";
+        _roomCreatorInitials = state.CreatorInitials;
+        ActiveRoomName = RoomTitle(state.ArtccId);
 
         // Seed from the join response rather than waiting for a RoomMemberChanged push: the server
         // broadcasts that to the room group from inside JoinRoom, so it can land before ActiveRoomId
@@ -981,6 +1002,7 @@ public partial class MainViewModel
 
         ActiveRoomId = null;
         ActiveRoomName = null;
+        _roomCreatorInitials = null;
         RoomLoadingBy = null;
         CrcLobbyClients.Clear();
         CrcRoomMembers.Clear();

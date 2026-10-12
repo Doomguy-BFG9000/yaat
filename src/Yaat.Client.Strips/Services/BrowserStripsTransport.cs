@@ -87,7 +87,7 @@ public sealed class BrowserStripsTransport : IStripsTransport, IAsyncDisposable
         _connection.On<List<StripItemDto>>("StripItemsChanged", items => StripItemsChanged?.Invoke(items));
         _connection.On<StripsWeatherDto>("WeatherChanged", dto => MetarsChanged?.Invoke(dto.Metars ?? []));
         _connection.On<BrowserScenarioLoadedDto>("ScenarioLoaded", dto => StripsConfigChanged?.Invoke(dto.FlightStripsConfig));
-        _connection.On("ScenarioUnloaded", () => StripsConfigChanged?.Invoke(null));
+        _connection.On<BrowserScenarioUnloadedDto>("ScenarioUnloaded", _ => StripsConfigChanged?.Invoke(null));
         _connection.On<string>("RoomRetired", _ => StripsConfigChanged?.Invoke(null));
         _connection.On<string>("RoomAvailableForCid", roomId => RoomAvailableForCid?.Invoke(roomId));
 
@@ -181,3 +181,10 @@ public record BrowserJoinRoomResultDto(string RoomId, string? ScenarioName, Flig
 /// <see cref="IStripsTransport.StripsConfigChanged"/>.
 /// </summary>
 public record BrowserScenarioLoadedDto(FlightStripsConfigDto? FlightStripsConfig);
+
+/// <summary>
+/// Subset of <c>ScenarioUnloadedDto</c> consumed by the browser transport's
+/// <c>ScenarioUnloaded</c> hub handler: none of its fields, since an unload
+/// only clears the strips config.
+/// </summary>
+public record BrowserScenarioUnloadedDto;
