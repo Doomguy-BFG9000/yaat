@@ -24,6 +24,8 @@ namespace Yaat.Client.Tests;
 /// </summary>
 public class GroundViewModelTaxiRouteRunwayTruncationTests
 {
+    public GroundViewModelTaxiRouteRunwayTruncationTests() => Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
     private static GroundViewModel MakeViewModel()
     {
         var connection = new ServerConnection();

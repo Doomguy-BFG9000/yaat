@@ -15,6 +15,8 @@ namespace Yaat.Client.Tests;
 // drawing W-V-T taxied W-U-T and drawing into parking skipped the turn.
 public class GroundViewModelDrawRouteTests
 {
+    public GroundViewModelDrawRouteTests() => Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
     private const double Lat0 = 37.620;
     private const double Lon0 = -122.380;
 

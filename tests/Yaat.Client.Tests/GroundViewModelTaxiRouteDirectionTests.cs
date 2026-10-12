@@ -21,6 +21,8 @@ namespace Yaat.Client.Tests;
 /// </summary>
 public class GroundViewModelTaxiRouteDirectionTests
 {
+    public GroundViewModelTaxiRouteDirectionTests() => Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
     /// <summary>Where UPS2951 stood, nose 11.6° true, when its pushback ended and the TAXI S HS B route was resolved.</summary>
     private static readonly LatLon PushedPose = new(37.71418366380452, -122.21639525332785);
 

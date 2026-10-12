@@ -15,6 +15,8 @@ namespace Yaat.Client.Tests;
 /// </summary>
 public class GroundViewModelRampLaneCrossingOverlayTests
 {
+    public GroundViewModelRampLaneCrossingOverlayTests() => Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
     private static GroundViewModel MakeViewModel()
     {
         var connection = new ServerConnection();

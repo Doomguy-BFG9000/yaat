@@ -18,6 +18,8 @@ namespace Yaat.Client.Tests;
 /// </summary>
 public class GroundViewModelHoldShortMenuLocatedTests
 {
+    public GroundViewModelHoldShortMenuLocatedTests() => Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
     private static GroundNode Node(int id, double lat, double lon) =>
         new()
         {

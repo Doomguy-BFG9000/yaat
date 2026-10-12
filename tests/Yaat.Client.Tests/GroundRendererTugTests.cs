@@ -16,6 +16,8 @@ namespace Yaat.Client.Tests;
 /// </summary>
 public class GroundRendererTugTests
 {
+    public GroundRendererTugTests() => Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
     private const double CenterLat = 37.62;
     private const double CenterLon = -122.38;
     private const int SurfacePx = 400;

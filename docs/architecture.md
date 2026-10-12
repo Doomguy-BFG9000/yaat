@@ -2335,7 +2335,7 @@ CapturedLogRecord.cs           # One captured log entry (level, category, format
 CapturingSimLogProvider.cs     # Bounded ring-buffer ILoggerProvider: Warning+ tap registered on the same factory as SimLog.Initialize; Drain() per tick, DroppedCount on overflow
 
 # Testing/
-TestVnasData.cs                # Shared test data loader: NavData, CIFP, AircraftSpecs, AircraftCwt, FaaAcd, AircraftProfiles, FacilityOpsDatabase (from Data/FacilityOps). EnsureAircraftDataInitialized loads just the aircraft tables once per process without touching the NavigationDatabase singleton, for a harness (e.g. yaat-server's RoomEngineTestHarness) that installs its own
+TestVnasData.cs                # Shared test data loader: NavData, CIFP, AircraftSpecs, AircraftCwt, FaaAcd, AircraftProfiles, FacilityOpsDatabase (from Data/FacilityOps). The AircraftSpecs, AircraftCwt and FaaAcd loaders throw on a missing or empty file. EnsureAircraftDataInitialized loads just the aircraft tables once per process without touching the NavigationDatabase singleton, for a harness (e.g. yaat-server's RoomEngineTestHarness) that installs its own
 
 Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
 ```

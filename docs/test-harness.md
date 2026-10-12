@@ -22,7 +22,7 @@ The non-negotiable rules, each detailed below:
 
 1. **Real data, never synthetic.** Initialize with `TestVnasData.EnsureInitialized()`; never hand-roll stub fixes/profiles.
 2. **Call `EnsureInitialized()` in the test class *constructor*** if any test reads a data-backed static singleton (race protection).
-3. **Silently skip on missing data** — return early, no `Assert.Skip`, no throw — so a fresh/offline checkout keeps CI green. **Exception: NavData and CIFP are hard preconditions.** `ModuleInit` throws if it cannot resolve `NavData.dat` or the CIFP, because most of this suite asserts against real navdata and procedures, and a run without them reports green having proved nothing. Ground layouts, recordings, ARTCC configs and the rest still skip silently.
+3. **Silently skip on missing data** — return early, no `Assert.Skip`, no throw — so a fresh/offline checkout keeps CI green. **Exception: NavData, CIFP and the committed aircraft tables are hard preconditions.** `ModuleInit` throws if it cannot resolve `NavData.dat` or the CIFP, because most of this suite asserts against real navdata and procedures, and a run without them reports green having proved nothing. `LoadAircraftSpecs`, `LoadAircraftCwt` and `LoadFaaAcd` likewise throw when `AircraftSpecs.json`, `AircraftCwt.json` or `FaaAcd.json` is missing from the test data folder or holds no entries (a broken checkout or a wrong `SetTestDataDir`), so no test runs on a half-loaded table. Ground layouts, recordings, ARTCC configs and the rest still skip silently.
 4. **Run suites under a 120 s ceiling** (`pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 120 -Slot heavy -- dotnet test`) so soft hangs surface as failures.
 5. **Runner options go after `--`** (Microsoft.Testing.Platform): `dotnet test -- --filter-method "*Name*"`; see [Running tests](#running-tests).
 6. **For full-suite confidence run `pwsh tools/test-all.ps1`**, not bare `dotnet test` — only that builds the sibling yaat-server.
@@ -534,7 +534,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 - **`SimLog` swallows everything by default** (`NullLoggerFactory`). Use `SimLogBuilder.CreateForTest(output).EnableCategory(...)
   .InitializeSimLog()` (which uses `InitializeForTest`, scoped — not `Initialize`, which poisons the process-wide static for parallel
   tests) and run the project as a process with `--show-live-output on` (see [Running tests](#running-tests)).
-- **Silent-skip on missing data is mandatory.** When NavData/CIFP/GeoJSON/recording/ARTCC-snapshot is absent (fresh checkout, offline),
+- **Silent-skip on missing data is mandatory** for everything but NavData, CIFP and the committed aircraft tables (`AircraftSpecs.json`, `AircraftCwt.json`, `FaaAcd.json`), which throw. When GeoJSON/recording/ARTCC-snapshot is absent (fresh checkout, offline),
   return early — **no `Assert.Skip`, no exception** — so CI stays green. `TestVnasData.NavigationDb`, `TestAirportGroundData.GetLayout`,
   and `TestArtccConfig.LoadZoa` all return `null` for exactly this.
 - **CIFP decompression uses a per-process sentinel-file dance.** A `yaat-test-FAACIFP18-<pid>` file held open without `FileShare.Delete`

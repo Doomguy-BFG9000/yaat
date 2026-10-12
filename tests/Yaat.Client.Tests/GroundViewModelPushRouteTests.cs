@@ -14,6 +14,8 @@ namespace Yaat.Client.Tests;
 // the goals those very tokens resolve to, refusals included.
 public class GroundViewModelPushRouteTests
 {
+    public GroundViewModelPushRouteTests() => Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
     private const double Lat0 = 37.620;
     private const double Lon0 = -122.380;
 

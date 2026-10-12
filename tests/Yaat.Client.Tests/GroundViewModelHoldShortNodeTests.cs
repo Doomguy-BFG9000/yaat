@@ -12,6 +12,8 @@ namespace Yaat.Client.Tests;
 // coordinates with a single straight taxiway and a fan of HS nodes.
 public class GroundViewModelHoldShortNodeTests
 {
+    public GroundViewModelHoldShortNodeTests() => Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
     private const double StartLat = 37.620;
     private const double StartLon = -122.380;
 

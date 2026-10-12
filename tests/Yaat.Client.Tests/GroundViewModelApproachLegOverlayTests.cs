@@ -21,6 +21,8 @@ namespace Yaat.Client.Tests;
 /// </summary>
 public class GroundViewModelApproachLegOverlayTests
 {
+    public GroundViewModelApproachLegOverlayTests() => Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
     private static GroundViewModel MakeViewModel()
     {
         var connection = new ServerConnection();
@@ -189,11 +191,11 @@ public class GroundViewModelApproachLegOverlayTests
 
     /// <summary>
     /// Partway along the line-up's run-in the overlay draws the rest of the run-in and the pull — not a leg back out to
-    /// the approach point it has already passed. Earlier on the run-in, and on the apron crossing, the overlay still
-    /// re-plans from the nearest node (a backlog item in docs/plans/MAIN.md).
+    /// the approach point it has already passed. Earlier on the run-in, until the aircraft is off the T7A–RAMP fillet
+    /// (about 0.65 of a real CRJ7's run-in), the overlay re-plans from the taxi-start node, as YAAT-196 records.
     /// </summary>
     [Theory]
-    [InlineData(0.5)]
+    [InlineData(0.7)]
     [InlineData(0.75)]
     public void SpotLineUp_PartwayAlongTheRunIn_DrawsNoLegBackOut(double fraction)
     {
@@ -219,7 +221,8 @@ public class GroundViewModelApproachLegOverlayTests
         TaxiRoute? drawn = vm.ResolveRemainingRoute(Skw5590(partway, new TrueHeading(runInDeg), server));
 
         Assert.NotNull(drawn);
-        Assert.True(DistanceFt(drawn!.Segments[0].Edge.FromNode.Position, partway) < 1.0, "the overlay does not start at the aircraft");
+        double startOffsetFt = DistanceFt(drawn!.Segments[0].Edge.FromNode.Position, partway);
+        Assert.True(startOffsetFt < 1.0, $"the overlay does not start at the aircraft: it starts {startOffsetFt:F1} ft away");
         Assert.DoesNotContain(drawn.Segments, s => DistanceFt(s.Edge.ToNode.Position, approach) < 5.0);
         Assert.True(
             GeoMath.AbsBearingDifference(drawn.Segments[0].Edge.DepartureBearing, runInDeg) < 10.0,

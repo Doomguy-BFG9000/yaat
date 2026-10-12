@@ -302,24 +302,34 @@ public static class TestVnasData
         }
     }
 
-    private static void LoadAircraftSpecs()
+    /// <summary>
+    /// Reads one of the committed aircraft tables from the test data folder. A missing file or a table with no entries is a
+    /// broken checkout or a wrong <see cref="SetTestDataDir"/>, never a state to run tests in.
+    /// </summary>
+    private static T ReadRequiredAircraftTable<T>(string fileName)
+        where T : System.Collections.ICollection
     {
-        string path = Path.Combine(_testDataDir, "AircraftSpecs.json");
+        string path = Path.Combine(_testDataDir, fileName);
         if (!File.Exists(path))
         {
-            return;
+            throw new FileNotFoundException(
+                $"Aircraft test data not found at {path}; it is committed under tests/Yaat.Sim.Tests/TestData, so point SetTestDataDir there.",
+                path
+            );
         }
 
-        string json = File.ReadAllText(path);
-        List<AircraftSpecEntry>? specs = JsonSerializer.Deserialize<List<AircraftSpecEntry>>(
-            json,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        );
-        if (specs is null)
+        T? table = JsonSerializer.Deserialize<T>(File.ReadAllText(path), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if ((table is null) || (table.Count == 0))
         {
-            return;
+            throw new InvalidOperationException($"Aircraft test data at {path} holds no entries.");
         }
 
+        return table;
+    }
+
+    private static void LoadAircraftSpecs()
+    {
+        List<AircraftSpecEntry> specs = ReadRequiredAircraftTable<List<AircraftSpecEntry>>("AircraftSpecs.json");
         var catLookup = new Dictionary<string, AircraftCategory>(StringComparer.OrdinalIgnoreCase);
 
         foreach (AircraftSpecEntry spec in specs)
@@ -353,22 +363,7 @@ public static class TestVnasData
 
     private static void LoadAircraftCwt()
     {
-        string path = Path.Combine(_testDataDir, "AircraftCwt.json");
-        if (!File.Exists(path))
-        {
-            return;
-        }
-
-        string json = File.ReadAllText(path);
-        List<AircraftCwtEntry>? entries = JsonSerializer.Deserialize<List<AircraftCwtEntry>>(
-            json,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        );
-        if (entries is null)
-        {
-            return;
-        }
-
+        List<AircraftCwtEntry> entries = ReadRequiredAircraftTable<List<AircraftCwtEntry>>("AircraftCwt.json");
         var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (AircraftCwtEntry entry in entries)
         {
@@ -381,25 +376,8 @@ public static class TestVnasData
         WakeTurbulenceData.Initialize(lookup);
     }
 
-    private static void LoadFaaAcd()
-    {
-        string path = Path.Combine(_testDataDir, "FaaAcd.json");
-        if (!File.Exists(path))
-        {
-            return;
-        }
-
-        string json = File.ReadAllText(path);
-
-        Dictionary<string, FaaAircraftRecord>? records = JsonSerializer.Deserialize<Dictionary<string, FaaAircraftRecord>>(
-            json,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        );
-        if (records is { Count: > 0 })
-        {
-            FaaAircraftDatabase.Initialize(records);
-        }
-    }
+    private static void LoadFaaAcd() =>
+        FaaAircraftDatabase.Initialize(ReadRequiredAircraftTable<Dictionary<string, FaaAircraftRecord>>("FaaAcd.json"));
 
     private static void LoadAircraftProfiles()
     {
