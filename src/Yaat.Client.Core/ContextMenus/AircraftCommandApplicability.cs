@@ -347,11 +347,12 @@ public static class AircraftCommandApplicability
     /// aircraft. To a stationary aircraft the sim's RES clears a hold directive or breaks a ground-conflict stall, and
     /// refuses ("Aircraft is not held") with neither; each of these three phases is also reachable unheld — Holding In
     /// Position after a WARPG, a completed taxi to a spot, or a rejected/cancelled takeoff — so the phase alone cannot gate
-    /// the item. To an aircraft rolling free (<c>Taxiing</c> or a <c>Following…</c> phase, not held) RES clears the next
-    /// hold short on its route when that is a taxiway or spot bar (<see cref="IMenuAircraft.HasTaxiwayHoldShortAhead"/>),
-    /// and refuses a runway one. The hold-short holds are a different RES path
-    /// (<see cref="CanResumeFromHoldShort"/>). The <see cref="IsControllable"/> guard keeps surface live-traffic shadows,
-    /// which are never assumable, out, as in <see cref="CanPushBack"/>.
+    /// the item. A held aircraft still rolling (<c>Taxiing</c> or a <c>Following…</c> phase) is offered RES as well: the sim
+    /// clears its hold directive there. To an aircraft rolling free (<c>Taxiing</c> or a <c>Following…</c> phase, not held)
+    /// RES clears the next hold short on its route when that is a taxiway or spot bar
+    /// (<see cref="IMenuAircraft.HasTaxiwayHoldShortAhead"/>), and refuses a runway one. The hold-short holds are a
+    /// different RES path (<see cref="CanResumeFromHoldShort"/>). The <see cref="IsControllable"/> guard keeps surface
+    /// live-traffic shadows, which are never assumable, out, as in <see cref="CanPushBack"/>.
     /// </summary>
     public static bool CanResumeTaxi(IMenuAircraft? ac)
     {
@@ -363,7 +364,8 @@ public static class AircraftCommandApplicability
         string phase = ac.CurrentPhase;
         if (ac.IsHeld)
         {
-            return phase is "Holding After Exit" or "Holding After Pushback" or "Holding In Position";
+            return (phase is "Holding After Exit" or "Holding After Pushback" or "Holding In Position" or "Taxiing")
+                || phase.StartsWith("Following", StringComparison.Ordinal);
         }
 
         bool rolling = (phase == "Taxiing") || phase.StartsWith("Following", StringComparison.Ordinal);

@@ -282,8 +282,8 @@ public class GroundMovementMenuTests
         Assert.DoesNotContain("Resume taxi", Headers(BuildAircraftListMenu(phase, held: false)));
 
     // A bare RES to a rolling aircraft pre-clears the taxiway hold short ahead of it, so both menus offer it there — and
-    // only there: a stationary hold that is not held stays hidden even with a taxiway bar ahead,
-    // (a held rolling aircraft is a known gap, filed separately).
+    // only there: a stationary hold that is not held stays hidden even with a taxiway bar ahead. A held rolling aircraft
+    // is offered RES too, which clears the hold directive.
     [AvaloniaTheory]
     [InlineData("Taxiing")]
     [InlineData("Following SWA200")]
@@ -295,6 +295,19 @@ public class GroundMovementMenuTests
     [InlineData("Following SWA200")]
     public void AircraftListMenu_OffersResumeTaxi_WhenRollingWithTaxiwayHoldShortAhead(string phase) =>
         Assert.Contains("Resume taxi", Headers(BuildAircraftListMenu(WithTaxiwayHoldShortAhead(phase, held: false))));
+
+    // A held aircraft rolling on still carries the hold directive the sim's RES clears, so both menus offer it there too.
+    [AvaloniaTheory]
+    [InlineData("Taxiing")]
+    [InlineData("Following SWA200")]
+    public void GroundMenu_OffersResumeTaxi_WhenRollingAndHeld(string phase) =>
+        Assert.Contains("Resume taxi", Headers(BuildGroundMenu(phase, held: true)));
+
+    [AvaloniaTheory]
+    [InlineData("Taxiing")]
+    [InlineData("Following SWA200")]
+    public void AircraftListMenu_OffersResumeTaxi_WhenRollingAndHeld(string phase) =>
+        Assert.Contains("Resume taxi", Headers(BuildAircraftListMenu(phase, held: true)));
 
     [AvaloniaTheory]
     [InlineData("Holding After Exit")]
@@ -452,6 +465,12 @@ public class GroundMovementMenuTests
         Assert.True(AircraftCommandApplicability.CanResumeTaxi(GroundAircraft("UAL100", phase, held: true)));
 
     [Theory]
+    [InlineData("Taxiing")]
+    [InlineData("Following SWA200")]
+    public void CanResumeTaxi_AcceptsARollingAircraft_WhenHeld(string phase) =>
+        Assert.True(AircraftCommandApplicability.CanResumeTaxi(GroundAircraft("UAL100", phase, held: true)));
+
+    [Theory]
     [InlineData("Holding After Exit")]
     [InlineData("Holding After Pushback")]
     [InlineData("Holding In Position")]
@@ -462,7 +481,6 @@ public class GroundMovementMenuTests
     // different path with its own menu items, so it stays out of this predicate.
     [Theory]
     [InlineData("Holding Short 28L")]
-    [InlineData("Taxiing")]
     [InlineData("At Parking")]
     public void CanResumeTaxi_RejectsPhasesWithoutAHoldDirective(string phase) =>
         Assert.False(AircraftCommandApplicability.CanResumeTaxi(GroundAircraft("UAL100", phase, held: true)));

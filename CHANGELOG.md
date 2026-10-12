@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- The right-click menu offers Resume taxi for an aircraft held while taxiing or following.
+
 ## v0.16.2-beta [2026/10/11]
 
 ### Highlights

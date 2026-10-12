@@ -2510,7 +2510,7 @@ public class MenuCatalogCommandTests
     // incomplete route — both end the route, so "route left" is the whole gate. The departure-runway situation flag is
     // no substitute: it is also set at an intersection-departure explicit bar, where the sim accepts RES. The held
     // stationary holds resume as well, and so does a rolling aircraft with a taxiway hold short ahead, which RES pre-clears;
-    // a rolling aircraft with none ahead, or a held one, is not offered it.
+    // a rolling aircraft with none ahead is not offered it, and a held rolling aircraft is (RES clears the hold directive).
     [AvaloniaTheory]
     [InlineData("Holding Short 28R/10L", true, "", false, true)]
     [InlineData("Holding Short 28R/10L", false, "", false, false)]
@@ -2519,7 +2519,7 @@ public class MenuCatalogCommandTests
     [InlineData("Holding In Position", true, "", true, false)]
     [InlineData("Taxiing", true, "", true, true)]
     [InlineData("Taxiing", true, "", false, false)]
-    [InlineData("Taxiing", true, "HP", true, false)]
+    [InlineData("Taxiing", true, "HP", true, true)]
     public void ResumeTaxi_OnlyWhereTheSimAcceptsRes(string phase, bool hasActiveTaxiRoute, string holdKind, bool taxiwayHoldShortAhead, bool offered)
     {
         AircraftModel ac = OnGround(phase, "IFR", "28R");
