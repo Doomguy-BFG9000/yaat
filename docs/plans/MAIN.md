@@ -4,13 +4,14 @@
 
 ## ERAM coverage coast (feat/eram-coverage-coast)
 
-- [/] YAAT-209 Move the ERAM coverage-loss coast state machine into the Sim · release vNext
 - [ ] YAAT-216 HandoffUnacceptedRule: keep the anomaly for low handoffs to human-attended positions · release vNext
+- [ ] YAAT-651 Merge feat/eram-coverage-coast (#1132) · release vNext
 
 ## Context-menu quick commands (#471)
 
-- [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip · release vNext
+- [/] YAAT-545 Close the gap the quick-command label row leaves above the icon strip · release vNext
 - [ ] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
+- [ ] YAAT-650 Give every context-critical command a quick-command icon in its situation's strip
 
 ## Bug reports and feature requests
 
@@ -468,3 +469,6 @@
 - [ ] YAAT-629 Give the tools that load TestVnasData the aircraft tables they now require
 - [ ] YAAT-631 Run yaat-crc-config's Rust tests in CI with cargo-nextest
 - [ ] YAAT-646 Make CrcJoinSessionTests' Tower Cab move into another room's session load-proof
+- [ ] YAAT-647 Count the ERAM coverage coast's 24 s from the anchor sweep, as the disconnect coast does
+- [ ] YAAT-648 Withhold a STARS-to-STARS auto-accept only on what the STARS display shows, not ERAM coverage
+- [ ] YAAT-649 Rebuild the server's ERAM disconnect coasts from the Sim after a rewind or reload

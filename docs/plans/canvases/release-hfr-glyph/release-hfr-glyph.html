@@ -1,0 +1,72 @@
+<title>Release (HFR) Icon</title>
+<style>
+/* Layout: one row of lanes, each the aircraft menu's strip for a held departure with one candidate drawn in it. The app runs dark only, so the page stays dark. */
+:root {
+  color-scheme: dark;
+  --page: #0B0D0F; --panel: #15181B; --rule: #2A2F35; --ink: #E4E7EB; --soft: #B4BBC4; --muted: #9AA3AD; --accent: #8FC1FF; --warn: #FFB259;
+  --m-bg: #2B2B2B; --well: #1F2226; --dim: #9A9A9A;
+  --f-body: 'Segoe UI', system-ui, sans-serif; --f-mono: Consolas, Menlo, monospace;
+}
+body { background: var(--page); color: var(--ink); font: 14px/1.5 var(--f-body); }
+.wrap { max-width: 1200px; margin: 0 auto; padding-inline: 16px; padding-block: 32px 56px; display: flex; flex-direction: column; gap: 28px; }
+h1 { margin: 0; font-size: 28px; font-weight: 600; text-wrap: balance; }
+.lede { margin: 0; color: var(--soft); max-width: 70ch; }
+.lanes { display: flex; flex-wrap: wrap; gap: 24px; }
+.lane { width: 330px; max-width: 100%; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tag { font: 600 12px var(--f-mono); color: var(--accent); border: 1px solid var(--rule); border-radius: 4px; padding: 1px 7px; align-self: flex-start; }
+.lane h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.menu { background: var(--m-bg); border-radius: 8px; padding: 6px 0 8px; box-shadow: 0 0 0 1px #000a, 0 10px 28px #0008; font-size: 14px; }
+.t { font-weight: 700; color: #7A7A7A; padding: 2px 12px; }
+.st { font-size: 12px; padding: 2px 12px 6px; color: #EDEDED; min-height: 18px; }
+.st .cm { font-family: var(--f-mono); color: #B8B8B8; font-size: 11px; }
+.sep { height: 1px; background: #7F7F7F; margin: 4px 12px 6px 4px; }
+.row { display: flex; gap: 6px; padding: 0 8px; }
+.b { width: 42px; height: 42px; border-radius: 4px; background: var(--well); border: 1px solid #ffffff14; display: grid; place-items: center; }
+.b.new { outline: 1px dashed var(--accent); outline-offset: 2px; }
+.big { display: flex; gap: 18px; align-items: center; }
+.big .b { width: 72px; height: 72px; }
+.cap { margin: 0; font-size: 13px; color: var(--soft); }
+.cap b { color: var(--ink); font-weight: 600; }
+.cap.w { color: var(--warn); }
+</style>
+<div class="wrap">
+  <h1>Release (HFR) icon</h1>
+  <p class="lede">Release (HFR) moves from the menu header into the quick-command strip, first in the row while the departure is held for release. It needs an icon. Each lane shows a held departure's strip with Release (HFR) first (dashed outline), then Check release window (the existing clock), Taxi to runway, Hold position and Cleared for takeoff. The header line shows what pointing at the new icon would say. Family colour: grey-white, like Check release window.</p>
+  <div class="lanes" id="lanes"></div>
+</div>
+<script>
+(() => {
+  const C = { S: "#DCE2E8", T: "#FFC062", G: "#6EE0CE" };
+  const svg = (d, col, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  const NEIGHBOURS = [
+    ["S", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v5l3 3"],
+    ["G", "M19 3v18 M3 12h12 M11 8l4 4-4 4"],
+    ["G", "M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6"],
+    ["T", "M2 20h20 M5 16L19 6 M13 6h6v6"],
+  ];
+  const OPTIONS = [
+    { tag: "A", name: "Open padlock", d: "M5 11h14v10H5z M8 11V7a4 4 0 0 1 7.6-1.8 M12 15v2",
+      how: "A padlock with its shackle swung open: the hold comes off.",
+      worst: "A padlock also reads as security or permissions; a new instructor may not tie it to a departure at first sight." },
+    { tag: "B", name: "Climb arrow through a broken bar", d: "M2 20h7 M15 20h7 M4 17L18 5 M12 5h6v6",
+      how: "The takeoff arrow's climb with the runway line broken under it: the departure is let go.",
+      worst: "It sits two cells from Cleared for takeoff and shares its arrow, so the two can be mistaken at a glance; a misclick sends REL where CTO was meant (both are harmless to the sim, but the wrong one goes out)." },
+    { tag: "C", name: "Clock with a check", d: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M8 12.5l2.7 2.7L16.5 9",
+      how: "A clock face carrying a check mark: the release time is given. Pairs visually with Check release window's clock.",
+      worst: "Beside Check release window it differs only in the hands versus the check; the two clocks side by side are easy to swap." },
+  ];
+  const lane = o => `<section class="lane">
+    <span class="tag">${o.tag}</span><h2>${o.name}</h2>
+    <div class="menu" role="img" aria-label="Aircraft menu strip with option ${o.tag}">
+      <div class="t">SWA1234 · B737</div>
+      <div class="st">Release (HFR) — <span class="cm">REL</span></div>
+      <div class="sep"></div>
+      <div class="row"><span class="b new">${svg(o.d, C.S, 32)}</span>${NEIGHBOURS.map(([f, d]) => `<span class="b">${svg(d, C[f], 32)}</span>`).join("")}</div>
+    </div>
+    <div class="big"><span class="b new">${svg(o.d, C.S, 56)}</span><span class="b">${svg(o.d, C.S, 22)}</span></div>
+    <p class="cap"><b>How it reads:</b> ${o.how}</p>
+    <p class="cap w"><b>Worst case:</b> ${o.worst}</p>
+  </section>`;
+  document.getElementById("lanes").innerHTML = OPTIONS.map(lane).join("");
+})();
+</script>
