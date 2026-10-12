@@ -2,10 +2,41 @@
 SWA101 · B738 [disabled]
 At parking · 25 [disabled]
 ---
+strip: [ground.pushback, ground.taxi-preset, ground.draw-taxi-route, ground.pushback-to]
+---
 Command…
 Note…
----
-strip: [ground.pushback, ground.taxi-preset, ground.draw-taxi-route, ground.pushback-to]
+All Commands
+  Push back
+  Push back to…
+    Computing targets… [disabled]
+  Push route…
+  Taxi to runway
+    Finding runway entries… [disabled]
+  Preset taxi route
+    PR TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
+  Draw taxi route…
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+Favorite Commands
+  (no items) [disabled]
 ---
 Track
   Initiate Track
@@ -54,36 +85,5 @@ Display
   ---
   Blank target
   Unblank target
-Favorite Commands
-  (no items) [disabled]
-All Commands
-  Push back
-  Push back to…
-    Computing targets… [disabled]
-  Push route…
-  Taxi to runway
-    Finding runway entries… [disabled]
-  Preset taxi route
-    PR TERMINAL to 30 · via T U W · ~4,700 ft — TAXI T U W RWY 30
-  Draw taxi route…
-  ---
-  Ask pilot to say…
-    Altitude
-    Heading
-    Speed
-    Mach
-    Position
-    Expected approach
-    ---
-    Custom… picker:input
-  Coordination
-    Release
-    Hold
-    Recall
-    Acknowledge release
-  ---
-  Edit flight plan
-  ---
-  Warp…
 ---
 Delete

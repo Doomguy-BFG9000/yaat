@@ -284,13 +284,14 @@ Route drawing and heading mode start from the aircraft right-click menu.
 
 Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#ground-view-1) or the [Aircraft List](#aircraft-list-1) and the same menu opens on all three. It leads with a short list of **quick commands** for what the aircraft is doing right now, and keeps every other command one level down under **All Commands**. From the top:
 
-- The title (callsign and type), then the dimmed state line, the route summary and hold status rows when they apply, **Release (HFR)** and **Check release window** when they apply, then **Command…** (a focused free-text command popup) and **Note…**.
+- The title (callsign and type), then the dimmed state line, the route summary and hold status rows when they apply.
 
   The **state line** says what the aircraft is doing right now. Airborne it reads phase, altitude (to the nearest 100 ft), speed and runway, the airport being the departure airport while taking off or departing and the destination otherwise: `Approach · 3,000 ft · 180 kt · KOAK rwy 30`.
 
   On the ground it reads phase, taxiway (else parking spot) and airport, `Taxiing · C · KOAK`, and on a landing roll phase, runway and ground speed, `Landing · runway 28R · 62 kt`. A part with no value is left out, and an aircraft with nothing to show has no state line.
-- The **icon strip**: up to ten icons in two rows of five, one per quick command that has an icon. A label row above the icons names the icon under the pointer, wrapping a long name onto a second line, with the text it sends (`Hold position — HOLD`), adds "›" when the icon opens choices, and reads "Quick commands" when none is pointed at; hovering an icon also shows a tooltip. A click sends it, or opens its prompt; an icon with a small notch in its corner opens its choices (Cleared for takeoff's options) in a flyout beside the menu, and the icon stays lit while it is open. The flyout stays open when the pointer moves off the menu; click the icon again, click another icon or press **Escape** (which leaves the menu open) to close it. Choosing a command closes the menu.
-- The remaining quick commands as text, below the strip.
+- The **icon strip**: up to ten icons in two rows of five, one per quick command that has an icon. **Release (HFR)** (an open padlock) and **Check release window** (a clock) are the first icons when they apply. The icon under the pointer is named in place of the state line while you point at it: its name, the text it sends (`Hold position — HOLD`) and "›" when it opens choices. A name too long for the line scrolls slowly and back, and an aircraft with no state line has a blank line there for it. A click sends it, or opens its prompt; an icon with a small notch in its corner opens its choices (Cleared for takeoff's options) in a flyout beside the menu, and the icon stays lit while it is open. The flyout stays open when the pointer moves off the menu; click the icon again, click another icon or press **Escape** (which leaves the menu open) to close it. Choosing a command closes the menu.
+- The remaining quick commands as text, below the strip (an icon past the tenth is the first of them).
+- **Command…** (a focused free-text command popup) and **Note…**, then **All Commands** and **Favorite Commands**, then Track, Data Block, Squawk and the view's own items.
 
   The approach commands (**Cleared approach**, **Join approach**, **Expect approach** and their straight-in, forced and final-course variants) name their likely approach for one click: the expected approach, else the assigned runway's ILS, else its first published approach (`Cleared ILS 30` sends `CAPP I30`). **Cleared approach (other)…** under it lists every approach grouped by runway: the assigned runway first (else the runway of the active or expected approach), by kind (ILS, LOC, RNAV, RNP), each row showing the command it sends, then **Other runways**, one submenu per runway. With no expected approach and no assigned runway, the command opens that runway list directly.
 
@@ -810,7 +811,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 **Right-click context menus:**
 - **On an aircraft**: the same [aircraft menu](#aircraft-right-click-menu) the [Ground View](#ground-view-1) and the [Aircraft List](#aircraft-list-1) show — only **Display** and **Draw route** are the radar's own.
 
-  Under the title and its header rows come Command… and Note…, then the quick commands and icon strip for the aircraft's situation, Track, Data Block, Squawk, Display and Draw route, Favorite Commands, and **All Commands**.
+  Under the title and its header rows come the quick commands and icon strip for the aircraft's situation, then Command… and Note…, **All Commands**, Favorite Commands, and Track, Data Block, Squawk, Display and Draw route.
 
   All Commands holds the ground items for an aircraft on the ground (Push back, Hold position, Hold short of…, Follow…, Give way to…, Cross — see the Ground View) and the groups Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower and Pattern in that order (only Tower while the aircraft is on the ground or rolling on the runway).
 
@@ -1394,7 +1395,7 @@ Model the departure-release coordination a TRACON provides to satellite towered 
 Release them in any of these ways:
 
 - `REL <airport>` (or `CTOA <airport>`) — release the next pending departure at that field.
-- `REL <callsign>` — release a specific aircraft (also available as a one-click **Release (HFR)** item in the header of the aircraft's right-click menu, below the title, the state line and the route and hold rows, on the radar, ground view and aircraft list).
+- `REL <callsign>` — release a specific aircraft (also available as the first icon of the aircraft's right-click menu strip, on the radar, ground view and aircraft list).
 - `REL <airport> <minutes>` — release the field's whole held queue, auto-spaced by that many minutes (e.g. `REL SJC 2`).
 - `HFROFF <airport>` — disarm the field; anything still held is auto-released.
 
@@ -1408,7 +1409,7 @@ Select the departure and type `CFR <HHMM>` to release it with a window that runs
 
 This is an instructor aid only — it never blocks a takeoff. If the departure gets airborne **after** the window expires, **before** it opens, or is **still holding** when the window lapses, YAAT posts an amber warning to the terminal (and, if you've enabled warning speech bubbles, a bubble on the aircraft). The window tracks real-world (wall-clock) time, so it isn't affected by pausing, rewinding, or fast-forwarding.
 
-While a window is active, the departure's row in the **Aircraft List** shows a live `CFR M:SS` countdown in its Info column (amber, turning red `CFR EXP` once the window closes). To read the exact window and time remaining at any point, type `CFR CHECK` or use the **Check release window** item in the aircraft's right-click menu.
+While a window is active, the departure's row in the **Aircraft List** shows a live `CFR M:SS` countdown in its Info column (amber, turning red `CFR EXP` once the window closes). To read the exact window and time remaining at any point, type `CFR CHECK` or use the **Check release window** icon in the aircraft's right-click menu.
 
 ### Timers
 

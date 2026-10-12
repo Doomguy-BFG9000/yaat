@@ -142,6 +142,7 @@ public static class QuickCommandGlyphs
             [MenuIds.SquawkCode] = ScopeAndSim("M3 7h18v10H3z M7 12h2 M11 12h2 M15 12h2"),
             [MenuIds.LiveTrafficAssume] = ScopeAndSim("M12 3v10 M8 9l4 4 4-4 M4 17v4h16v-4"),
             [MenuIds.LiveTrafficAssumeAndTrack] = ScopeAndSim("M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5 M12 7v8 M9 12l3 3 3-3"),
+            [MenuIds.CoordinationReleaseHeld] = ScopeAndSim("M5 11h14v10H5z M8 11V7a4 4 0 0 1 7.6-1.8 M12 15v2"),
             [MenuIds.CoordinationCheckReleaseWindow] = ScopeAndSim("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v5l3 3"),
             [MenuIds.SimControlWarp] = ScopeAndSim("M13 2L4 14h7l-1 8 9-12h-7z"),
             [MenuIds.SimControlDelete] = ScopeAndSim("M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13"),

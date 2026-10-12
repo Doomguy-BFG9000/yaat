@@ -2,28 +2,10 @@
 N306AB · C172 [disabled]
 Holding · 4,000 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
-Command…
-Note…
----
 strip: [navigation.direct-to, altitude.maintain, pattern.enter-left-downwind, pattern.enter-right-downwind, pattern.enter-left-base, pattern.enter-right-base, pattern.enter-final]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Heading
     Present heading
@@ -166,5 +148,23 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
 ---
 Delete

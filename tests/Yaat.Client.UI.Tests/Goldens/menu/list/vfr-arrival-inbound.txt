@@ -2,28 +2,10 @@
 N303AB · C172 [disabled]
 3,500 ft · 110 kt [disabled]
 ---
-Command…
-Note…
----
 strip: [pattern.enter-left-downwind, pattern.enter-right-downwind, pattern.enter-left-base, pattern.enter-right-base, pattern.enter-final, approach.report-n-mile-final, approach.report-at-fix]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Heading
     Present heading
@@ -152,5 +134,23 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
 ---
 Delete

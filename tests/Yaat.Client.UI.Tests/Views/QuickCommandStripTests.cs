@@ -12,9 +12,12 @@ using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -63,19 +66,7 @@ public class QuickCommandStripTests
     }
 
     [AvaloniaFact]
-    public void LeafButton_TooltipNamesTheEntryAndTheCommandItSends()
-    {
-        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        RecordingMenuHost host = Host();
-        AircraftModel ac = Fixture("taxiing");
-
-        Button holdPosition = QuickCommandStrip.Buttons(Strip(Build(ac, host))).Single(b => (string)b.Tag! == MenuIds.GroundHoldPosition);
-
-        Assert.Equal($"{MenuCatalog.Get(MenuIds.GroundHoldPosition).Label} — HOLD", ToolTip.GetTip(holdPosition));
-    }
-
-    [AvaloniaFact]
-    public void SubmenuButton_TooltipIsTheLabelAloneAndAClickSendsNothing()
+    public void SubmenuButton_AClickSendsNothingAndOpensTheFlyout()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         RecordingMenuHost host = Host();
@@ -86,28 +77,22 @@ public class QuickCommandStripTests
 
         follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        Assert.Equal(MenuCatalog.Get(MenuIds.GroundFollow).Label, ToolTip.GetTip(follow));
         Assert.Empty(host.Sent);
         Assert.True(SubmenuFlyout(follow).IsOpen);
         Assert.True(menu.IsOpen);
     }
 
-    [AvaloniaFact]
-    public void SubmenuButton_FlyoutClosesAndSuspendsItsTooltip_UntilTheFlyoutCloses()
+    [AvaloniaTheory]
+    [InlineData("taxiing")]
+    [InlineData("final-ifr")]
+    public void NoIcon_CarriesATooltip(string fixture)
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        ContextMenu menu = OpenInWindow(Build(Fixture("taxiing"), Host()));
-        Button follow = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
-        ToolTip.SetIsOpen(follow, true);
 
-        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        IReadOnlyList<Button> buttons = QuickCommandStrip.Buttons(Strip(Build(Fixture(fixture), Host())));
 
-        Assert.False(ToolTip.GetIsOpen(follow));
-        Assert.False(ToolTip.GetServiceEnabled(follow));
-
-        SubmenuFlyout(follow).Hide();
-
-        Assert.True(ToolTip.GetServiceEnabled(follow));
+        Assert.NotEmpty(buttons);
+        Assert.All(buttons, button => Assert.Null(ToolTip.GetTip(button)));
     }
 
     [AvaloniaFact]
@@ -216,7 +201,6 @@ public class QuickCommandStripTests
         MenuFlyout flyout = SubmenuFlyout(approach);
         Assert.True(flyout.IsOpen);
         Assert.Empty(host.Sent);
-        Assert.Equal(MenuCatalog.Get(MenuIds.ApproachCleared).Label, ToolTip.GetTip(approach));
         MenuItem runway = flyout.Items.OfType<MenuItem>().Single(item => item.Header as string == "28R · ILS, LOC, RNAV Y, RNP Z");
         MenuItem ils = runway.Items.OfType<MenuItem>().First(item => item.IsEnabled);
 
@@ -409,15 +393,15 @@ public class QuickCommandStripTests
     }
 
     [AvaloniaFact]
-    public void ApproachButton_WithADefault_SendsTheDefaultApproach()
+    public void ApproachButton_WithADefault_LabelNamesTheDefaultApproachAndItsCommand()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        RecordingMenuHost host = Host();
-        Button approach = QuickCommandStrip
-            .Buttons(Strip(Build(Fixture("approach-ifr"), host)))
-            .Single(b => (string)b.Tag! == MenuIds.ApproachCleared);
+        ContextMenu menu = Build(Fixture("approach-ifr"), Host());
+        Button approach = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.ApproachCleared);
 
-        Assert.Equal("Cleared ILS 30 — CAPP I30", ToolTip.GetTip(approach));
+        RaisePointer(approach, InputElement.PointerEnteredEvent);
+
+        Assert.Equal("Cleared ILS 30 — CAPP I30", Line(menu).Label);
     }
 
     [AvaloniaFact]
@@ -443,91 +427,373 @@ public class QuickCommandStripTests
 
         MenuItem strip = Strip(Build(Fixture("final-ifr"), host));
 
-        var rows = (StackPanel)((StackPanel)strip.Header!).Children[1];
+        var rows = (StackPanel)strip.Header!;
         Assert.InRange(QuickCommandStrip.Buttons(strip).Count, 1, QuickCommandStrip.RowLength);
         Assert.False(rows.Children[1].IsVisible);
     }
 
+    /// <summary>
+    /// Pointing at an icon that sends a command puts its name and command in the header's state-line row, in place of the
+    /// state line, and the state line comes back the moment the pointer leaves the strip.
+    /// </summary>
     [AvaloniaFact]
-    public void HoverLeaf_LabelNamesItAndItsCommand()
+    public void HoverLeaf_HeaderLineNamesItAndItsCommand_UntilThePointerLeavesTheStrip()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        MenuItem strip = Strip(Build(Fixture("taxiing"), Host()));
+        ContextMenu menu = Build(Fixture("taxiing"), Host());
+        MenuItem strip = Strip(menu);
+        QuickCommandLabelLine line = Line(menu);
+        Assert.Equal("Taxiing", line.Header);
+        Assert.Null(line.Label);
         Button holdPosition = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.GroundHoldPosition);
 
         RaisePointer(holdPosition, InputElement.PointerEnteredEvent);
 
-        Assert.Equal((MenuCatalog.Get(MenuIds.GroundHoldPosition).Label, "HOLD"), QuickCommandStrip.Label(strip));
-    }
-
-    [AvaloniaFact]
-    public void HoverSubmenu_LabelEndsWithChevronAndSaysItOpensASubmenu()
-    {
-        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        MenuItem strip = Strip(Build(Fixture("taxiing"), Host()));
-        Button follow = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
-
-        RaisePointer(follow, InputElement.PointerEnteredEvent);
-
-        Assert.Equal(($"{MenuCatalog.Get(MenuIds.GroundFollow).Label} ›", "opens a submenu"), QuickCommandStrip.Label(strip));
-    }
-
-    [AvaloniaFact]
-    public void PointerLeavesStrip_LabelResetsToPrompt()
-    {
-        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        MenuItem strip = Strip(Build(Fixture("taxiing"), Host()));
-        Assert.Equal(("Quick commands", "point at an icon"), QuickCommandStrip.Label(strip));
-        Button holdPosition = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.GroundHoldPosition);
-        RaisePointer(holdPosition, InputElement.PointerEnteredEvent);
+        Assert.Same(line, Line(menu));
+        Assert.Equal($"{MenuCatalog.Get(MenuIds.GroundHoldPosition).Label} — HOLD", line.Label);
+        Assert.NotEqual("Taxiing", line.Header);
 
         RaisePointer(strip, InputElement.PointerExitedEvent);
 
-        Assert.Equal(("Quick commands", "point at an icon"), QuickCommandStrip.Label(strip));
+        Assert.Null(line.Label);
+        Assert.Equal("Taxiing", line.Header);
     }
 
+    /// <summary>The pointer crossing the gap between two icons leaves the first icon but not the strip: the state line stays away.</summary>
     [AvaloniaFact]
-    public void FocusButton_LabelFollowsFocus()
+    public void PointerMovingToTheNextIcon_KeepsTheLabelUp()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        MenuItem strip = Strip(Build(Fixture("taxiing"), Host()));
-        IReadOnlyList<Button> buttons = QuickCommandStrip.Buttons(strip);
+        ContextMenu menu = Build(Fixture("taxiing"), Host());
+        IReadOnlyList<Button> buttons = QuickCommandStrip.Buttons(Strip(menu));
         Button holdPosition = buttons.Single(b => (string)b.Tag! == MenuIds.GroundHoldPosition);
         Button follow = buttons.Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+        QuickCommandLabelLine line = Line(menu);
+        string holdLabel = $"{MenuCatalog.Get(MenuIds.GroundHoldPosition).Label} — HOLD";
 
-        // Focus() on a button inside a context-menu popup returns false under the headless platform, so the focus
-        // change is raised as the focus manager raises it.
-        holdPosition.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
-        Assert.Equal((MenuCatalog.Get(MenuIds.GroundHoldPosition).Label, "HOLD"), QuickCommandStrip.Label(strip));
-        follow.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
-        Assert.Equal(($"{MenuCatalog.Get(MenuIds.GroundFollow).Label} ›", "opens a submenu"), QuickCommandStrip.Label(strip));
+        RaisePointer(holdPosition, InputElement.PointerEnteredEvent);
+        RaisePointer(holdPosition, InputElement.PointerExitedEvent);
+
+        Assert.Equal(holdLabel, line.Label);
+
+        RaisePointer(follow, InputElement.PointerEnteredEvent);
+
+        Assert.Equal($"{MenuCatalog.Get(MenuIds.GroundFollow).Label} ›", line.Label);
     }
 
     [AvaloniaFact]
-    public void HoverFinalApproachSpeed_LabelWrapsOntoTwoLinesAndKeepsTheRowHeight()
+    public void HoverSubmenuIcon_LabelEndsWithAChevronAndShowsNoCommand()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = Build(Fixture("taxiing"), Host());
+        Button follow = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+
+        RaisePointer(follow, InputElement.PointerEnteredEvent);
+
+        Assert.Equal($"{MenuCatalog.Get(MenuIds.GroundFollow).Label} ›", Line(menu).Label);
+    }
+
+    [AvaloniaFact]
+    public void FocusOnAnIcon_ShowsItsLabel_AndFocusLeavingTheStripRestoresTheStateLine()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = Build(Fixture("taxiing"), Host());
+        IReadOnlyList<Button> buttons = QuickCommandStrip.Buttons(Strip(menu));
+        Button holdPosition = buttons.Single(b => (string)b.Tag! == MenuIds.GroundHoldPosition);
+        Button follow = buttons.Single(b => (string)b.Tag! == MenuIds.GroundFollow);
+        QuickCommandLabelLine line = Line(menu);
+
+        // Focus() on a button inside a context-menu popup returns false under the headless platform, so the focus
+        // change is raised as the focus manager raises it: the old element loses focus, then the new one gets it.
+        holdPosition.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
+        Assert.Equal($"{MenuCatalog.Get(MenuIds.GroundHoldPosition).Label} — HOLD", line.Label);
+        holdPosition.RaiseEvent(new FocusChangedEventArgs(InputElement.LostFocusEvent));
+        follow.RaiseEvent(new FocusChangedEventArgs(InputElement.GotFocusEvent));
+        Assert.Equal($"{MenuCatalog.Get(MenuIds.GroundFollow).Label} ›", line.Label);
+
+        follow.RaiseEvent(new FocusChangedEventArgs(InputElement.LostFocusEvent));
+
+        Assert.Null(line.Label);
+        Assert.Equal("Taxiing", line.Header);
+    }
+
+    /// <summary>A label far longer than the state line neither widens nor heightens the menu: it scrolls inside the line instead.</summary>
+    [AvaloniaFact]
+    public void PointingAtAnIconWithALongLabel_LeavesTheMenusSizeAlone()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel ac = Fixture("final-ifr");
         ac.FiledAircraftType = "B738";
-        MenuItem strip = Strip(Build(ac, Host()));
-        var labelRow = (StackPanel)((StackPanel)strip.Header!).Children[0];
-        var title = (TextBlock)labelRow.Children[0];
-        labelRow.Measure(new Size(labelRow.Width, double.PositiveInfinity));
-        double promptHeight = labelRow.DesiredSize.Height;
-        Button fas = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.SpeedFinalApproach);
+        ContextMenu menu = OpenLaidOut(Build(ac, Host()));
+        // The label overflows, so the marquee runs frames for as long as it shows: on a clock the test owns, none outlive it.
+        Line(menu).MarqueeClock = new ManualClock();
+        Size atRest = menu.Bounds.Size;
+        Button fas = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.SpeedFinalApproach);
 
         RaisePointer(fas, InputElement.PointerEnteredEvent);
-        labelRow.Measure(new Size(labelRow.Width, double.PositiveInfinity));
+        menu.UpdateLayout();
 
-        Assert.Matches(@"^Reduce to final approach speed - \d+ kt$", title.Text);
-        Assert.Equal(TextWrapping.Wrap, title.TextWrapping);
-        // The headless platform measures every glyph at a stub width far wider than the real font's, so this pins the
-        // wrap to two lines, not where the real font breaks the text.
-        Assert.Equal(2, title.MaxLines);
-        Assert.Equal(2, title.TextLayout.TextLines.Count);
-        Assert.True(title.TextLayout.TextLines[^1].HasCollapsed);
-        Assert.Equal(promptHeight, labelRow.DesiredSize.Height);
+        Assert.StartsWith("Reduce to final approach speed - ", Line(menu).Label);
+        Assert.Equal(atRest, menu.Bounds.Size);
     }
+
+    /// <summary>An aircraft with nothing for the state line still gets a line of its height under the title, blank at rest.</summary>
+    [AvaloniaFact]
+    public void AircraftWithNoStateLine_KeepsABlankLineOfItsHeightThatTheLabelFills()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        // An en-route aircraft with no phase, altitude, speed or runway leaves every state segment out.
+        AircraftModel bare = Fixture("ifr-enroute");
+        bare.CurrentPhase = "";
+        bare.Altitude = 0;
+        bare.IndicatedAirspeed = 0;
+        bare.AssignedRunway = "";
+        ContextMenu withState = OpenLaidOut(Build(Fixture("ifr-enroute"), Host()));
+        ContextMenu menu = OpenLaidOut(Build(bare, Host()));
+        QuickCommandLabelLine line = Line(menu);
+        Assert.Equal("", line.Header);
+        Assert.Equal(Line(withState).Bounds.Height, line.Bounds.Height);
+        MenuItem strip = Strip(menu);
+        Button flyHeading = QuickCommandStrip.Buttons(strip).Single(b => (string)b.Tag! == MenuIds.HeadingFly);
+        // A label that overflows the blank line runs the marquee's frames while it shows: on a clock the test owns, none outlive it.
+        line.MarqueeClock = new ManualClock();
+
+        RaisePointer(flyHeading, InputElement.PointerEnteredEvent);
+
+        Assert.StartsWith(MenuCatalog.Get(MenuIds.HeadingFly).Label, line.Label);
+
+        RaisePointer(strip, InputElement.PointerExitedEvent);
+
+        Assert.Null(line.Label);
+        Assert.Equal("", line.Header);
+        menu.Close();
+        withState.Close();
+    }
+
+    [AvaloniaFact]
+    public void TaxiNodePointMenu_KeepsALineUnderItsTitleThatTheLabelFills()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var node = new GroundNodeDto(7, 37.7210, -122.2200, "TaxiwayIntersection", null, null, null);
+        var ac = new AircraftModel
+        {
+            Callsign = "AAL202",
+            AircraftType = "B738",
+            FlightRules = "IFR",
+            IsOnGround = true,
+            CurrentPhase = "At Parking",
+            Position = new LatLon(37.7200, -122.2190),
+        };
+        var point = new MenuPoint(new LatLon(node.Latitude, node.Longitude), node, null, [], null);
+
+        ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, null, point, []), new RecordingMenuHost(""), _ => []);
+
+        QuickCommandLabelLine line = Line(menu);
+        Assert.Equal("", line.Header);
+        Assert.IsType<Separator>(menu.Items[2]);
+        MenuItem strip = Strip(menu);
+        RaisePointer(QuickCommandStrip.Buttons(strip)[0], InputElement.PointerEnteredEvent);
+        Assert.False(string.IsNullOrEmpty(line.Label));
+        RaisePointer(strip, InputElement.PointerExitedEvent);
+        Assert.Null(line.Label);
+    }
+
+    [AvaloniaFact]
+    public void RadarPointMenu_KeepsALineUnderItsTitle_AboveTheDetailRow()
+    {
+        var koak = new LatLon(37.7213, -122.2208);
+        var ac = new AircraftModel
+        {
+            Callsign = "AAL202",
+            AircraftType = "B738",
+            FlightRules = "IFR",
+            CurrentPhase = "",
+            Situation = AircraftSituation.IfrEnroute,
+            IsOnGround = false,
+            Position = koak,
+            Heading = new TrueHeading(120),
+            Altitude = 33000,
+            IndicatedAirspeed = 280,
+            GroundSpeed = 280,
+            NavigatingTo = "SUNOL",
+        };
+        var point = new MenuPoint(new LatLon(koak.Lat + 0.15, koak.Lon), null, null, [], null);
+        var host = new RecordingMenuHost("") { PointDescription = "OAK090010" };
+
+        ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, null, point, []), host, _ => []);
+
+        QuickCommandLabelLine line = Line(menu);
+        Assert.Equal("", line.Header);
+        Assert.StartsWith("OAK090010 · ", Assert.IsType<MenuItem>(menu.Items[2]).Header as string);
+        Assert.IsType<Separator>(menu.Items[3]);
+        Button flyHeading = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.PointFlyHeading);
+
+        RaisePointer(flyHeading, InputElement.PointerEnteredEvent);
+
+        Assert.StartsWith("Fly heading ", line.Label);
+    }
+
+    /// <summary>
+    /// A label wider than the line holds still for 800 ms, then scrolls left at 60 px/s: 30 px half a second later.
+    /// </summary>
+    [AvaloniaFact]
+    public void OverflowingLabel_WaitsThenScrollsLeftAtSixtyPixelsASecond()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("final-ifr");
+        ac.FiledAircraftType = "B738";
+        ContextMenu menu = OpenLaidOut(Build(ac, Host()));
+        QuickCommandLabelLine line = Line(menu);
+        var clock = new ManualClock();
+        line.MarqueeClock = clock;
+        Button fas = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.SpeedFinalApproach);
+
+        RaisePointer(fas, InputElement.PointerEnteredEvent);
+        RenderFrame(menu);
+        clock.Advance(TimeSpan.FromMilliseconds(799));
+        RenderFrame(menu);
+
+        Assert.Equal(0, line.MarqueeOffset);
+
+        clock.Advance(TimeSpan.FromMilliseconds(501));
+        RenderFrame(menu);
+
+        Assert.Equal(30, line.MarqueeOffset, 6);
+    }
+
+    /// <summary>
+    /// The marquee's whole cycle for a label 60 px wider than its line, 1 s of travel in a 3.6 s cycle: still for 800 ms,
+    /// left to 60 px, held there for 800 ms, back to 0 at the same speed, and the same again at each point of the next cycle.
+    /// </summary>
+    [Theory]
+    [InlineData(500, 0)]
+    [InlineData(1300, 30)]
+    [InlineData(1800, 60)]
+    [InlineData(2200, 60)]
+    [InlineData(2590, 60)]
+    [InlineData(2900, 42)]
+    [InlineData(3500, 6)]
+    public void MarqueeOffsetAt_HoldsAtTheFarEnd_ScrollsBack_AndRepeats(int elapsedMs, double expected)
+    {
+        const double overflow = 60;
+        var cycle = TimeSpan.FromMilliseconds(3600);
+        var elapsed = TimeSpan.FromMilliseconds(elapsedMs);
+
+        Assert.Equal(expected, QuickCommandLabelLine.MarqueeOffsetAt(elapsed, overflow), 6);
+        Assert.Equal(expected, QuickCommandLabelLine.MarqueeOffsetAt(elapsed + cycle, overflow), 6);
+    }
+
+    /// <summary>
+    /// Pointing at another icon once a label has scrolled shows the new label from the left, and pointing back at the first
+    /// starts its scroll again: still for the pause, not where it had got to.
+    /// </summary>
+    [AvaloniaFact]
+    public void PointingAtAnotherIcon_AfterThePause_StartsTheLabelFromTheLeftAgain()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("final-ifr");
+        ac.FiledAircraftType = "B738";
+        ContextMenu menu = OpenLaidOut(Build(ac, Host()));
+        QuickCommandLabelLine line = Line(menu);
+        var clock = new ManualClock();
+        line.MarqueeClock = clock;
+        IReadOnlyList<Button> buttons = QuickCommandStrip.Buttons(Strip(menu));
+        Button fas = buttons.Single(b => (string)b.Tag! == MenuIds.SpeedFinalApproach);
+        Button goAround = buttons.Single(b => (string)b.Tag! == MenuIds.TowerGoAround);
+
+        RaisePointer(fas, InputElement.PointerEnteredEvent);
+        RenderFrame(menu);
+        clock.Advance(TimeSpan.FromMilliseconds(1300));
+        RenderFrame(menu);
+        string? fasLabel = line.Label;
+        Assert.Equal(30, line.MarqueeOffset, 6);
+
+        RaisePointer(goAround, InputElement.PointerEnteredEvent);
+        RenderFrame(menu);
+
+        Assert.NotEqual(fasLabel, line.Label);
+        Assert.Equal(0, line.MarqueeOffset);
+
+        RaisePointer(fas, InputElement.PointerEnteredEvent);
+        RenderFrame(menu);
+        clock.Advance(TimeSpan.FromMilliseconds(100));
+        RenderFrame(menu);
+
+        Assert.Equal(fasLabel, line.Label);
+        Assert.Equal(0, line.MarqueeOffset);
+        menu.Close();
+    }
+
+    [AvaloniaFact]
+    public void FittingLabel_DoesNotMove()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        ContextMenu menu = OpenLaidOut(Build(Fixture("final-ifr"), Host()));
+        QuickCommandLabelLine line = Line(menu);
+        var clock = new ManualClock();
+        line.MarqueeClock = clock;
+        Button goAround = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.TowerGoAround);
+
+        RaisePointer(goAround, InputElement.PointerEnteredEvent);
+        RenderFrame(menu);
+        clock.Advance(TimeSpan.FromSeconds(2));
+        RenderFrame(menu);
+
+        Assert.NotNull(line.Label);
+        Assert.Equal(0, line.MarqueeOffset);
+    }
+
+    /// <summary>Lays the menu out and runs the frames the clock's timers posted, so the marquee reads the clock.</summary>
+    private static void RenderFrame(ContextMenu menu)
+    {
+        menu.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>A clock that moves only when the test advances it; each advance fires every live timer once.</summary>
+    private sealed class ManualClock : TimeProvider
+    {
+        private readonly List<ManualTimer> _timers = [];
+        private long _ticks;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() => _ticks;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ManualTimer(() => callback(state), _timers);
+            _timers.Add(timer);
+            return timer;
+        }
+
+        public void Advance(TimeSpan by)
+        {
+            _ticks += by.Ticks;
+            foreach (ManualTimer timer in _timers.ToList())
+            {
+                timer.Fire();
+            }
+        }
+
+        private sealed class ManualTimer(Action fire, List<ManualTimer> timers) : ITimer
+        {
+            public void Fire() => fire();
+
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+
+            public void Dispose() => timers.Remove(this);
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
+    }
+
+    /// <summary>The header line under the title the strip writes its label into.</summary>
+    private static QuickCommandLabelLine Line(ContextMenu menu) => Assert.IsType<QuickCommandLabelLine>(menu.Items[1]);
 
     private static void RaisePointer(Control target, RoutedEvent routedEvent) =>
         target.RaiseEvent(

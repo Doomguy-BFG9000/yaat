@@ -513,8 +513,8 @@ The up to ten glyph buttons (two rows of five) at the top of an aircraft menu: t
 **State line**:
 The dimmed, disabled row under an aircraft menu's title that says what the aircraft is doing now, as segments joined with ` · ` (`Approach · 3,000 ft · 180 kt · KOAK rwy 30`, `Taxiing · C · KOAK`, `Landing · runway 28R · 62 kt`); a segment with no value is left out, and with none left there is no row (`SharedMenuGroups.StateLineItem`, phase names from `PhaseDisplayNames`).
 
-**Label row**:
-The line above an icon strip's icons that names the entry under the pointer (or keyboard focus) with the command it sends, or reads "Quick commands" when none is pointed at.
+**Label line**:
+The state line's row while an icon strip's icon is pointed at (or keyboard-focused): it shows the entry's name and the command it sends in place of the state line, scrolling as a marquee when too long, and is blank at rest on a menu with no state line (`QuickCommandLabelLine`).
 
 **Quick-list visibility rule**:
 A rule that hides a quick command in its situation by the server's situation flags or `NextCrossingRunway` (Cross only when a runway lies next on the taxi route, Cancel takeoff clearance only before V1); quick list only, All Commands keeps the entry (`AircraftCommandApplicability.Shows*`, applied by `QuickCommandResolver`).

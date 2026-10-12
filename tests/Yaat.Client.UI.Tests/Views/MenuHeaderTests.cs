@@ -22,14 +22,18 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The header every aircraft menu opens with (<see cref="SharedMenuGroups.AddHeader"/>): the bold title naming the
-/// callsign and the filed type, the one-line state row under it, the route summary and hold status rows below that, the
-/// release items (Release (HFR) and Check release window) where they apply, then the free-text Command… and Note…, which
-/// ask the host to open its command and note flyouts.
+/// callsign and the filed type, the one-line state row under it, and the route summary and hold status rows below that;
+/// the release items (Release (HFR) and Check release window) lead the quick-command strip under it where they apply,
+/// and the free-text Command… and Note… (<see cref="SharedMenuGroups.AddCommandAndNote"/>), which ask the host to open
+/// its command and note flyouts, follow the strip.
 /// </summary>
 public class MenuHeaderTests
 {
     private const string Callsign = "SWA104";
     private const string Initials = "AB";
+
+    /// <summary>How <see cref="Describe"/> writes the quick-command strip, whose header is its button rows.</summary>
+    private const string StripRow = nameof(MenuItem);
 
     [AvaloniaFact]
     public void Title_IsCallsignAndFiledType_BoldAndDisabled()
@@ -37,7 +41,7 @@ public class MenuHeaderTests
         AircraftModel ac = Jet();
         ac.FiledAircraftType = "B739";
 
-        MenuItem title = Assert.IsType<MenuItem>(Header(ac, new RecordingMenuHost(""))[0]);
+        MenuItem title = Assert.IsType<MenuItem>(Header(ac)[0]);
 
         Assert.Equal("SWA104 · B739", title.Header as string);
         Assert.False(title.IsEnabled);
@@ -47,7 +51,7 @@ public class MenuHeaderTests
     [AvaloniaFact]
     public void Title_WithNoFiledType_ShowsTheAircraftType()
     {
-        MenuItem title = Assert.IsType<MenuItem>(Header(Jet(), new RecordingMenuHost(""))[0]);
+        MenuItem title = Assert.IsType<MenuItem>(Header(Jet())[0]);
 
         Assert.Equal("SWA104 · B738", title.Header as string);
     }
@@ -55,7 +59,7 @@ public class MenuHeaderTests
     [AvaloniaFact]
     public void Title_WithNoAircraftModel_IsTheBareCallsign()
     {
-        MenuItem title = Assert.IsType<MenuItem>(Header(null, new RecordingMenuHost(""))[0]);
+        MenuItem title = Assert.IsType<MenuItem>(Header(null)[0]);
 
         Assert.Equal(Callsign, title.Header as string);
     }
@@ -69,7 +73,7 @@ public class MenuHeaderTests
         ac.AircraftType = type;
         ac.FiledAircraftType = type;
 
-        MenuItem title = Assert.IsType<MenuItem>(Header(ac, new RecordingMenuHost(""))[0]);
+        MenuItem title = Assert.IsType<MenuItem>(Header(ac)[0]);
 
         Assert.Equal(Callsign, title.Header as string);
     }
@@ -183,20 +187,20 @@ public class MenuHeaderTests
         ac.CurrentTaxiway = "W3";
         ac.GroundAirportId = "KOAK";
 
-        List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
+        List<string> items = [.. Header(ac).Select(Describe)];
 
-        Assert.Equal(["SWA104 · B738", "Taxiing · W3 · KOAK", "---", "Command…"], items[..4]);
+        Assert.Equal(["SWA104 · B738", "Taxiing · W3 · KOAK"], items);
     }
 
     [AvaloniaFact]
-    public void Header_IsTitleStateHeldSeparatorCommandNoteSeparator()
+    public void Header_IsTitleStateHeld_InformationRowsOnly()
     {
         AircraftModel ac = Jet();
         ac.HoldKind = "HoldPosition";
 
-        List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
+        List<string> items = [.. Header(ac).Select(Describe)];
 
-        Assert.Equal(["SWA104 · B738", "Taxiing", "Held: position", "---", "Command…", "Note…", "---"], items);
+        Assert.Equal(["SWA104 · B738", "Taxiing", "Held: position"], items);
     }
 
     [AvaloniaFact]
@@ -204,7 +208,7 @@ public class MenuHeaderTests
     {
         var host = new RecordingMenuHost("");
 
-        Click(Item(Header(Jet(), host), "Command…"));
+        Click(Item(CommandAndNote(Jet(), host), "Command…"));
 
         Assert.Equal([(Callsign, Initials)], host.CommandFlyouts);
         Assert.Empty(host.Sent);
@@ -217,7 +221,7 @@ public class MenuHeaderTests
         ac.Note = "OLD NOTE";
         var host = new RecordingMenuHost("");
 
-        Click(Item(Header(ac, host), "Note…"));
+        Click(Item(CommandAndNote(ac, host), "Note…"));
 
         (string callsign, string currentNote) = Assert.Single(host.NoteFlyouts);
         Assert.Equal((Callsign, "OLD NOTE"), (callsign, currentNote));
@@ -231,7 +235,7 @@ public class MenuHeaderTests
     {
         var host = new RecordingMenuHost("");
 
-        Click(Item(Header(null, host), "Note…"));
+        Click(Item(CommandAndNote(null, host), "Note…"));
 
         Assert.Equal([(Callsign, "")], host.NoteFlyouts);
     }
@@ -386,42 +390,43 @@ public class MenuHeaderTests
     // --- The views ----------------------------------------------------------------------------
 
     [AvaloniaFact]
-    public void GroundMenu_StartsWithTheSharedHeader_FavoritesBeforeAllCommands() =>
-        AssertStartsWithHeaderFavoritesBeforeAllCommands(MenuView.Ground);
+    public void GroundMenu_StartsWithTheSharedHeaderThenTheStrip_AllCommandsBeforeFavorites() => AssertStartsWithHeaderThenStrip(MenuView.Ground);
 
     [AvaloniaFact]
-    public void ListMenu_StartsWithTheSharedHeader_FavoritesBeforeAllCommands() => AssertStartsWithHeaderFavoritesBeforeAllCommands(MenuView.List);
+    public void ListMenu_StartsWithTheSharedHeaderThenTheStrip_AllCommandsBeforeFavorites() => AssertStartsWithHeaderThenStrip(MenuView.List);
 
-    private void AssertStartsWithHeaderFavoritesBeforeAllCommands(MenuView view)
+    private void AssertStartsWithHeaderThenStrip(MenuView view)
     {
         List<string> items = TopLevel(view, "taxiing", out ContextMenu _);
 
-        Assert.Equal(["SWA104 · B738", "Taxiing", "---", "Command…", "Note…", "---"], items[..6]);
-        AssertFavoritesBeforeAllCommands(items);
+        Assert.Equal(["SWA104 · B738", "Taxiing", "---", StripRow, "---"], items[..5]);
+        AssertCommandNoteAllCommandsFavorites(items);
     }
 
-    /// <summary>Favorites sits once at the top level, straight before All Commands.</summary>
-    private static void AssertFavoritesBeforeAllCommands(List<string> items)
+    /// <summary>
+    /// Command… and Note… sit once at the top level, under the quick commands' separator, followed by All Commands,
+    /// Favorites and a separator.
+    /// </summary>
+    private static void AssertCommandNoteAllCommandsFavorites(List<string> items)
     {
-        int favorites = items.IndexOf("Favorite Commands");
+        int command = items.IndexOf("Command…");
+        Assert.Equal("---", items[command - 1]);
+        Assert.Equal(["Command…", "Note…", AircraftMenuBuilder.AllCommandsHeader, "Favorite Commands", "---"], items[command..(command + 5)]);
+        Assert.Single(items, i => i == "Command…");
+        Assert.Single(items, i => i == "Note…");
         Assert.Single(items, i => i == "Favorite Commands");
-        Assert.Equal(AircraftMenuBuilder.AllCommandsHeader, items[favorites + 1]);
     }
 
     [AvaloniaFact]
-    public void RadarMenu_StartsWithTheSharedHeader_ItsOwnRowsUnderTheTitle_FavoritesBeforeAllCommands()
+    public void RadarMenu_StartsWithTheSharedHeader_ItsOwnRowsUnderTheTitle_ThenTheStrip()
     {
         List<string> items = TopLevel(MenuView.Radar, "ifr-enroute", out ContextMenu _);
 
         Assert.Equal("AAL202 · B738", items[0]);
-        int command = items.IndexOf("Command…");
-        Assert.True(command > 1, "Command… should follow the title, any radar rows and a separator.");
-        Assert.Equal("---", items[command - 1]);
-        Assert.DoesNotContain("---", items[1..(command - 1)]);
-        Assert.Equal(["Command…", "Note…", "---"], items[command..(command + 3)]);
-        AssertFavoritesBeforeAllCommands(items);
-        Assert.Single(items, i => i == "Command…");
-        Assert.Single(items, i => i == "Note…");
+        int separator = items.IndexOf("---");
+        Assert.True(separator > 1, "The separator should follow the title and any radar rows.");
+        Assert.Equal(StripRow, items[separator + 1]);
+        AssertCommandNoteAllCommandsFavorites(items);
     }
 
     [AvaloniaFact]
@@ -435,80 +440,52 @@ public class MenuHeaderTests
         Assert.DoesNotContain(children, c => c.StartsWith("Note", StringComparison.Ordinal));
     }
 
-    // --- The release items, in the header on every view ----------------------------------------
+    // --- The release items, first in the strip on every view ------------------------------------
 
     [AvaloniaFact]
-    public void Header_HeldForRelease_ShowsReleaseUnderTitle_OnEveryView()
-    {
-        Assert.Equal(
-            ["SWA108 · B738", "Taxiing", "Release (HFR)", "---", "Command…", "Note…", "---"],
-            TopLevel(MenuView.Ground, "held-for-release", out _)[..7]
-        );
-        Assert.Equal(
-            ["SWA108 · B738", "Taxiing", "Release (HFR)", "---", "Command…", "Note…", "---"],
-            TopLevel(MenuView.List, "held-for-release", out _)[..7]
-        );
+    public void HeldForRelease_ReleaseLeadsTheStrip_NotTheHeader_OnEveryView() =>
+        AssertReleaseLeadsTheStrip("held-for-release", "SWA108 · B738", MenuIds.CoordinationReleaseHeld, "Release (HFR)");
 
-        List<string> radar = TopLevel(MenuView.Radar, "held-for-release", out _);
-        Assert.Equal("SWA108 · B738", radar[0]);
-        Assert.Equal("Taxiing", radar[1]);
-        Assert.Equal("Release (HFR)", radar[2]);
-        Assert.Equal("---", radar[3]);
-        Assert.Single(radar, i => i == "Release (HFR)");
+    [AvaloniaFact]
+    public void CfrWindow_CheckReleaseWindowLeadsTheStrip_NotTheHeader_OnEveryView() =>
+        AssertReleaseLeadsTheStrip("cfr-window", "SWA109 · B738", MenuIds.CoordinationCheckReleaseWindow, "Check release window");
+
+    private void AssertReleaseLeadsTheStrip(string fixture, string title, string releaseId, string releaseLabel)
+    {
+        foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
+        {
+            List<string> items = TopLevel(view, fixture, out ContextMenu menu);
+
+            Assert.Equal([title, "Taxiing", "---", StripRow], items[..4]);
+            Assert.DoesNotContain(releaseLabel, items);
+            List<string> tags =
+            [
+                .. QuickCommandStrip.Buttons(Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip)).Select(b => (string)b.Tag!),
+            ];
+            Assert.Equal(releaseId, tags[0]);
+            Assert.Single(tags, tag => tag == releaseId);
+        }
     }
 
     [AvaloniaFact]
-    public void Header_CfrWindow_ShowsCheckReleaseWindowUnderTitle_OnEveryView()
-    {
-        Assert.Equal(
-            ["SWA109 · B738", "Taxiing", "Check release window", "---", "Command…", "Note…", "---"],
-            TopLevel(MenuView.Ground, "cfr-window", out _)[..7]
-        );
-        Assert.Equal(
-            ["SWA109 · B738", "Taxiing", "Check release window", "---", "Command…", "Note…", "---"],
-            TopLevel(MenuView.List, "cfr-window", out _)[..7]
-        );
-
-        List<string> radar = TopLevel(MenuView.Radar, "cfr-window", out _);
-        Assert.Equal("SWA109 · B738", radar[0]);
-        Assert.Equal("Taxiing", radar[1]);
-        Assert.Equal("Check release window", radar[2]);
-        Assert.Equal("---", radar[3]);
-        Assert.Single(radar, i => i == "Check release window");
-    }
-
-    [AvaloniaFact]
-    public void Header_HeldAndCfrWindow_ReleaseBeforeCheck()
+    public void Header_HeldAndCfrWindow_NoReleaseRows()
     {
         AircraftModel ac = Jet();
         ac.IsHeldForRelease = true;
         ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
 
-        List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
+        List<string> items = [.. Header(ac).Select(Describe)];
 
-        Assert.Equal(["SWA104 · B738", "Taxiing", "Release (HFR)", "Check release window", "---", "Command…", "Note…", "---"], items);
+        Assert.Equal(["SWA104 · B738", "Taxiing"], items);
     }
 
     [AvaloniaFact]
     public void Header_NotHeldNoWindow_NoReleaseRows()
     {
-        List<string> items = [.. Header(Jet(), new RecordingMenuHost("")).Select(Describe)];
+        List<string> items = [.. Header(Jet()).Select(Describe)];
 
         Assert.DoesNotContain("Release (HFR)", items);
         Assert.DoesNotContain("Check release window", items);
-    }
-
-    [AvaloniaFact]
-    public void CheckReleaseWindow_NotInCommandBlock()
-    {
-        foreach (MenuView view in new[] { MenuView.Ground, MenuView.List })
-        {
-            List<string> items = TopLevel(view, "cfr-window", out ContextMenu menu);
-
-            Assert.Equal(["SWA109 · B738", "Taxiing", "Check release window"], items[..3]);
-            Assert.Single(items, i => i == "Check release window");
-            Assert.Equal(1, CountOccurrences(MenuTreeSnapshot.Render(menu), "Check release window"));
-        }
     }
 
     // A surface live-traffic shadow is not controllable, so the radar header offers neither release row even with both flags set.
@@ -532,9 +509,9 @@ public class MenuHeaderTests
         Assert.DoesNotContain("Check release window", items);
     }
 
-    // The hold status row sits between the title and the shared release items.
+    // The hold status row ends the header; Release (HFR) is the first icon of the strip under it.
     [AvaloniaFact]
-    public void Header_Radar_ReleaseRowsFollowTheHoldRow()
+    public void Header_Radar_HoldRowEndsTheHeader_ReleaseLeadsTheStrip()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
@@ -548,7 +525,8 @@ public class MenuHeaderTests
         ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null);
         List<string> items = [.. menu.Items.Select(Describe)];
 
-        Assert.Equal(["SWA108 · B738", "Taxiing", "Held: position", "Release (HFR)", "---"], items[..5]);
+        Assert.Equal(["SWA108 · B738", "Taxiing", "Held: position", "---", StripRow], items[..5]);
+        Assert.Equal(MenuIds.CoordinationReleaseHeld, QuickCommandStrip.Buttons((MenuItem)menu.Items[4]!)[0].Tag);
     }
 
     // --- The route summary and hold status rows, on every view ---------------------------------
@@ -599,19 +577,6 @@ public class MenuHeaderTests
 
             Assert.Equal(["AAL202 · B738", "33,000 ft · 280 kt", "OAK SUNOL MOD", "Held: position", "---"], items[..5]);
         }
-    }
-
-    private static int CountOccurrences(string text, string value)
-    {
-        int count = 0;
-        int index = text.IndexOf(value, StringComparison.Ordinal);
-        while (index >= 0)
-        {
-            count++;
-            index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal);
-        }
-
-        return count;
     }
 
     /// <summary>The top-level items of one golden fixture's menu on <paramref name="view"/>: each item's header, a separator as <c>---</c>.</summary>
@@ -682,19 +647,27 @@ public class MenuHeaderTests
     /// <summary>The header's state row text, or null when the header has none.</summary>
     private static string? StateRow(AircraftModel ac)
     {
-        ItemCollection items = Header(ac, new RecordingMenuHost(""));
+        ItemCollection items = Header(ac);
         return ((items.Count > 1) && (items[1] is MenuItem { IsEnabled: false } row)) ? row.Header as string : null;
     }
 
     private static string StateLine(AircraftModel ac) => StateRow(ac) ?? throw new InvalidOperationException("The header has no state row.");
 
-    private static ItemCollection Header(AircraftModel? ac, IMenuHost host)
+    private static ItemCollection Header(AircraftModel? ac)
     {
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None);
         var menu = new ContextMenu();
-        SharedMenuGroups.AddHeader(menu.Items, ac, context, host);
+        SharedMenuGroups.AddHeader(menu.Items, ac, Context());
         return menu.Items;
     }
+
+    private static ItemCollection CommandAndNote(AircraftModel? ac, IMenuHost host)
+    {
+        var menu = new ContextMenu();
+        SharedMenuGroups.AddCommandAndNote(menu.Items, ac, Context(), host);
+        return menu.Items;
+    }
+
+    private static MenuContext Context() => TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None);
 
     /// <summary>A ground view over a main view model's primary ground view model, shown in a window hosted by that main view model.</summary>
     private static (MainViewModel Main, GroundView View) GroundOnMain()

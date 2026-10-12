@@ -180,7 +180,7 @@ public class GroundMovementMenuTests
 
         int displayIndex = items.IndexOf(display);
         Assert.Equal("Squawk", Assert.IsType<MenuItem>(items[displayIndex - 1]).Header);
-        Assert.Equal(MenuCatalog.Get(MenuIds.FavoritesMenu).Label, Assert.IsType<MenuItem>(items[displayIndex + 1]).Header);
+        Assert.IsType<Separator>(items[displayIndex + 1]);
         Assert.Contains("Edit flight plan", Headers(menu));
 
         foreach (List<string> headers in (List<string>[])[Headers(menu), TopHeaders(menu)])

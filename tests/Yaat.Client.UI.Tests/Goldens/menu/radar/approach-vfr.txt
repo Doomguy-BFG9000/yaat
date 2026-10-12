@@ -2,62 +2,11 @@
 N305AB · C172 [disabled]
 Approach · 2,500 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
-Command…
-Note…
----
 strip: [approach.cleared, altitude.maintain, speed.assign, approach.report-field-in-sight, tower.cleared-to-land]
 Cleared approach (other)… picker:grouped [Runway 28R · assigned: I28R, L28R, R28RY, H28RZ | Other runways: 10L, 10R, 12, 28L, 30]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Display
-  Mini datablock
-  Show nav route
-  Measure from N305AB
-  ---
-  Leader direction
-    1
-    2
-    3
-    4
-    5 (default)
-    6
-    7
-    8
-    9
-  J-ring
-    Clear
-    1 nm
-    2 nm
-    3 nm
-    5 nm
-    10 nm
-  Cone
-    Clear
-    1 nm
-    2 nm
-    3 nm
-    5 nm
-    10 nm
-  ---
-  Blank target
-  Unblank target
-Draw route
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Heading
     Present heading
@@ -208,5 +157,56 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Mini datablock
+  Show nav route
+  Measure from N305AB
+  ---
+  Leader direction
+    1
+    2
+    3
+    4
+    5 (default)
+    6
+    7
+    8
+    9
+  J-ring
+    Clear
+    1 nm
+    2 nm
+    3 nm
+    5 nm
+    10 nm
+  Cone
+    Clear
+    1 nm
+    2 nm
+    3 nm
+    5 nm
+    10 nm
+  ---
+  Blank target
+  Unblank target
+Draw route
 ---
 Delete

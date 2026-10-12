@@ -2,35 +2,10 @@
 SWA101 · B738 [disabled]
 At parking · 25 [disabled]
 ---
-Command…
-Note…
----
 strip: [ground.pushback, ground.taxi-preset, ground.draw-taxi-route, ground.pushback-to]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from SWA101
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Push back
   Push back to…
@@ -60,5 +35,30 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from SWA101
 ---
 Delete

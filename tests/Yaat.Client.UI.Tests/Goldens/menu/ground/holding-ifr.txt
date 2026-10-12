@@ -2,36 +2,11 @@
 AAL205 · B738 [disabled]
 Holding · 5,000 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
-Command…
-Note…
----
 strip: [approach.cleared, navigation.direct-to, altitude.maintain, pattern.enter-final]
 Cleared approach (other)… picker:grouped [Runway 30 · assigned: I30, L30, R30-Y, H30-Z | Other runways: 10L, 10R, 12, 28L, 28R]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from AAL205
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Heading
     Present heading
@@ -134,5 +109,30 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from AAL205
 ---
 Delete

@@ -2,28 +2,10 @@
 AAL201 · B738 [disabled]
 Departure · 3,000 ft · 180 kt · KLAX rwy 30 [disabled]
 ---
-Command…
-Note…
----
 strip: [heading.fly, altitude.maintain, navigation.direct-to, speed.assign]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Heading
     Present heading
@@ -115,5 +97,23 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
 ---
 Delete

@@ -2,28 +2,10 @@
 SWA105 · B738 [disabled]
 Holding short 30/12 [disabled]
 ---
-Command…
-Note…
----
 strip: [ground.cross-runway]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Taxi to runway
     Finding runway entries… [disabled]
@@ -58,5 +40,23 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
 ---
 Delete

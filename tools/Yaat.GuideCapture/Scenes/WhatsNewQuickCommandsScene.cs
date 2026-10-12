@@ -9,9 +9,9 @@ namespace Yaat.GuideCapture.Scenes;
 // Feature showcase > quick commands in the right-click menu. The radar view's
 // picture (S3-NCTC-3, as radar-view stages it) with the most isolated airborne
 // aircraft in the upper left of the scope selected and its menu opened by a
-// right-click on it: the state line, then the icon strip, its first icon
-// pointed at so the label row above the icons names it. The selection is put
-// back once the capture is taken.
+// right-click on it: the header, then the icon strip, its first icon pointed
+// at so the header's state-line row names it in place of the state line. The
+// selection is put back once the capture is taken.
 internal sealed class WhatsNewQuickCommandsScene : ScenarioSceneBase
 {
     private static readonly Rect Region = new(0.15, 0.1, 0.35, 0.35);

@@ -8,6 +8,11 @@
 - A feed tool's room list shows each room's member count, aircraft count and whether it is paused.
 - A server run from source accepts VATSIM sandbox sign-ins for the feed tools' room list.
 
+### Changed
+
+- The right-click menu names the pointed quick-command icon in the line under its title, with no gap above the icons, and Command… and Note… follow the icons.
+- Release (HFR) and Check release window are the first icons in the menu's quick-command strip, also on a delayed spawn's menu.
+
 ### Fixed
 
 - The room title's ARTCC label now follows the room when a scenario or recording is loaded or unloaded.

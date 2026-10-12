@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Primitives.PopupPositioning;
@@ -9,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Path = Avalonia.Controls.Shapes.Path;
@@ -37,10 +39,11 @@ public interface IStripFlyoutContent
 /// own menu item, built through the entry's builder: a sending or prompting item is clicked through that item's own Click
 /// handler, and a submenu opens its items as a flyout beside the menu (the button shows a corner notch), which stays open,
 /// its button latched, until that button is clicked again, another icon's flyout replaces it, another row's submenu opens,
-/// Escape closes it or the menu closes. Either way the menu closes once a command is chosen. The tooltip names the entry
-/// and, for an item that sends one fixed command, that command (<see cref="MenuCommandText"/>); a label row above the
-/// buttons says the same of the button under the pointer or keyboard focus, and prompts while the pointer is off the
-/// strip. Plain controls only, so it works on every view, the aircraft list included.
+/// Escape closes it or the menu closes. Either way the menu closes once a command is chosen. While the pointer is on a
+/// button, or keyboard focus is, the header's state-line row (<see cref="QuickCommandLabelLine"/>) names the entry and, for
+/// an item that sends one fixed command, that command (<see cref="MenuCommandText"/>); the state line comes back when the
+/// pointer leaves the strip and no button holds focus. Plain controls only, so it works on every view, the aircraft list
+/// included.
 /// </summary>
 public static class QuickCommandStrip
 {
@@ -66,9 +69,6 @@ public static class QuickCommandStrip
     private const double GlyphStrokeThickness = 1.9;
     private const double Gap = 6;
     private const string NotchPath = "M6 0V6H0z";
-    private const string PromptTitle = "Quick commands";
-    private const string PromptDetail = "point at an icon";
-    private const string SubmenuDetail = "opens a submenu";
     private const string ButtonPresenterPart = "PART_ContentPresenter";
     private static readonly Color NotchColor = Color.Parse("#9AA3AD");
     private static readonly Color WellBackground = Color.Parse("#1F2226");
@@ -114,25 +114,27 @@ public static class QuickCommandStrip
     /// The strip over menu items already built, one button each, in order, or null when there are none. A button stands
     /// for its item exactly as in <see cref="Build"/>; its tag is the strip item's catalog entry id, so two items of one
     /// entry (a Taxi to runway per runway end) share it. Each item must be in no other menu. The caller bounds the count:
-    /// nothing here holds it to <see cref="QuickCommandGlyphs.StripCapacity"/>.
+    /// nothing here holds it to <see cref="QuickCommandGlyphs.StripCapacity"/>. A button's label shows in the menu's
+    /// header line (<see cref="QuickCommandLabelLine.Ensure"/>), which a menu without a state line gets, blank, under its
+    /// title; a menu with no items, and so no title, shows no label.
     /// </summary>
     /// <param name="menu">The menu the strip sits in, which a chosen command closes.</param>
     /// <param name="built">Each button's entry and glyph, with the menu item it stands for.</param>
     public static MenuItem? FromBuilt(ContextMenu menu, IReadOnlyList<(QuickCommandStripItem Item, MenuItem Built)> built)
     {
-        var label = new StripLabel();
-        var strip = new MenuItem { StaysOpenOnClick = true };
-        var flyouts = new StripFlyouts(menu, strip);
-        List<Control> buttons = [.. built.Select(pair => BuildButton(menu, pair.Item, pair.Built, label, flyouts))];
-        if (buttons.Count == 0)
+        if (built.Count == 0)
         {
             return null;
         }
 
-        strip.Header = new StackPanel { Spacing = Gap, Children = { label.Panel, Rows(buttons) } };
+        var tracker = new StripLabelTracker(QuickCommandLabelLine.Ensure(menu));
+        var strip = new MenuItem { StaysOpenOnClick = true };
+        var flyouts = new StripFlyouts(menu, strip);
+        List<Control> buttons = [.. built.Select(pair => BuildButton(menu, pair.Item, pair.Built, tracker, flyouts))];
+        strip.Header = Rows(buttons);
         strip.Classes.Add(StripClass);
         strip.Styles.AddRange(ButtonStyles());
-        strip.PointerExited += (_, _) => label.ShowPrompt();
+        strip.PointerExited += (_, _) => tracker.LeaveStrip();
         return strip;
     }
 
@@ -153,15 +155,6 @@ public static class QuickCommandStrip
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
     }
-
-    /// <summary>
-    /// What the strip's label row reads now: the title (the entry under the pointer or focus, or the prompt) and the
-    /// detail under it (the command it sends, that it opens a submenu, the prompt's hint, or nothing).
-    /// </summary>
-    public static (string Title, string Detail) Label(MenuItem strip) =>
-        (strip.Header is StackPanel { Children: [StackPanel { Children: [TextBlock title, TextBlock detail] }, ..] })
-            ? (title.Text ?? "", detail.Text ?? "")
-            : ("", "");
 
     /// <summary>
     /// Lays <paramref name="cells"/> out as the strip does, in order: up to two rows of <see cref="RowLength"/>, the first
@@ -256,9 +249,7 @@ public static class QuickCommandStrip
 
     /// <summary>The strip's buttons, row one then row two; each button's <see cref="Control.Tag"/> is its catalog entry's id.</summary>
     public static IReadOnlyList<Button> Buttons(MenuItem strip) =>
-        (strip.Header is StackPanel { Children: [_, StackPanel rows] })
-            ? [.. rows.Children.OfType<StackPanel>().SelectMany(row => row.Children.OfType<Button>())]
-            : [];
+        (strip.Header is StackPanel rows) ? [.. rows.Children.OfType<StackPanel>().SelectMany(row => row.Children.OfType<Button>())] : [];
 
     /// <summary>The colour a glyph of <paramref name="family"/> is drawn in.</summary>
     public static Color FamilyColor(QuickCommandGlyphFamily family) =>
@@ -272,27 +263,24 @@ public static class QuickCommandStrip
             _ => throw new ArgumentOutOfRangeException(nameof(family), family, "Unknown quick-command glyph family."),
         };
 
-    /// <summary>
-    /// The tooltip for <paramref name="built"/>: its header and the command it sends (<c>Hold position — HOLD</c>), or the
-    /// header alone for a submenu or an item that sends no fixed command.
-    /// </summary>
-    public static string Tooltip(MenuCatalogEntry entry, MenuItem built)
-    {
-        string label = EntryLabel(entry, built);
-        return (FixedCommand(built) is { } command) ? $"{label} — {command}" : label;
-    }
-
     private static string EntryLabel(MenuCatalogEntry entry, MenuItem built) => built.Header as string ?? entry.Label;
 
     /// <summary>The one command <paramref name="built"/> sends, or null for a submenu or an item with no fixed command.</summary>
     private static string? FixedCommand(MenuItem built) =>
         ((built.Items.Count == 0) && (MenuCommandText.GetCommand(built) is { Length: > 0 } command)) ? command : null;
 
-    private static Button BuildButton(ContextMenu menu, QuickCommandStripItem item, MenuItem built, StripLabel label, StripFlyouts flyouts)
+    /// <summary>
+    /// The label <paramref name="built"/>'s button shows in the header line: its header and the command it sends
+    /// (<c>Hold position — HOLD</c>), the header and <c> ›</c> for a submenu, or the header alone for an item that sends
+    /// no fixed command.
+    /// </summary>
+    private static StripLabelText LabelText(MenuCatalogEntry entry, MenuItem built) =>
+        (built.Items.Count > 0) ? new($"{EntryLabel(entry, built)} ›", null) : new(EntryLabel(entry, built), FixedCommand(built));
+
+    private static Button BuildButton(ContextMenu menu, QuickCommandStripItem item, MenuItem built, StripLabelTracker tracker, StripFlyouts flyouts)
     {
         bool opensSubmenu = built.Items.Count > 0;
-        string title = opensSubmenu ? $"{EntryLabel(item.Entry, built)} ›" : EntryLabel(item.Entry, built);
-        string detail = opensSubmenu ? SubmenuDetail : FixedCommand(built) ?? "";
+        StripLabelText text = LabelText(item.Entry, built);
         var button = new Button
         {
             Content = GlyphCell(item.Glyph, opensSubmenu),
@@ -300,9 +288,9 @@ public static class QuickCommandStrip
             Tag = item.Entry.Id,
             Classes = { ButtonClass },
         };
-        ToolTip.SetTip(button, Tooltip(item.Entry, built));
-        button.PointerEntered += (_, _) => label.Show(title, detail);
-        button.GotFocus += (_, _) => label.Show(title, detail);
+        button.PointerEntered += (_, _) => tracker.Point(text);
+        button.GotFocus += (_, _) => tracker.Focus(button, text);
+        button.LostFocus += (_, _) => tracker.Blur(button);
         if (opensSubmenu)
         {
             flyouts.Attach(button, SubmenuFlyout(menu, built));
@@ -448,9 +436,9 @@ public static class QuickCommandStrip
     /// The strip's submenu flyouts, of which at most one is open. A click on a button opens its flyout beside the menu,
     /// its top edge on the strip's row, replacing any other, or closes it when it is the open one; the open flyout also
     /// closes when a parent-menu row opens its own submenu or the menu closes. Its button carries <see cref="StickyClass"/>
-    /// and has its tooltip closed and switched off while it is open. When a flyout holding keyboard focus closes by itself
-    /// (Escape) with the menu still open, focus goes back to its button, so a second Escape closes the menu; a flyout this
-    /// class hides leaves focus where it is, on the row whose submenu just opened or the button just clicked.
+    /// while it is open. When a flyout holding keyboard focus closes by itself (Escape) with the menu still open, focus
+    /// goes back to its button, so a second Escape closes the menu; a flyout this class hides leaves focus where it is, on
+    /// the row whose submenu just opened or the button just clicked.
     /// </summary>
     private sealed class StripFlyouts
     {
@@ -471,17 +459,11 @@ public static class QuickCommandStrip
         {
             FlyoutBase.SetAttachedFlyout(button, flyout);
             button.Click += (_, _) => Toggle(flyout);
-            flyout.Opened += (_, _) =>
-            {
-                ToolTip.SetIsOpen(button, false);
-                ToolTip.SetServiceEnabled(button, false);
-                button.Classes.Add(StickyClass);
-            };
+            flyout.Opened += (_, _) => button.Classes.Add(StickyClass);
             bool hadFocus = false;
             flyout.Closing += (_, _) => hadFocus = (!_hiding) && (flyout.Popup.Child?.IsKeyboardFocusWithin == true);
             flyout.Closed += (_, _) =>
             {
-                ToolTip.SetServiceEnabled(button, true);
                 button.Classes.Remove(StickyClass);
                 bool refocus = hadFocus && _menu.IsOpen;
                 hadFocus = false;
@@ -574,65 +556,57 @@ public static class QuickCommandStrip
     }
 
     /// <summary>
-    /// The label row above the buttons: the entry under the pointer or keyboard focus on the first line, and on a dimmer
-    /// monospace line under it the command it sends; the prompt while the pointer is off the strip. It is as wide as a
-    /// full row of buttons: a longer title wraps onto a second line (and is trimmed only past it), a longer command is
-    /// trimmed, and the row always keeps room for two title lines, so the menu keeps its size as the label changes.
+    /// Which button's label the header line shows: the button under the pointer, else the one holding keyboard focus,
+    /// else none, and the line shows its rest text. The pointer counts as on a button from the moment it enters one until
+    /// it leaves the strip, so crossing the gap between two buttons keeps the label up.
     /// </summary>
-    private sealed class StripLabel
+    private sealed class StripLabelTracker(QuickCommandLabelLine? line)
     {
-        private const double DimOpacity = 0.7;
-        private const int TitleMaxLines = 2;
-        private const double TitleLineHeight = 18;
-        private const double DetailLineHeight = 16;
+        private StripLabelText? _pointed;
+        private (Button Button, StripLabelText Text)? _focused;
 
-        private readonly TextBlock _title = new()
+        public void Point(StripLabelText text)
         {
-            FontSize = 14,
-            FontWeight = FontWeight.SemiBold,
-            LineHeight = TitleLineHeight,
-            TextWrapping = TextWrapping.Wrap,
-            MaxLines = TitleMaxLines,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
-        private readonly TextBlock _detail = new()
-        {
-            FontSize = 12,
-            Opacity = DimOpacity,
-            LineHeight = DetailLineHeight,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
+            _pointed = text;
+            Show();
+        }
 
-        public StripLabel()
+        public void LeaveStrip()
         {
-            _detail.Bind(TextBlock.FontFamilyProperty, _detail.GetResourceObservable(MonoFontKey));
-            Panel = new StackPanel
+            _pointed = null;
+            Show();
+        }
+
+        public void Focus(Button button, StripLabelText text)
+        {
+            _focused = (button, text);
+            Show();
+        }
+
+        public void Blur(Button button)
+        {
+            if ((_focused is { } focused) && ReferenceEquals(focused.Button, button))
             {
-                Width = (RowLength * CellSize) + ((RowLength - 1) * Gap),
-                MinHeight = (TitleMaxLines * TitleLineHeight) + DetailLineHeight,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Center,
-                Children = { _title, _detail },
-            };
-            ShowPrompt();
+                _focused = null;
+                Show();
+            }
         }
 
-        public StackPanel Panel { get; }
-
-        public void Show(string title, string detail)
+        private void Show()
         {
-            _title.Text = title;
-            _title.Opacity = 1;
-            _detail.Text = detail;
-        }
-
-        public void ShowPrompt()
-        {
-            _title.Text = PromptTitle;
-            _title.Opacity = DimOpacity;
-            _detail.Text = PromptDetail;
+            if ((_pointed ?? _focused?.Text) is { } text)
+            {
+                line?.ShowLabel(text.Name, text.Command);
+            }
+            else
+            {
+                line?.ShowRest();
+            }
         }
     }
+
+    /// <summary>What a button's label reads: the entry's name, and the command it sends when it sends one fixed command.</summary>
+    private sealed record StripLabelText(string Name, string? Command);
 
     /// <summary>The corner notch that marks a button opening a submenu.</summary>
     private static Path Notch() =>
@@ -646,4 +620,280 @@ public static class QuickCommandStrip
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Bottom,
         };
+}
+
+/// <summary>
+/// The header line under a menu's title that the quick-command strip writes its label into: a disabled, dimmed row
+/// whose header is its rest text (the aircraft's state line, or empty for the blank line a menu without one keeps) while
+/// no strip button is pointed at or focused, and the button's label while one is. The label is the entry's name, then
+/// <c> — </c> and the command in the monospace font when it sends one fixed command. It takes the rest text's place in
+/// the same row and is sized by the rest text, so the menu keeps its width and height as the label comes and goes; a
+/// label wider than the row waits 800 ms, scrolls left at 60 px/s until its end is in view, waits 800 ms, scrolls back
+/// and repeats, starting again from the left when the label changes. A label that fits does not move.
+/// </summary>
+public sealed class QuickCommandLabelLine : MenuItem
+{
+    private const double RestOpacity = 0.8;
+    private const double StateLineFontSize = 11;
+
+    private readonly string _rest;
+    private readonly Marquee _marquee;
+
+    /// <summary>A header line showing <paramref name="rest"/> at rest.</summary>
+    /// <param name="rest">The state line's text, or empty for a blank line.</param>
+    public QuickCommandLabelLine(string rest)
+    {
+        _rest = rest;
+        _marquee = new Marquee(rest, this);
+        Header = rest;
+        IsEnabled = false;
+        FontSize = StateLineFontSize;
+        Opacity = RestOpacity;
+    }
+
+    protected override Type StyleKeyOverride => typeof(MenuItem);
+
+    /// <summary>The clock the marquee's pauses and scrolling run on; the system clock unless a test sets its own.</summary>
+    public TimeProvider MarqueeClock
+    {
+        get => _marquee.Clock;
+        set => _marquee.Clock = value;
+    }
+
+    /// <summary>The label the line shows (<c>Hold position — HOLD</c>, <c>Follow ›</c>), or null while it shows its rest text.</summary>
+    public string? Label { get; private set; }
+
+    /// <summary>How far, in px, the label has scrolled left; 0 at rest, while it waits, and for a label that fits.</summary>
+    public double MarqueeOffset => _marquee.Offset;
+
+    /// <summary>The header line of <paramref name="menu"/>, or null when it has none.</summary>
+    public static QuickCommandLabelLine? In(ContextMenu menu) => menu.Items.OfType<QuickCommandLabelLine>().FirstOrDefault();
+
+    /// <summary>
+    /// The header line of <paramref name="menu"/>: its state line, else a blank line put in under its title (the first
+    /// item), so a menu without a state line still has a row for the label. Null for a menu with no items.
+    /// </summary>
+    public static QuickCommandLabelLine? Ensure(ContextMenu menu)
+    {
+        if (In(menu) is { } line)
+        {
+            return line;
+        }
+
+        if (menu.Items.Count == 0)
+        {
+            return null;
+        }
+
+        var blank = new QuickCommandLabelLine("");
+        menu.Items.Insert(1, blank);
+        return blank;
+    }
+
+    /// <summary>Shows <paramref name="name"/> and, when there is one, <paramref name="command"/> in place of the rest text.</summary>
+    internal void ShowLabel(string name, string? command)
+    {
+        string label = (command is null) ? name : $"{name} — {command}";
+        if (label == Label)
+        {
+            return;
+        }
+
+        Label = label;
+        _marquee.Start(name, command);
+        Header = _marquee;
+        Opacity = 1;
+    }
+
+    /// <summary>Puts the rest text back.</summary>
+    internal void ShowRest()
+    {
+        if (Label is null)
+        {
+            return;
+        }
+
+        Label = null;
+        _marquee.Stop();
+        Header = _rest;
+        Opacity = RestOpacity;
+    }
+
+    /// <summary>
+    /// How far a label <paramref name="overflow"/> px wider than its line has scrolled <paramref name="elapsed"/> after it
+    /// was shown: still for the pause, then left at the scroll speed to <paramref name="overflow"/>, still for the pause,
+    /// back at the same speed to 0, and round again. Always 0 for a label that fits.
+    /// </summary>
+    internal static double MarqueeOffsetAt(TimeSpan elapsed, double overflow)
+    {
+        const double pauseSeconds = 0.8;
+        const double pixelsPerSecond = 60;
+        if (overflow <= 0)
+        {
+            return 0;
+        }
+
+        double travel = overflow / pixelsPerSecond;
+        double t = elapsed.TotalSeconds % (2 * (pauseSeconds + travel));
+        if (t < pauseSeconds)
+        {
+            return 0;
+        }
+
+        t -= pauseSeconds;
+        if (t < travel)
+        {
+            return t * pixelsPerSecond;
+        }
+
+        t -= travel + pauseSeconds;
+        return (t < 0) ? overflow : overflow - (t * pixelsPerSecond);
+    }
+
+    /// <summary>
+    /// The label's view: sized by an invisible copy of the rest text, the label drawn on one line over it, centred, shifted
+    /// left by the marquee offset and clipped at the line's left and right edges. While it shows on screen, a 60 Hz timer
+    /// on the clock moves it; the timer stops once the laid-out label fits, when the label goes and when the menu closes.
+    /// </summary>
+    private sealed class Marquee : Control
+    {
+        private const double NameFontSize = 12;
+        private const double CommandFontSize = 11;
+        private static readonly IImmutableSolidColorBrush NameBrush = new ImmutableSolidColorBrush(Color.Parse("#EDEDED"));
+        private static readonly IImmutableSolidColorBrush DashBrush = new ImmutableSolidColorBrush(Color.Parse("#9A9A9A"));
+        private static readonly IImmutableSolidColorBrush CommandBrush = new ImmutableSolidColorBrush(Color.Parse("#B8B8B8"));
+
+        private readonly TextBlock _sizer;
+        private readonly TextBlock _text = new() { TextWrapping = TextWrapping.NoWrap };
+        private readonly Run _name = new() { FontSize = NameFontSize, Foreground = NameBrush };
+        private readonly Run _dash = new() { FontSize = NameFontSize, Foreground = DashBrush };
+        private readonly Run _command = new() { FontSize = CommandFontSize, Foreground = CommandBrush };
+        private static readonly TimeSpan FramePeriod = TimeSpan.FromSeconds(1.0 / 60);
+
+        private readonly TranslateTransform _shift = new();
+        private long _start;
+        private bool _running;
+        private bool _attached;
+        private ITimer? _frames;
+
+        public Marquee(string rest, MenuItem line)
+        {
+            _sizer = new TextBlock
+            {
+                Text = rest,
+                Opacity = 0,
+                IsHitTestVisible = false,
+            };
+            // The rest text is drawn in the line's own font, which a theme's TextBlock style would otherwise override here;
+            // set locally, it wins, so the copy of the rest text measures as the rest text does.
+            foreach (TextBlock block in (TextBlock[])[_sizer, _text])
+            {
+                block.Bind(TextBlock.FontSizeProperty, line.GetObservable(TemplatedControl.FontSizeProperty));
+                block.Bind(TextBlock.FontFamilyProperty, line.GetObservable(TemplatedControl.FontFamilyProperty));
+            }
+
+            _text.Inlines = [_name, _dash, _command];
+            _text.RenderTransform = _shift;
+            _command.Bind(TextElement.FontFamilyProperty, _text.GetResourceObservable(QuickCommandStrip.MonoFontKey));
+            VisualChildren.Add(_sizer);
+            VisualChildren.Add(_text);
+            LogicalChildren.Add(_sizer);
+            LogicalChildren.Add(_text);
+        }
+
+        public TimeProvider Clock { get; set; } = TimeProvider.System;
+
+        public double Offset { get; private set; }
+
+        public void Start(string name, string? command)
+        {
+            _name.Text = name;
+            _dash.Text = (command is null) ? "" : " — ";
+            _command.Text = command ?? "";
+            _start = Clock.GetTimestamp();
+            _running = true;
+            SetOffset(0);
+            StopFrames();
+            StartFrames();
+        }
+
+        public void Stop()
+        {
+            _running = false;
+            StopFrames();
+            SetOffset(0);
+        }
+
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            _sizer.Measure(availableSize);
+            _text.Measure(Size.Infinity);
+            return _sizer.DesiredSize;
+        }
+
+        protected override Size ArrangeOverride(Size finalSize)
+        {
+            _sizer.Arrange(new Rect(finalSize));
+            Size text = _text.DesiredSize;
+            _text.Arrange(new Rect(0, (finalSize.Height - text.Height) / 2, text.Width, text.Height));
+            Clip = new RectangleGeometry(new Rect(0, -finalSize.Height, finalSize.Width, 3 * finalSize.Height));
+            StartFrames();
+            return finalSize;
+        }
+
+        protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnAttachedToVisualTree(e);
+            _attached = true;
+            StartFrames();
+        }
+
+        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+            _attached = false;
+            StopFrames();
+        }
+
+        /// <summary>
+        /// Starts the frame timer on <see cref="Clock"/> while a label shows on screen and none runs: each tick moves the
+        /// label on the UI thread.
+        /// </summary>
+        private void StartFrames()
+        {
+            if (_running && _attached && (_frames is null))
+            {
+                _frames = Clock.CreateTimer(_ => Dispatcher.UIThread.Post(OnFrame), null, TimeSpan.Zero, FramePeriod);
+            }
+        }
+
+        private void StopFrames()
+        {
+            _frames?.Dispose();
+            _frames = null;
+        }
+
+        /// <summary>Moves the label to where the clock says it is; once laid out, a label that fits stops the frames.</summary>
+        private void OnFrame()
+        {
+            if (!_running)
+            {
+                return;
+            }
+
+            double overflow = Math.Max(0, _text.DesiredSize.Width - Bounds.Width);
+            if ((overflow <= 0) && (Bounds.Width > 0))
+            {
+                StopFrames();
+            }
+
+            SetOffset(MarqueeOffsetAt(Clock.GetElapsedTime(_start), overflow));
+        }
+
+        private void SetOffset(double offset)
+        {
+            Offset = offset;
+            _shift.X = -offset;
+        }
+    }
 }

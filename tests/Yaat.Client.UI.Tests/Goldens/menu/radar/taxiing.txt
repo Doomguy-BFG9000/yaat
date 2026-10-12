@@ -2,10 +2,47 @@
 SWA104 · B738 [disabled]
 Taxiing [disabled]
 ---
+strip: [ground.hold-position, ground.break-conflict]
+---
 Command…
 Note…
----
-strip: [ground.hold-position, ground.break-conflict]
+All Commands
+  Hold position
+  Taxi to runway
+    Finding runway entries… [disabled]
+  Preset taxi route
+    PR 30 to TERMINAL · via W V T · ~4,750 ft — TAXI W V T
+  Ignore ground conflicts (15 s)
+  Tower
+    Line up and wait 30
+    Cleared for takeoff 30
+      Cleared for takeoff — CTO
+      Fly heading — CTO ···
+      Fly runway heading — CTO RH
+      ---
+      Custom… picker:input
+  Draw taxi route…
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+Favorite Commands
+  (no items) [disabled]
 ---
 Track
   Initiate Track
@@ -54,42 +91,5 @@ Display
   ---
   Blank target
   Unblank target
-Favorite Commands
-  (no items) [disabled]
-All Commands
-  Hold position
-  Taxi to runway
-    Finding runway entries… [disabled]
-  Preset taxi route
-    PR 30 to TERMINAL · via W V T · ~4,750 ft — TAXI W V T
-  Ignore ground conflicts (15 s)
-  Tower
-    Line up and wait 30
-    Cleared for takeoff 30
-      Cleared for takeoff — CTO
-      Fly heading — CTO ···
-      Fly runway heading — CTO RH
-      ---
-      Custom… picker:input
-  Draw taxi route…
-  ---
-  Ask pilot to say…
-    Altitude
-    Heading
-    Speed
-    Mach
-    Position
-    Expected approach
-    ---
-    Custom… picker:input
-  Coordination
-    Release
-    Hold
-    Recall
-    Acknowledge release
-  ---
-  Edit flight plan
-  ---
-  Warp…
 ---
 Delete

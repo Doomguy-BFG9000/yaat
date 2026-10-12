@@ -1,30 +1,11 @@
 # list cfr-window
 SWA109 · B738 [disabled]
 Taxiing [disabled]
-Check release window
+---
+strip: [coordination.check-release-window, ground.hold-position, ground.break-conflict]
 ---
 Command…
 Note…
----
-strip: [ground.hold-position, ground.break-conflict]
----
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Favorite Commands
-  (no items) [disabled]
 All Commands
   Hold position
   Taxi to runway
@@ -60,5 +41,23 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
 ---
 Delete

@@ -2,35 +2,10 @@
 N309AB · C172 [disabled]
 Go around · 600 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
-Command…
-Note…
----
 strip: [heading.fly, altitude.maintain, pattern.enter-left-downwind, pattern.enter-right-downwind]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from N309AB
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Heading
     Present heading
@@ -129,5 +104,30 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from N309AB
 ---
 Delete

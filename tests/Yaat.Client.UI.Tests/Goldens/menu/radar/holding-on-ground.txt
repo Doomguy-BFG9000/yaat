@@ -2,10 +2,37 @@
 SWA103 · B738 [disabled]
 Holding in position [disabled]
 ---
+strip: [ground.draw-taxi-route]
+---
 Command…
 Note…
----
-strip: [ground.draw-taxi-route]
+All Commands
+  Taxi to runway
+    Finding runway entries… [disabled]
+  Preset taxi route
+    PR 30 to TERMINAL · via W V T · ~4,750 ft — TAXI W V T
+  Draw taxi route…
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+Favorite Commands
+  (no items) [disabled]
 ---
 Track
   Initiate Track
@@ -54,32 +81,5 @@ Display
   ---
   Blank target
   Unblank target
-Favorite Commands
-  (no items) [disabled]
-All Commands
-  Taxi to runway
-    Finding runway entries… [disabled]
-  Preset taxi route
-    PR 30 to TERMINAL · via W V T · ~4,750 ft — TAXI W V T
-  Draw taxi route…
-  ---
-  Ask pilot to say…
-    Altitude
-    Heading
-    Speed
-    Mach
-    Position
-    Expected approach
-    ---
-    Custom… picker:input
-  Coordination
-    Release
-    Hold
-    Recall
-    Acknowledge release
-  ---
-  Edit flight plan
-  ---
-  Warp…
 ---
 Delete

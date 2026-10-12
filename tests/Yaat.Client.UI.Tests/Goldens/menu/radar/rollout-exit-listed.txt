@@ -2,10 +2,44 @@
 SWA110 · B738 [disabled]
 Landing · runway 30 · 60 kt [disabled]
 ---
+strip: [tower.exit-left, tower.exit-right, ground.draw-taxi-route]
+---
 Command…
 Note…
----
-strip: [tower.exit-left, tower.exit-right, ground.draw-taxi-route]
+All Commands
+  Tower
+    Exit left
+      Exits ahead, left side [disabled]
+      W1 · ~900 ft — EL W1
+      ---
+      Exit left · pilot's choice
+    Exit right
+      Exits ahead, right side [disabled]
+      W2 · planned · ~1,800 ft — ER W2
+      W3 · ~3,600 ft — ER W3
+      ---
+      Exit right · pilot's choice
+  ---
+  Ask pilot to say…
+    Altitude
+    Heading
+    Speed
+    Mach
+    Position
+    Expected approach
+    ---
+    Custom… picker:input
+  Coordination
+    Release
+    Hold
+    Recall
+    Acknowledge release
+  ---
+  Edit flight plan
+  ---
+  Warp…
+Favorite Commands
+  (no items) [disabled]
 ---
 Track
   Initiate Track
@@ -54,39 +88,5 @@ Display
   ---
   Blank target
   Unblank target
-Favorite Commands
-  (no items) [disabled]
-All Commands
-  Tower
-    Exit left
-      Exits ahead, left side [disabled]
-      W1 · ~900 ft — EL W1
-      ---
-      Exit left · pilot's choice
-    Exit right
-      Exits ahead, right side [disabled]
-      W2 · planned · ~1,800 ft — ER W2
-      W3 · ~3,600 ft — ER W3
-      ---
-      Exit right · pilot's choice
-  ---
-  Ask pilot to say…
-    Altitude
-    Heading
-    Speed
-    Mach
-    Position
-    Expected approach
-    ---
-    Custom… picker:input
-  Coordination
-    Release
-    Hold
-    Recall
-    Acknowledge release
-  ---
-  Edit flight plan
-  ---
-  Warp…
 ---
 Delete

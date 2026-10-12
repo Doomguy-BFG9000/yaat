@@ -1998,7 +1998,7 @@ or callsign rides in the argument, no aircraft selection is needed.
 
 Released departures don't pop airborne instantly — a held runway/airborne departure appears after a 20–60 s delay; in solo training a held ground departure is auto-cleared for takeoff once it's holding short (after a short readback delay) and departs normally. In an RPO room a released departure is only released (the hold is lifted) and waits for the RPO's `CTO` or its timed preset.
 
-In any room, a timed `CTO`, `CTOPP` or `LUAW` preset that comes due while the departure is held waits, and fires on the tick after `REL` or `HFROFF`. A takeoff or line-up clearance queued in a chain (e.g. `TAXIAUTO 28R; CTO`) or behind a trigger waits for the release the same way. The **Releases** flyout on the command bar shows the live rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a one-click **Release (HFR)** item under the title of its right-click menu (radar / ground / list).
+In any room, a timed `CTO`, `CTOPP` or `LUAW` preset that comes due while the departure is held waits, and fires on the tick after `REL` or `HFROFF`. A takeoff or line-up clearance queued in a chain (e.g. `TAXIAUTO 28R; CTO`) or behind a trigger waits for the release the same way. The **Releases** flyout on the command bar shows the live rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a one-click **Release (HFR)** icon, the first in the icon strip of its right-click menu (radar / ground / list).
 
 In solo training with a radar (approach or center) student, an IFR departure that starts lined up at an untowered field asks for its release ("ready for departure, request release") without any `HFR`: it shows in the **Releases** flyout as "Lined up (held)", and `REL <callsign>`, `REL <airport>` or `HFROFF` (at an armed field) answers the request and auto-clears it for takeoff after the same short delay.
 
@@ -2043,7 +2043,7 @@ on the aircraft when warning bubbles are enabled — when the departure **depart
 expires (late), **departs before** the window opens (early), or is **still holding for release** when
 the window expires. Rejected if the aircraft is already airborne (nothing to release).
 
-While a window is active, the **Aircraft List** "Info" column shows a live amber `CFR M:SS` countdown badge for that departure (turning red `CFR EXP` past the window); while it is on the ground, the aircraft's right-click menu (radar / ground / list) also shows a **Check release window** item under its title that runs `CFR CHECK`.
+While a window is active, the **Aircraft List** "Info" column shows a live amber `CFR M:SS` countdown badge for that departure (turning red `CFR EXP` past the window); while it is on the ground, the aircraft's right-click menu (radar / ground / list) also shows a **Check release window** icon in its icon strip that runs `CFR CHECK`.
 
 ### Timer (TIMER / TMR)
 

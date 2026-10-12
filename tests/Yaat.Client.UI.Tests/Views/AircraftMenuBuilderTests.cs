@@ -16,22 +16,199 @@ public class AircraftMenuBuilderTests
 {
     private const string ViewItem = "View item";
     private const string AllCommands = "All Commands";
+    private const string StripRow = "[strip]";
 
+    /// <summary>
+    /// The main menu runs: the header, the strip, Command… and Note…, All Commands, Favorites, then Track, Data Block,
+    /// Squawk, the view section and Delete.
+    /// </summary>
     [AvaloniaFact]
-    public void AirborneIfr_TopLevelRunsHeaderQuickCommandsThenTheFixedGroups()
+    public void MainMenu_TopLevelRunsHeaderStripCommandNoteAllCommandsFavoritesThenTheFixedGroups()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        var host = new RecordingMenuHost("");
 
-        List<string> items = Sequence(Build(Fixture("ifr-enroute"), host, _ => [new MenuItem { Header = ViewItem }]));
+        List<string> items = Sequence(Build(Fixture("final-ifr"), new RecordingMenuHost(""), _ => [new MenuItem { Header = ViewItem }]));
 
-        int note = items.IndexOf(Label(MenuIds.AircraftNote));
-        int track = items.IndexOf("Track");
-        Assert.True(items.IndexOf(Label(MenuIds.AircraftCommand)) < note, string.Join(" | ", items));
-        Assert.True(track > note + 2, $"no quick commands between the header and Track in: {string.Join(" | ", items)}");
         Assert.Equal(
-            ["Track", "Data Block", "Squawk", ViewItem, Label(MenuIds.FavoritesMenu), AllCommands, "---", Label(MenuIds.SimControlDelete)],
-            items[track..]
+            [
+                "AAL207 · B738",
+                "Final · 1,500 ft · 180 kt · KOAK rwy 30",
+                "---",
+                StripRow,
+                "---",
+                Label(MenuIds.AircraftCommand),
+                Label(MenuIds.AircraftNote),
+                AllCommands,
+                Label(MenuIds.FavoritesMenu),
+                "---",
+                "Track",
+                "Data Block",
+                "Squawk",
+                ViewItem,
+                "---",
+                Label(MenuIds.SimControlDelete),
+            ],
+            items
+        );
+    }
+
+    /// <summary>A held departure's Release (HFR) and a call-for-release window's Check release window lead the strip and leave the header.</summary>
+    [AvaloniaTheory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void ReleaseItems_LeadTheStrip_NotTheHeader(bool held, bool hasWindow)
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("taxiing");
+        ac.IsHeldForRelease = held;
+        ac.CfrWindowStartUtc = hasWindow ? new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc) : null;
+        List<string> release =
+        [
+            .. ((string[])[MenuIds.CoordinationReleaseHeld, MenuIds.CoordinationCheckReleaseWindow]).Where((_, i) => (i == 0) ? held : hasWindow),
+        ];
+
+        ContextMenu menu = Build(ac, new RecordingMenuHost(""), _ => []);
+
+        List<string> tags = StripTags(menu);
+        Assert.Equal(release, tags[..release.Count]);
+        Assert.Equal([MenuIds.GroundHoldPosition, MenuIds.GroundBreakConflict], tags[release.Count..]);
+        Assert.Equal(["SWA104 · B738", "Taxiing", "---", StripRow], Sequence(menu)[..4]);
+        Assert.DoesNotContain(Label(MenuIds.CoordinationReleaseHeld), Sequence(menu));
+        Assert.DoesNotContain(Label(MenuIds.CoordinationCheckReleaseWindow), Sequence(menu));
+    }
+
+    [AvaloniaFact]
+    public void ReleaseItems_AbsentWhenNeitherApplies()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+
+        ContextMenu menu = Build(Fixture("taxiing"), new RecordingMenuHost(""), _ => []);
+
+        Assert.Equal([MenuIds.GroundHoldPosition, MenuIds.GroundBreakConflict], StripTags(menu));
+    }
+
+    /// <summary>An aircraft with no strip of its own still gets one holding just the release icons that apply.</summary>
+    [AvaloniaFact]
+    public void ReleaseItems_GiveAStripToAnAircraftWithoutOne()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("taxiing");
+        ac.Situation = AircraftSituation.Unknown;
+        ac.IsHeldForRelease = true;
+
+        ContextMenu menu = Build(ac, new RecordingMenuHost(""), _ => []);
+
+        Assert.Equal([MenuIds.CoordinationReleaseHeld], StripTags(menu));
+    }
+
+    /// <summary>Check release window in the situation's own list shows once, first in the strip.</summary>
+    [AvaloniaFact]
+    public void ReleaseItems_InTheSituationsListShowOnceFirst()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("at-parking");
+        ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        var host = new RecordingMenuHost("")
+        {
+            Session = new MenuSession(
+                "AB",
+                false,
+                VfrCommandsForIfr.None,
+                _ =>
+                    [
+                        new CatalogQuickCommandEntry(MenuIds.GroundPushback, null),
+                        new CatalogQuickCommandEntry(MenuIds.CoordinationCheckReleaseWindow, null),
+                    ]
+            ),
+        };
+
+        ContextMenu menu = Build(ac, host, _ => []);
+
+        Assert.Equal([MenuIds.CoordinationCheckReleaseWindow, MenuIds.GroundPushback], StripTags(menu));
+        Assert.DoesNotContain(Label(MenuIds.CoordinationCheckReleaseWindow), Sequence(menu));
+    }
+
+    [AvaloniaFact]
+    public void DelayedSpawn_KeepsItsOrder()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "delayed-spawn").Aircraft;
+
+        List<string> items = Sequence(Build(ac, new RecordingMenuHost(""), _ => []));
+
+        Assert.Equal(
+            [
+                "AAL501 · B738",
+                "16,000 ft",
+                "---",
+                Label(MenuIds.AircraftCommand),
+                Label(MenuIds.AircraftNote),
+                "---",
+                Label(MenuIds.FavoritesMenu),
+                "---",
+                Label(MenuIds.SpawnNow),
+                "Change spawn delay",
+                Label(MenuIds.SimControlDelete),
+            ],
+            items
+        );
+    }
+
+    /// <summary>A held delayed spawn's Release (HFR) is a strip under the header, as on the aircraft menu, not a text row.</summary>
+    [AvaloniaFact]
+    public void DelayedSpawn_HeldForRelease_GetsAStripOfTheReleaseIconUnderTheHeader()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "delayed-spawn-held").Aircraft;
+
+        ContextMenu menu = Build(ac, new RecordingMenuHost(""), _ => []);
+
+        Assert.Equal([MenuIds.CoordinationReleaseHeld], StripTags(menu));
+        Assert.Equal(
+            [
+                "AAL502 · B738",
+                "16,000 ft",
+                "---",
+                StripRow,
+                "---",
+                Label(MenuIds.AircraftCommand),
+                Label(MenuIds.AircraftNote),
+                "---",
+                Label(MenuIds.FavoritesMenu),
+                "---",
+                Label(MenuIds.SpawnNow),
+                "Change spawn delay",
+                Label(MenuIds.SimControlDelete),
+            ],
+            Sequence(menu)
+        );
+    }
+
+    [AvaloniaFact]
+    public void SurfaceShadow_KeepsItsOrder()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "live-traffic-surface").Aircraft;
+
+        List<string> items = Sequence(Build(ac, new RecordingMenuHost(""), _ => [new MenuItem { Header = ViewItem }]));
+
+        Assert.Equal(
+            [
+                "UAL402 · B738",
+                "---",
+                Label(MenuIds.AircraftCommand),
+                Label(MenuIds.AircraftNote),
+                "---",
+                "Track",
+                "Data Block",
+                ViewItem,
+                Label(MenuIds.FavoritesMenu),
+                AllCommands,
+                "---",
+                Label(MenuIds.SimControlDelete),
+            ],
+            items
         );
     }
 
@@ -68,8 +245,24 @@ public class AircraftMenuBuilderTests
         ContextMenu menu = Build(ac, host, _ => []);
         List<string> items = Sequence(menu);
 
-        int track = items.IndexOf("Track");
-        Assert.Equal([Label(MenuIds.AircraftCommand), Label(MenuIds.AircraftNote), "---", "Track"], items[(track - 3)..(track + 1)]);
+        Assert.Equal(
+            [
+                "AAL202 · B738",
+                "33,000 ft · 280 kt",
+                "---",
+                Label(MenuIds.AircraftCommand),
+                Label(MenuIds.AircraftNote),
+                AllCommands,
+                Label(MenuIds.FavoritesMenu),
+                "---",
+                "Track",
+                "Data Block",
+                "Squawk",
+                "---",
+                Label(MenuIds.SimControlDelete),
+            ],
+            items
+        );
         Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), item => item.Header is not string);
         Assert.Contains(AllCommands, items);
     }
@@ -162,7 +355,7 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
-    public void ViewSection_SitsAfterSquawkBeforeFavorites()
+    public void ViewSection_SitsAfterSquawkBeforeTheFoot()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var host = new RecordingMenuHost("");
@@ -172,7 +365,7 @@ public class AircraftMenuBuilderTests
         List<string> items = Sequence(Build(ac, host, _ => [new MenuItem { Header = ViewItem }]));
 
         int view = items.IndexOf(ViewItem);
-        Assert.Equal(["Squawk", ViewItem, Label(MenuIds.FavoritesMenu)], items[(view - 1)..(view + 2)]);
+        Assert.Equal(["Squawk", ViewItem, "---"], items[(view - 1)..(view + 2)]);
         Assert.Equal(Label(MenuIds.SimControlDelete), items[^1]);
         Assert.Equal([ac.Callsign], Assert.Single(host.RpoRequests));
     }
@@ -255,10 +448,20 @@ public class AircraftMenuBuilderTests
 
         List<string> items = Sequence(BuildWithSelection(fixture, new RecordingMenuHost("")));
 
-        int note = items.IndexOf(Label(MenuIds.AircraftNote));
         Assert.Equal(
-            ["---", "For AAL602 (selected)", "AAL601 is at its 12 o'clock, 6 nm, 1,500 ft below", "Report in sight", "Follow", "---", "For AAL601"],
-            items[(note + 1)..(note + 8)]
+            [
+                "---",
+                "For AAL602 (selected)",
+                "AAL601 is at its 12 o'clock, 6 nm, 1,500 ft below",
+                "Report in sight",
+                "Follow",
+                "---",
+                "For AAL601",
+                StripRow,
+                "---",
+                Label(MenuIds.AircraftCommand),
+            ],
+            items[2..12]
         );
     }
 
@@ -353,8 +556,23 @@ public class AircraftMenuBuilderTests
     /// <summary>Each of the submenu's items as its header text, with a separator written as <c>---</c>.</summary>
     private static List<string> Sequence(MenuItem submenu) => Sequence(submenu.Items);
 
+    /// <summary>Each item as its header text, with a separator written as <c>---</c> and the quick-command strip as <see cref="StripRow"/>.</summary>
     private static List<string> Sequence(ItemCollection items) =>
-        [.. items.Select(item => item is Separator ? "---" : (item as MenuItem)?.Header as string ?? "")];
+        [
+            .. items.Select(item =>
+                item switch
+                {
+                    Separator => "---",
+                    MenuItem strip when QuickCommandStrip.IsStrip(strip) => StripRow,
+                    MenuItem menuItem => menuItem.Header as string ?? "",
+                    _ => "",
+                }
+            ),
+        ];
+
+    /// <summary>The catalog ids of the menu's strip buttons, in strip order.</summary>
+    private static List<string> StripTags(ContextMenu menu) =>
+        [.. QuickCommandStrip.Buttons(Assert.Single(menu.Items.OfType<MenuItem>(), QuickCommandStrip.IsStrip)).Select(button => (string)button.Tag!)];
 
     /// <summary>Every one of <paramref name="labels"/> is an item listed before the Ask pilot and Coordination block.</summary>
     private static void AssertBeforeCoordination(List<string> items, params string[] labels)

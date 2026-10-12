@@ -294,8 +294,9 @@ internal static class SceneActions
     public static bool IsParked(AircraftModel aircraft) => aircraft.IsOnGround && (!aircraft.IsDelayed);
 
     // Moves the pointer over the control's centre, as hovering it does. Its
-    // tooltip is switched off first so it does not cover the controls around
-    // it; a strip button's label row names it instead.
+    // tooltip, where it has one, is switched off first so it does not cover the
+    // controls around it; a strip button has none, and the menu's header line
+    // names it instead.
     public static void PointAt(Window window, Control control)
     {
         ToolTip.SetServiceEnabled(control, false);
@@ -327,7 +328,7 @@ internal static class SceneActions
 
     // Opens the flyout of the menu's strip icon for the catalog entry beside the
     // menu, as a click on the icon opens it, and returns it once its rows are
-    // laid out. The icon is pointed at, so the strip's label row names it: a
+    // laid out. The icon is pointed at, so the menu's header line names it: a
     // pointer click on it closes the headless menu before its flyout shows.
     public static async Task<MenuFlyoutPresenter> OpenStripFlyoutAsync(Window window, ContextMenu menu, string entryId, TimeSpan timeout, string what)
     {

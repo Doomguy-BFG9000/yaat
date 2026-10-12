@@ -97,15 +97,13 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The header every aircraft menu opens with: the bold, disabled title — the callsign and the type the aircraft filed
-    /// (<see cref="IMenuAircraft.DisplayAircraftType"/>), or the bare callsign with no aircraft model or no type — then
-    /// the state line (<see cref="StateLineItem"/>) and the rows under it, the route summary (<see cref="RouteSummaryItem"/>)
-    /// and the hold status (<see cref="HoldStatusItem"/>) the aircraft's own state raises, then the release items every
-    /// view offers where they apply (Release (HFR) while the aircraft is held for release, then Check release window while
-    /// it has a call-for-release window), then a separator, the free-text Command… and Note… (which ask the host for its
-    /// flyouts), and a separator.
+    /// The header every aircraft menu opens with, information rows only: the bold, disabled title — the callsign and the
+    /// type the aircraft filed (<see cref="IMenuAircraft.DisplayAircraftType"/>), or the bare callsign with no aircraft
+    /// model or no type — then the state line (<see cref="StateLineItem"/>) and the rows under it, the route summary
+    /// (<see cref="RouteSummaryItem"/>) and the hold status (<see cref="HoldStatusItem"/>) the aircraft's own state raises.
+    /// The caller adds the separator under it.
     /// </summary>
-    public static void AddHeader(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    public static void AddHeader(ItemCollection items, IMenuAircraft? aircraft, MenuContext context)
     {
         items.Add(
             new MenuItem
@@ -118,14 +116,13 @@ public static class SharedMenuGroups
         TryAdd(items, StateLineItem(aircraft));
         TryAdd(items, RouteSummaryItem(aircraft));
         TryAdd(items, HoldStatusItem(aircraft));
+    }
 
-        AddIfApplicable(items, MenuIds.CoordinationReleaseHeld, aircraft, context, host);
-        AddIfApplicable(items, MenuIds.CoordinationCheckReleaseWindow, aircraft, context, host);
-
-        items.Add(new Separator());
+    /// <summary>The free-text Command… and Note…, which ask the host for their flyouts, each where its entry builds.</summary>
+    public static void AddCommandAndNote(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
         TryAdd(items, TryLeaf(MenuIds.AircraftCommand, aircraft, context, host));
         TryAdd(items, TryLeaf(MenuIds.AircraftNote, aircraft, context, host));
-        items.Add(new Separator());
     }
 
     /// <summary>The header title: <c>{callsign} · {type}</c>, or the bare callsign when there is no aircraft model or no type.</summary>
@@ -135,7 +132,8 @@ public static class SharedMenuGroups
     /// <summary>
     /// The header a point menu opens with: the bold, disabled title <c>{callsign} · {type} → {place}</c>
     /// (<see cref="PointPlace"/>), then on a radar point (<see cref="IsRadarPoint"/>) a dimmed row naming the point from the
-    /// aircraft (<see cref="RadarPointDetail"/>), then a separator.
+    /// aircraft (<see cref="RadarPointDetail"/>), then a separator. A point strip puts its blank header line in under the
+    /// title (<see cref="QuickCommandLabelLine.Ensure"/>).
     /// </summary>
     public static void AddPointHeader(ItemCollection items, IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
     {
@@ -251,10 +249,11 @@ public static class SharedMenuGroups
     /// roll shows <c>Landing · runway 28R · 62 kt</c>, another ground aircraft <c>Taxiing · S/RAMP · KSAN</c> (the
     /// taxiway else the parking spot, then the ground airport), an airborne one
     /// <c>Approach · 3,000 ft · 180 kt · KOAK rwy 30</c>. Each segment is left out when it has no value, and a numeric
-    /// segment whose rounded value is zero counts as none. The row is a disabled, dimmed label. Null without an aircraft
-    /// or when no segment is left.
+    /// segment whose rounded value is zero counts as none. The row is the quick-command strip's header line
+    /// (<see cref="QuickCommandLabelLine"/>), a disabled, dimmed label at rest. Null without an aircraft or when no segment
+    /// is left.
     /// </summary>
-    private static MenuItem? StateLineItem(IMenuAircraft? aircraft)
+    private static QuickCommandLabelLine? StateLineItem(IMenuAircraft? aircraft)
     {
         if (aircraft is null)
         {
@@ -267,13 +266,7 @@ public static class SharedMenuGroups
             return null;
         }
 
-        return new MenuItem
-        {
-            Header = string.Join(" · ", segments),
-            IsEnabled = false,
-            FontSize = 11,
-            Opacity = 0.8,
-        };
+        return new QuickCommandLabelLine(string.Join(" · ", segments));
     }
 
     /// <summary>

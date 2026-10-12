@@ -2,35 +2,10 @@
 SWA110 · B738 [disabled]
 Landing · runway 30 · 60 kt [disabled]
 ---
-Command…
-Note…
----
 strip: [tower.exit-left, tower.exit-right, ground.draw-taxi-route]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from SWA110
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Tower
     Exit left
@@ -63,5 +38,30 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from SWA110
 ---
 Delete

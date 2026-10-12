@@ -27,7 +27,7 @@ public class MenuFootTests
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: true);
 
-        Assert.Equal(["All Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^6..]);
+        Assert.Equal(["Draw route", "---", "Delete", "---", "Give control", "Unassign"], items[^6..]);
         Assert.Equal(["---", "Warp…", "Release to live feed"], commands[^3..]);
     }
 
@@ -57,18 +57,18 @@ public class MenuFootTests
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.Ground, "taxiing", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Display", "Favorite Commands", "All Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["Data Block", "Squawk", "Display", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
         Assert.Equal(["---", "Warp…", "Release to live feed"], commands[^3..]);
     }
 
-    // The list's view section is empty, so Favorites follows Squawk; Edit flight plan stays in the command tree, before
+    // The list's view section is empty, so the foot follows Squawk; Edit flight plan stays in the command tree, before
     // the sim-control items.
     [AvaloniaFact]
     public void ListMenu_EndsWithDeleteThenRpoItems_EditFlightPlanStaysInCommandBlock()
     {
         (List<string> items, List<string> commands) = TopLevelAndCommands(MenuView.List, "taxiing", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Squawk", "Favorite Commands", "All Commands", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["Track", "Data Block", "Squawk", "---", "Delete", "---", "Give control", "Unassign"], items[^8..]);
         Assert.Equal(["Coordination", "---", "Edit flight plan", "---", "Warp…", "Release to live feed"], commands[^6..]);
     }
 

@@ -75,6 +75,7 @@ internal static class MenuGoldenFixtures
             .. AirborneVfrFixtures(),
             .. LiveTrafficFixtures(layout),
             DelayedSpawn(),
+            DelayedSpawnHeld(),
         ];
         switch (view)
         {
@@ -412,27 +413,34 @@ internal static class MenuGoldenFixtures
         };
 
     /// <summary>An IFR arrival whose spawn is still delayed; the server classifies the pending aircraft's state.</summary>
-    private static MenuFixture DelayedSpawn() =>
-        new(
-            "delayed-spawn",
-            new AircraftModel
-            {
-                Callsign = "AAL501",
-                AircraftType = "B738",
-                FlightRules = "IFR",
-                CurrentPhase = "",
-                Situation = AircraftSituation.IfrArrival,
-                Status = "Delayed (120s)",
-                IsOnGround = false,
-                Position = new LatLon(37.3000, -121.8000),
-                Heading = new TrueHeading(330),
-                Altitude = 16000,
-                Departure = "KLAX",
-                Destination = "KOAK",
-                Route = "LANDO J6 AVE RGOOD EMZOH4",
-            },
-            null
-        );
+    private static MenuFixture DelayedSpawn() => new("delayed-spawn", DelayedArrival("AAL501"), null);
+
+    /// <summary>A delayed spawn under an armed hold-for-release, whose menu gets a strip holding just the Release (HFR) icon.</summary>
+    private static MenuFixture DelayedSpawnHeld()
+    {
+        AircraftModel ac = DelayedArrival("AAL502");
+        ac.IsHeldForRelease = true;
+        return new MenuFixture("delayed-spawn-held", ac, null);
+    }
+
+    /// <summary>A B738 IFR arrival into KOAK whose spawn is still delayed.</summary>
+    private static AircraftModel DelayedArrival(string callsign) =>
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            FlightRules = "IFR",
+            CurrentPhase = "",
+            Situation = AircraftSituation.IfrArrival,
+            Status = "Delayed (120s)",
+            IsOnGround = false,
+            Position = new LatLon(37.3000, -121.8000),
+            Heading = new TrueHeading(330),
+            Altitude = 16000,
+            Departure = "KLAX",
+            Destination = "KOAK",
+            Route = "LANDO J6 AVE RGOOD EMZOH4",
+        };
 
     /// <summary>
     /// Radar: the selected arrival has reported the right-clicked one in sight, so both the report-in-sight and the

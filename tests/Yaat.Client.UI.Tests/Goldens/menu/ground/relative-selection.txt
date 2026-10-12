@@ -2,9 +2,6 @@
 SWA601 · B738 [disabled]
 Holding short 30/12 [disabled]
 ---
-Command…
-Note…
----
 For SWA602 (selected) [disabled]
 SWA601 is holding short of 30, 50 ft ahead [disabled]
 Follow SWA601
@@ -13,30 +10,8 @@ Give way to SWA601
 For SWA601 [disabled]
 strip: [ground.cross-runway]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from SWA601
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Taxi to runway
     Finding runway entries… [disabled]
@@ -71,5 +46,30 @@ All Commands
   Edit flight plan
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from SWA601
 ---
 Delete

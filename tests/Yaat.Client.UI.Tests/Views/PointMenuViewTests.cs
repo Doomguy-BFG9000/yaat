@@ -137,11 +137,12 @@ public class PointMenuViewTests
 
         Assert.NotNull(menu);
         Assert.Equal($"{Callsign} · B738 → spot 1", Assert.IsType<MenuItem>(menu.Items[0]).Header);
-        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[1]);
-        MenuItem strip = Assert.IsType<MenuItem>(menu.Items[2]);
+        Assert.Equal("", Assert.IsType<QuickCommandLabelLine>(menu.Items[1]).Header);
+        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[2]);
+        MenuItem strip = Assert.IsType<MenuItem>(menu.Items[3]);
         Assert.True(QuickCommandStrip.IsStrip(strip));
         Assert.Contains(MenuIds.PointTaxiHere, QuickCommandStrip.Buttons(strip).Select(b => (string)b.Tag!));
-        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[3]);
+        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[4]);
     }
 
     [AvaloniaFact]
@@ -297,8 +298,9 @@ public class PointMenuViewTests
 
         List<string> labels = Labels(menu.Items);
         Assert.Equal($"{Callsign} · B738 → this point", labels[0]);
-        Assert.EndsWith(" from the aircraft", labels[1]);
-        Assert.Equal(Separator, labels[2]);
+        Assert.Equal("", labels[1]);
+        Assert.EndsWith(" from the aircraft", labels[2]);
+        Assert.Equal(Separator, labels[3]);
         Assert.Contains(labels, l => l.StartsWith("Fly heading ", StringComparison.Ordinal));
         Assert.StartsWith("MVA", labels[^1]);
     }
@@ -318,7 +320,7 @@ public class PointMenuViewTests
         ContextMenu menu = view.BuildMapPointMenu(main.Radar, position, default);
 
         List<string> labels = Labels(menu.Items);
-        Assert.StartsWith($"{frd} · ", labels[1]);
+        Assert.StartsWith($"{frd} · ", labels[2]);
         Assert.DoesNotContain(frd, labels);
         Assert.Contains("Copy FRD", labels);
     }

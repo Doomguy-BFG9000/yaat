@@ -2,35 +2,10 @@
 UAL401 · B738 [disabled]
 11,000 ft · 250 kt [disabled]
 ---
-Command…
-Note…
----
 strip: [livetraffic.assume, livetraffic.assume-and-track]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Display
-  Taxi route
-    Always show
-    Always hide
-    Follow “Show all” setting [checked]
-  Hide datablock
-  Measure from UAL401
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Assume control
   Assume and track
@@ -115,5 +90,30 @@ All Commands
     Acknowledge release
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from UAL401
 ---
 Delete

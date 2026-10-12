@@ -2,61 +2,10 @@
 UAL401 · B738 [disabled]
 11,000 ft · 250 kt [disabled]
 ---
-Command…
-Note…
----
 strip: [livetraffic.assume, livetraffic.assume-and-track]
 ---
-Track
-  Initiate Track
-Data Block
-  Scratchpad… picker:input
-  Temporary altitude… picker:input
-  Cruise… picker:input
-  Annotate
-Squawk
-  Squawk… picker:input
-  Squawk random
-  Squawk VFR
-  Squawk normal
-  Squawk standby
-  ---
-  Ident
-Display
-  Mini datablock
-  Show nav route
-  Measure from UAL401
-  ---
-  Leader direction
-    1
-    2
-    3
-    4
-    5 (default)
-    6
-    7
-    8
-    9
-  J-ring
-    Clear
-    1 nm
-    2 nm
-    3 nm
-    5 nm
-    10 nm
-  Cone
-    Clear
-    1 nm
-    2 nm
-    3 nm
-    5 nm
-    10 nm
-  ---
-  Blank target
-  Unblank target
-Draw route
-Favorite Commands
-  (no items) [disabled]
+Command…
+Note…
 All Commands
   Assume control
   Assume and track
@@ -141,5 +90,56 @@ All Commands
     Acknowledge release
   ---
   Warp…
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Initiate Track
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Display
+  Mini datablock
+  Show nav route
+  Measure from UAL401
+  ---
+  Leader direction
+    1
+    2
+    3
+    4
+    5 (default)
+    6
+    7
+    8
+    9
+  J-ring
+    Clear
+    1 nm
+    2 nm
+    3 nm
+    5 nm
+    10 nm
+  Cone
+    Clear
+    1 nm
+    2 nm
+    3 nm
+    5 nm
+    10 nm
+  ---
+  Blank target
+  Unblank target
+Draw route
 ---
 Delete

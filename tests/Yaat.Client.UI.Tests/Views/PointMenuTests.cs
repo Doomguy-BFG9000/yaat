@@ -193,10 +193,11 @@ public class PointMenuTests
         Assert.Equal($"{Callsign} · B738 → this point", title.Header);
         Assert.False(title.IsEnabled);
         Assert.Equal(Avalonia.Media.FontWeight.Bold, title.FontWeight);
-        MenuItem detail = Assert.IsType<MenuItem>(menu.Items[1]);
+        Assert.Equal("", Assert.IsType<QuickCommandLabelLine>(menu.Items[1]).Header);
+        MenuItem detail = Assert.IsType<MenuItem>(menu.Items[2]);
         Assert.Equal($"{Frd} · 9 nm, bearing {NorthBearing(koak)} from the aircraft", detail.Header);
         Assert.False(detail.IsEnabled);
-        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[2]);
+        Assert.IsType<Avalonia.Controls.Separator>(menu.Items[3]);
     }
 
     [AvaloniaFact]
@@ -207,7 +208,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(Airborne(koak), point, new RecordingMenuHost("") { PointDescription = Frd }, _ => []);
 
-        Assert.Equal($"{Frd} · 0.3 nm, bearing {NorthBearing(koak)} from the aircraft", Labels(menu.Items)[1]);
+        Assert.Equal($"{Frd} · 0.3 nm, bearing {NorthBearing(koak)} from the aircraft", Labels(menu.Items)[2]);
     }
 
     [AvaloniaFact]
@@ -218,7 +219,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(Airborne(koak), point, new RecordingMenuHost(""), _ => []);
 
-        Assert.Equal($"9 nm, bearing {NorthBearing(koak)} from the aircraft", Labels(menu.Items)[1]);
+        Assert.Equal($"9 nm, bearing {NorthBearing(koak)} from the aircraft", Labels(menu.Items)[2]);
     }
 
     [AvaloniaFact]
@@ -232,7 +233,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(ac, new MenuPoint(new LatLon(node.Latitude, node.Longitude), node, "30", [], null), scope.Host, _ => []);
 
-        Assert.Equal([$"{Callsign} · B738 → HS 30 at W3", Separator], Labels(menu.Items)[..2]);
+        Assert.Equal([$"{Callsign} · B738 → HS 30 at W3", "", Separator], Labels(menu.Items)[..3]);
     }
 
     [AvaloniaFact]
@@ -311,7 +312,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(ac, SurfacePoint(Midpoint(runway), runway.Name, null), scope.Host, _ => []);
 
-        Assert.Equal([$"{Callsign} · B738 → runway {end}", Separator], Labels(menu.Items)[..2]);
+        Assert.Equal([$"{Callsign} · B738 → runway {end}", "", Separator], Labels(menu.Items)[..3]);
     }
 
     // --- Ground ---------------------------------------------------------------------------
@@ -793,12 +794,15 @@ public class PointMenuTests
     /// <summary>True north from <paramref name="from"/> as a magnetic bearing at its variation, three digits.</summary>
     private static string NorthBearing(LatLon from) => new TrueHeading(0).ToMagnetic(MagneticDeclination.GetDeclination(from)).ToDisplayString();
 
-    /// <summary>The point menu's items after its header: the title, the radar detail row when there is one, and the separator.</summary>
+    /// <summary>
+    /// The point menu's items after its header: the title, the strip's header line when there is a strip, the radar detail
+    /// row when there is one, and the separator.
+    /// </summary>
     private static List<object?> Body(ContextMenu menu)
     {
         List<object?> items = [.. menu.Items];
         int separator = items.FindIndex(i => i is Avalonia.Controls.Separator);
-        Assert.InRange(separator, 1, 2);
+        Assert.InRange(separator, 1, 3);
         Assert.False(Assert.IsType<MenuItem>(items[0]).IsEnabled);
         return items[(separator + 1)..];
     }

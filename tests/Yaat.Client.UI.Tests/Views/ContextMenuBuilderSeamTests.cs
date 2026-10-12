@@ -104,14 +104,14 @@ public class ContextMenuBuilderSeamTests
             "---",
             "Command…",
             "Note…",
+            "All Commands",
+            "Favorite Commands",
             "---",
             "Track",
             "Data Block",
             "Squawk",
             "Display",
             "Draw route",
-            "Favorite Commands",
-            "All Commands",
             "---",
             "Delete"
         );
@@ -289,13 +289,13 @@ public class ContextMenuBuilderSeamTests
             "---",
             "Command…",
             "Note…",
+            "All Commands",
+            "Favorite Commands",
             "---",
             "Track",
             "Data Block",
             "Squawk",
             "Display",
-            "Favorite Commands",
-            "All Commands",
             "---",
             "Delete"
         );
@@ -340,12 +340,12 @@ public class ContextMenuBuilderSeamTests
             "---",
             "Command…",
             "Note…",
+            "All Commands",
+            "Favorite Commands",
             "---",
             "Track",
             "Data Block",
             "Squawk",
-            "Favorite Commands",
-            "All Commands",
             "---",
             "Delete"
         );

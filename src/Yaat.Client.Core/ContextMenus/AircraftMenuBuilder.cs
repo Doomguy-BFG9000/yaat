@@ -14,18 +14,21 @@ public static class AircraftMenuBuilder
 
     /// <summary>
     /// The menu for <paramref name="aircraft"/> (null when the clicked callsign has no aircraft model), in one order: the
-    /// header (with Command…), then by the aircraft's kind —
+    /// header (<see cref="SharedMenuGroups.AddHeader"/>), then by the aircraft's kind —
     /// <list type="bullet">
-    /// <item>a delayed spawn: Favorites, Spawn now, Change spawn delay and Delete, and nothing else;</item>
     /// <item>
-    /// a surface live-traffic shadow: Track, Data Block, the view section, Favorites, All Commands (Coordination only),
-    /// then Delete;
+    /// a delayed spawn: the strip of the release icons that apply (<see cref="AddReleaseStrip"/>), Command… and Note…,
+    /// Favorites, Spawn now, Change spawn delay and Delete, and nothing else;
+    /// </item>
+    /// <item>
+    /// a surface live-traffic shadow: Command… and Note…, Track, Data Block, the view section, Favorites, All Commands
+    /// (Coordination only), then Delete;
     /// </item>
     /// <item>
     /// any other aircraft: the For section while another aircraft is selected (<see cref="SharedMenuGroups.AddForSection"/>),
-    /// the quick commands its situation resolves to (<see cref="QuickCommandResolver"/>; the icon strip, then the text
-    /// entries), Track, Data Block, Squawk, the view section, Favorites, All Commands (the full command tree,
-    /// <see cref="AddAllCommands"/>), then Delete;
+    /// the quick commands (<see cref="AddQuickCommands"/>; the icon strip, then the text entries), Command…, Note…, All
+    /// Commands (the full command tree, <see cref="AddAllCommands"/>), Favorites, then Track, Data Block, Squawk, the view
+    /// section and Delete;
     /// </item>
     /// </list>
     /// then "Assume selected live traffic (N)" and the RPO items for the click's selection, else for the clicked aircraft.
@@ -57,10 +60,12 @@ public static class AircraftMenuBuilder
 
         var menu = new ContextMenu();
         menu.Closed += (_, _) => host.HighlightAircraft(null);
-        SharedMenuGroups.AddHeader(menu.Items, aircraft, context, host);
+        SharedMenuGroups.AddHeader(menu.Items, aircraft, context);
 
         if (aircraft is { IsDelayed: true })
         {
+            AddReleaseStrip(menu, aircraft, context, host);
+            AddCommandAndNoteBlock(menu.Items, aircraft, context, host);
             menu.Items.Add(SharedMenuGroups.Favorites(aircraft, context, host));
             menu.Items.Add(new Separator());
             SharedMenuGroups.AddDelayedSpawn(menu, aircraft, context, host);
@@ -69,10 +74,12 @@ public static class AircraftMenuBuilder
 
         if (AircraftCommandApplicability.IsSurfaceShadow(aircraft))
         {
+            AddCommandAndNoteBlock(menu.Items, aircraft, context, host);
             AddSurfaceShadow(menu.Items, aircraft, context, host, viewSection(context));
         }
         else
         {
+            menu.Items.Add(new Separator());
             SharedMenuGroups.AddForSection(menu.Items, aircraft, context, host);
             AddQuickCommands(menu, aircraft, context, host);
             AddTopLevelGroups(menu.Items, aircraft, context, host, viewSection(context));
@@ -289,13 +296,22 @@ public static class AircraftMenuBuilder
         items.Add(all);
     }
 
+    /// <summary>A separator, Command… and Note…, and a separator: the block a delayed spawn's and a surface shadow's header ends with.</summary>
+    private static void AddCommandAndNoteBlock(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        items.Add(new Separator());
+        SharedMenuGroups.AddCommandAndNote(items, aircraft, context, host);
+        items.Add(new Separator());
+    }
+
     /// <summary>
     /// The aircraft's quick commands, each built through its catalog entry's own builder so its pickers, prompts and
     /// runway defaults match All Commands: the icon strip when the resolution has strip items, then the text entries.
-    /// An approach entry with a default approach is a one-click leaf, and its "(other)" grouped picker
+    /// The release items that apply lead the strip whatever the situation's list (<see cref="LeadWithRelease"/>). An
+    /// approach entry with a default approach is a one-click leaf, and its "(other)" grouped picker
     /// (<see cref="MenuCatalog.BuildApproachOther"/>) follows as a text row: directly under the leaf for a text entry,
-    /// and first among the text rows for a strip button, which stays the leaf alone. Nothing for an aircraft whose
-    /// situation is unknown.
+    /// and first among the text rows for a strip button, which stays the leaf alone. An aircraft whose situation is
+    /// unknown gets only the release icons, or nothing.
     /// </summary>
     private static void AddQuickCommands(ContextMenu menu, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -305,10 +321,12 @@ public static class AircraftMenuBuilder
         }
 
         // An entry that builds no item is dropped before the strip is capped; the strip and the text list build it again.
-        QuickCommandResolution resolution = QuickCommandResolver.Resolve(
+        bool BuildsAnItem(MenuCatalogEntry entry) => entry.Build(aircraft, context, host) is not null;
+        QuickCommandResolution resolution = LeadWithRelease(
+            QuickCommandResolver.Resolve(aircraft, context, BuildsAnItem),
             aircraft,
             context,
-            entry => entry.Build(aircraft, context, host) is not null
+            BuildsAnItem
         );
         if (QuickCommandStrip.Build(menu, resolution.Strip, aircraft, context, host) is { } strip)
         {
@@ -330,6 +348,60 @@ public static class AircraftMenuBuilder
         }
     }
 
+    /// <summary>
+    /// A delayed spawn's strip, which has no quick commands: after a separator, just the release icons that apply, in
+    /// <see cref="ReleaseIds"/> order, built and labelled as the aircraft menu's strip is; nothing when neither applies.
+    /// </summary>
+    private static void AddReleaseStrip(ContextMenu menu, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
+    {
+        bool BuildsAnItem(MenuCatalogEntry entry) => entry.Build(aircraft, context, host) is not null;
+        QuickCommandResolution release = LeadWithRelease(new QuickCommandResolution([], []), aircraft, context, BuildsAnItem);
+        if (QuickCommandStrip.Build(menu, release.Strip, aircraft, context, host) is { } strip)
+        {
+            menu.Items.Add(new Separator());
+            menu.Items.Add(strip);
+        }
+    }
+
+    /// <summary>The release items the strip leads with, in order.</summary>
+    private static readonly string[] ReleaseIds = [MenuIds.CoordinationReleaseHeld, MenuIds.CoordinationCheckReleaseWindow];
+
+    /// <summary>
+    /// <paramref name="resolution"/> with the release icons that apply and build an item first in the strip, ahead of the
+    /// situation's own icons, and taken out of wherever the situation's list placed them. The strip stays within
+    /// <see cref="QuickCommandGlyphs.StripCapacity"/>: an icon pushed past it becomes the first text entry.
+    /// </summary>
+    private static QuickCommandResolution LeadWithRelease(
+        QuickCommandResolution resolution,
+        IMenuAircraft aircraft,
+        MenuContext context,
+        Func<MenuCatalogEntry, bool> buildsAnItem
+    )
+    {
+        List<QuickCommandStripItem> release =
+        [
+            .. ReleaseIds
+                .Select(MenuCatalog.Get)
+                .Where(entry => entry.IsApplicable(aircraft, context) && buildsAnItem(entry))
+                .Select(entry => new QuickCommandStripItem(
+                    entry,
+                    QuickCommandGlyphs.For(entry.Id) ?? throw new InvalidOperationException($"The release item '{entry.Id}' has no strip glyph.")
+                )),
+        ];
+        if (release.Count == 0)
+        {
+            return resolution;
+        }
+
+        List<QuickCommandStripItem> strip = [.. release, .. resolution.Strip.Where(item => !ReleaseIds.Contains(item.Entry.Id))];
+        List<MenuCatalogEntry> text =
+        [
+            .. strip.Skip(QuickCommandGlyphs.StripCapacity).Select(item => item.Entry),
+            .. resolution.Text.Where(entry => !ReleaseIds.Contains(entry.Id)),
+        ];
+        return new QuickCommandResolution([.. strip.Take(QuickCommandGlyphs.StripCapacity)], text);
+    }
+
     /// <summary>Adds an approach entry's "(other)" grouped picker, or nothing for another entry or an approach entry without a default.</summary>
     private static void AddApproachCompanion(ItemCollection items, string id, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
     {
@@ -340,8 +412,8 @@ public static class AircraftMenuBuilder
     }
 
     /// <summary>
-    /// The top-level groups below the quick commands: Track, Data Block, Squawk, the view section, Favorites, then All
-    /// Commands, after a separator.
+    /// The top-level groups below the quick commands, after a separator: Command…, Note…, All Commands, Favorites, then
+    /// after another separator Track, Data Block, Squawk and the view section.
     /// </summary>
     private static void AddTopLevelGroups(
         ItemCollection items,
@@ -352,15 +424,17 @@ public static class AircraftMenuBuilder
     )
     {
         SharedMenuGroups.AddBlockSeparator(items);
+        SharedMenuGroups.AddCommandAndNote(items, aircraft, context, host);
+        var all = new MenuItem { Header = AllCommandsHeader };
+        AddAllCommands(all.Items, aircraft, context, host);
+        items.Add(all);
+        items.Add(SharedMenuGroups.Favorites(aircraft, context, host));
+
+        items.Add(new Separator());
         items.Add(SharedMenuGroups.Track(aircraft, context, host));
         items.Add(SharedMenuGroups.DataBlock(aircraft, context, host));
         items.Add(SharedMenuGroups.Squawk(aircraft, context, host));
         SharedMenuGroups.AddRange(items, section);
-        items.Add(SharedMenuGroups.Favorites(aircraft, context, host));
-
-        var all = new MenuItem { Header = AllCommandsHeader };
-        AddAllCommands(all.Items, aircraft, context, host);
-        items.Add(all);
     }
 
     /// <summary>
