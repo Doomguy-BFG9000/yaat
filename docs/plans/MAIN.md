@@ -4,31 +4,32 @@
 
 ## Bug reports and feature requests
 
-- [!] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext+1
+- [!] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext
 - [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release v0.16.0-beta reels
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release v0.16.0-beta reels
   - [ ] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release v0.16.0-beta reels
   - [ ] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release v0.16.0-beta reels
-- [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover) · release vNext+1
-- [ ] YAAT-403 Support for vTBFM · release vNext+1
-  - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext+1
+- [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover) · release vNext
+- [ ] YAAT-403 Support for vTBFM · release vNext
+  - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR) · release vNext
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
+- [ ] YAAT-636 Refresh the room title's ARTCC label when a scenario load changes it
 
 ## Context-menu quick commands (#471)
 
-- [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip · release vNext+1
-- [ ] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext+1
+- [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip · release vNext
+- [ ] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
 - [ ] YAAT-581 Offer RES in the context menu for a HOLD-ed taxiing aircraft
 
 ## Tick-path unification
 
-- [ ] YAAT-209 Move the ERAM coverage-loss coast state machine into the Sim · release vNext+1
-- [ ] YAAT-216 HandoffUnacceptedRule: keep the anomaly for low handoffs to human-attended positions · release vNext+1
-- [ ] YAAT-272 Shadow spawns run AfterAircraftSpawned on replay only (PDC queue, strip print) · release vNext+1
-- [ ] YAAT-320 Retire the tick-path plan folder now every step has shipped · release vNext+1
-- [ ] YAAT-322 Pin a spawn due at second t on the sub-tick replay path · release vNext+1
+- [ ] YAAT-209 Move the ERAM coverage-loss coast state machine into the Sim · release vNext
+- [ ] YAAT-216 HandoffUnacceptedRule: keep the anomaly for low handoffs to human-attended positions · release vNext
+- [ ] YAAT-272 Shadow spawns run AfterAircraftSpawned on replay only (PDC queue, strip print) · release vNext
+- [ ] YAAT-320 Retire the tick-path plan folder now every step has shipped · release vNext
+- [ ] YAAT-322 Pin a spawn due at second t on the sub-tick replay path · release vNext
 
 ## Say again
 
@@ -82,11 +83,11 @@
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-314 Ground paths that set taxi speed instead of braking to it (unmeasured sites)
-- [ ] YAAT-319 Clear-runway and line-up restart a turn restored mid-arc · release vNext+1
-- [ ] YAAT-324 Ground conflict limit drops a runway-crossing aircraft's speed in one second instead of braking · release vNext+1
+- [ ] YAAT-319 Clear-runway and line-up restart a turn restored mid-arc · release vNext
+- [ ] YAAT-324 Ground conflict limit drops a runway-crossing aircraft's speed in one second instead of braking · release vNext
 - [ ] YAAT-325 GIVEWAY to traffic that is just starting to taxi releases at once
-- [ ] YAAT-328 HOLD issued mid runway crossing stops the aircraft dead on the runway · release vNext+1
-- [ ] YAAT-334 TAXI during landing rollout throws a navigator teleport on the next tick · release vNext+1
+- [ ] YAAT-328 HOLD issued mid runway crossing stops the aircraft dead on the runway · release vNext
+- [ ] YAAT-334 TAXI during landing rollout throws a navigator teleport on the next tick · release vNext
 - [ ] YAAT-348 CWT F length fallback overstates turboprops (AN26, DH8D, C130): pick by category
 - [ ] YAAT-353 Stop a landed aircraft re-accelerating on the exit route before the hold-bar stop (C172 OAK 28R H: +1 kt)
 - [ ] YAAT-364 C172 exiting OAK 28R at H stops with its tail 0.7 ft short of clearing the bar
@@ -97,26 +98,26 @@
 - [ ] YAAT-378 LAHSO: query an EXIT instructed beyond the hold-short point at the readback
 - [ ] YAAT-397 Repeat EXIT under a standing EXP: judge it the same before and after the exit hand-off
 - [ ] YAAT-398 Runway exit EXIT judgement leftovers: confirming EXIT under EXP, unchecked EXIT while searching, behind-wording
-- [ ] YAAT-401 HS mid-taxi: judge 'unable' against the firm braking rate, and brake firm on an unable overrun · release vNext+1
-- [ ] YAAT-402 Count an aircraft past a runway hold line as fouling that runway · release vNext+1
+- [ ] YAAT-401 HS mid-taxi: judge 'unable' against the firm braking rate, and brake firm on an unable overrun · release vNext
+- [ ] YAAT-402 Count an aircraft past a runway hold line as fouling that runway · release vNext
 - [ ] YAAT-404 Split TaxiingPhase.OnTick under the 100-line limit
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-414 Navigator reads an aircraft in line but short of segment 0 as off-line and crawls at 5 kt
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
-- [ ] YAAT-509 Turn about from rest short of a runway bar ignores the bar clearance · release vNext+1
+- [ ] YAAT-509 Turn about from rest short of a runway bar ignores the bar clearance · release vNext
 - [ ] YAAT-467 Lay a taxi turn from rest at a junction node so it finishes on the next centreline
 - [ ] YAAT-468 Stop at a hold-short bar the parser places at the aircraft's own start on a short leg
 - [ ] YAAT-469 Use one high-speed exit angle threshold for turn-off speed and exit search
 - [ ] YAAT-470 Split GroundNavigator.BuildEntryAlignmentArc and TickStraight under the size limits
 - [ ] YAAT-471 Stop on the taxiway centreline at a node-only hold short issued after a turn about
-- [ ] YAAT-483 Keep a runway-crossing aircraft moving behind in-trail traffic, or hold it at the near line · release vNext+1
+- [ ] YAAT-483 Keep a runway-crossing aircraft moving behind in-trail traffic, or hold it at the near line · release vNext
 - [ ] YAAT-485 Keep taxi speed through an early arrival at a gentle unrounded bend
 - [ ] YAAT-486 Fill NavTickDiag.PathDeviationFt, which is always written as zero
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
 - [ ] YAAT-510 Rolling re-route back through a bar it faces away from falls back to the wide turn-about arc
 - [ ] YAAT-513 Fly the acute runway turn-off onto J along its fillet, and bound exit-test turn rate
-- [ ] YAAT-532 AI Ground never pushes an aircraft parked at a push-back stand; it taxis it forward · release vNext+1
-- [ ] YAAT-578 Warn when a plain `PUSH {taxiway}` path fouls a parked neighbour · release vNext+1
+- [ ] YAAT-532 AI Ground never pushes an aircraft parked at a push-back stand; it taxis it forward · release vNext
+- [ ] YAAT-578 Warn when a plain `PUSH {taxiway}` path fouls a parked neighbour · release vNext
 - [ ] YAAT-583 Restore the junction target when a hold short ahead is cleared mid-taxi
 - [ ] YAAT-606 Clear the runway hold line with margin when a widebody vacates (RunwayExitPhase stop point)
 - [ ] YAAT-615 Park SFO GA arrivals on the side of 28R they exit toward
@@ -142,7 +143,7 @@
 - [ ] YAAT-336 Immediate preset CTO for a departure held for release is dropped instead of waiting for the release
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-427 Split GroundCommandHandler's TryTaxiCore and ResolveTaxiRouteFrom under the 100-line limit
-- [ ] YAAT-577 FOLLOWG behind a departing lead holds as a crossing of '30/12', not a departure hold · release vNext+1
+- [ ] YAAT-577 FOLLOWG behind a departing lead holds as a crossing of '30/12', not a departure hold · release vNext
 - [ ] YAAT-582 Bare CROSS clears the next bar in route order and re-aims the segment
 - [ ] YAAT-584 Decide and honour HS to a FOLLOWG follower (it never stops at a taxiway bar)
 - [ ] YAAT-586 Make RES/CROSS with CROSS and HS lists atomic when an HS target fails
@@ -182,13 +183,13 @@
 - [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
 - [ ] YAAT-83 Find why live recording playback shifts pilot transmissions 1–2 s
 - [ ] YAAT-84 Fix recording-load oddities: version label, future log lines, stuck landers
-- [ ] YAAT-251 A mid-tape recorded setting change never reaches the room's Session Settings or the clients · release vNext+1
-- [ ] YAAT-252 Loading a recording resets the auto cleared-to-land flags from the preference, not the tape's session setting · release vNext+1
-- [ ] YAAT-253 Recording load and t=0 rebuild dispatch scenario presets under the room's settings, not the tape's · release vNext+1
-- [ ] YAAT-429 Navigation queued blocks (JRADO, JRADI, DEPART, airway intercept) are lost silently after a snapshot restore · release vNext+1
+- [ ] YAAT-251 A mid-tape recorded setting change never reaches the room's Session Settings or the clients · release vNext
+- [ ] YAAT-252 Loading a recording resets the auto cleared-to-land flags from the preference, not the tape's session setting · release vNext
+- [ ] YAAT-253 Recording load and t=0 rebuild dispatch scenario presets under the room's settings, not the tape's · release vNext
+- [ ] YAAT-429 Navigation queued blocks (JRADO, JRADI, DEPART, airway intercept) are lost silently after a snapshot restore · release vNext
 - [ ] YAAT-430 A restored or deferred AI-controller dispatch uses the student's facility hint, not the controller's
 - [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
-- [ ] YAAT-632 Move three version-pinned recording tests onto today's airport layout · release vNext+1
+- [ ] YAAT-632 Move three version-pinned recording tests onto today's airport layout · release vNext
 
 ## Wave 5 — Command queue and dispatch architecture
 
@@ -458,3 +459,11 @@
 - [ ] YAAT-619 Keep a CRC client from binding to a room retired during the bind
 - [ ] YAAT-629 Give the tools that load TestVnasData the aircraft tables they now require
 - [ ] YAAT-631 Run yaat-crc-config's Rust tests in CI with cargo-nextest
+
+## No project
+
+- [ ] YAAT-637 UNV ground map types a stand as patking; name the airport in the unknown-feature warning
+- [ ] YAAT-638 GuideCapture live-traffic scene captures no shadow aircraft
+- [ ] YAAT-639 Profile the test suites and land the worthwhile speedups · release vNext
+- [ ] YAAT-640 Vary live winds aloft across the airspace from a NOAA GFS grid · release vNext
+- [ ] YAAT-642 QuickCommandsSection_DragReordersARow presses the scroll presenter under load
