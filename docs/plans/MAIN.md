@@ -29,9 +29,8 @@
 
 ## Tick-path unification
 
-- [ ] YAAT-272 Shadow spawns run AfterAircraftSpawned on replay only (PDC queue, strip print) · release vNext
+- [/] YAAT-272 Shadow spawns run AfterAircraftSpawned on replay only (PDC queue, strip print) · release vNext
 - [ ] YAAT-320 Retire the tick-path plan folder now every step has shipped · release vNext
-- [/] YAAT-322 Pin a spawn due at second t on the sub-tick replay path · release vNext
 
 ## Say again
 
@@ -468,3 +467,4 @@
 - [ ] YAAT-619 Keep a CRC client from binding to a room retired during the bind
 - [ ] YAAT-629 Give the tools that load TestVnasData the aircraft tables they now require
 - [ ] YAAT-631 Run yaat-crc-config's Rust tests in CI with cargo-nextest
+- [ ] YAAT-646 Make CrcJoinSessionTests' Tower Cab move into another room's session load-proof
