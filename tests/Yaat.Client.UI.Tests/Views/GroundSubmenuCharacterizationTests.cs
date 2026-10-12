@@ -273,26 +273,26 @@ public class GroundSubmenuCharacterizationTests
         Assert.DoesNotContain("Give way to…", headers);
     }
 
-    // W3's bar is mid-way along 12/30 and the room names no active runway, so the one runway row names both ends and
-    // sends the lower-numbered one, which binds the same bar.
+    // G crosses 10L/28R mid-runway on its way to 28L (the destination, which is no row) and the room names no active
+    // runway, so the one runway row names both ends and sends the lower-numbered one, which binds the same bar.
     [AvaloniaFact]
     public void GroundMenu_Taxiing_HoldShortListsTheRouteLineAndOneRowPerBar_AndSendsHS()
     {
-        Built built = BuildMenu(TaxiingOnW3(), prevSelected: null);
+        Built built = BuildMenu(TaxiingAcrossOnG(), prevSelected: null);
 
-        Assert.Equal(["route W3 · RWY 30"], Children(built.Menu, "Hold short of…"));
+        Assert.Equal(["route G · RWY 28L"], Children(built.Menu, "Hold short of…"));
         MenuItem runway = Assert.Single(HoldShortRows(built.Menu));
-        Assert.Matches(@"^RW Runway 12/30 · at W3, end of route · ~\d[\d,]* ft — HS 12$", AutomationProperties.GetName(runway));
+        Assert.Matches(@"^RW Runway 10L/28R · crossing on G · ~\d[\d,]* ft — HS 10L$", AutomationProperties.GetName(runway));
 
         Click(runway);
 
-        Assert.Equal([(TaxiingCallsign, "HS 12", Initials)], built.Sent);
+        Assert.Equal([(TaxiingCallsign, "HS 10L", Initials)], built.Sent);
     }
 
     [AvaloniaFact]
     public void GroundMenu_HoldShortHover_SetsPreviewRoute_AndPointerExitDoesNotClearIt()
     {
-        AircraftModel target = TaxiingOnW3();
+        AircraftModel target = TaxiingAcrossOnG();
         Built built = BuildMenu(target, prevSelected: null);
 
         MenuItem item = Assert.Single(HoldShortRows(built.Menu));
@@ -302,7 +302,7 @@ public class GroundSubmenuCharacterizationTests
 
         TaxiRoute? preview = built.Vm.PreviewRoute;
         Assert.NotNull(preview);
-        Assert.Equal(HoldShort30AtW3.Id, preview.Segments[^1].ToNodeId);
+        Assert.Equal(Bar28ROnG.Id, preview.Segments[^1].ToNodeId);
 
         RaisePointer(item, InputElement.PointerExitedEvent);
 
@@ -349,7 +349,7 @@ public class GroundSubmenuCharacterizationTests
     [AvaloniaFact]
     public void GroundMenu_Taxiing_SubmenuOrder()
     {
-        Built built = BuildMenu(TaxiingOnW3(), prevSelected: null, Candidate());
+        Built built = BuildMenu(TaxiingAcrossOnG(), prevSelected: null, Candidate());
 
         string[] covered = ["Hold position", "Hold short of…", "Follow…", "Give way to…", "Ignore ground conflicts (15 s)"];
         List<string> present = [.. Headers(CommandTree(built.Menu)).Where(covered.Contains)];
@@ -370,6 +370,35 @@ public class GroundSubmenuCharacterizationTests
         ac.HasActiveTaxiRoute = true;
         return ac;
     }
+
+    /// <summary>
+    /// A taxiing aircraft two G nodes north of runway 28R's northern bar on G, facing it, cleared along G to 28L: the route
+    /// crosses 10L/28R mid-runway on the way, so that runway is its one Hold short of… row (28L, its destination, is none).
+    /// </summary>
+    private static AircraftModel TaxiingAcrossOnG()
+    {
+        GroundNode bar = Bar28ROnG;
+        GroundNode start = NextNorthOnG(NextNorthOnG(bar));
+        AircraftModel ac = GroundAircraft(TaxiingCallsign, "Taxiing", start.Position);
+        ac.Heading = new TrueHeading(GeoMath.BearingTo(start.Position, bar.Position));
+        ac.TaxiRoute = "G";
+        ac.CurrentTaxiway = "G";
+        ac.AssignedRunway = "28L";
+        ac.HasActiveTaxiRoute = true;
+        return ac;
+    }
+
+    /// <summary>Runway 28R's bar on G north of the runway: the first a southbound G taxi meets.</summary>
+    private static GroundNode Bar28ROnG =>
+        MenuGoldenFixtures
+            .OakLayoutForSim.Nodes.Values.Where(n =>
+                (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && id.Contains("28R") && n.Edges.Any(e => e.TaxiwayName == "G")
+            )
+            .MaxBy(n => n.Position.Lat)!;
+
+    /// <summary>The northernmost node one straight G edge from <paramref name="node"/>.</summary>
+    private static GroundNode NextNorthOnG(GroundNode node) =>
+        node.Edges.OfType<GroundEdge>().Where(e => e.TaxiwayName == "G").Select(e => e.OtherNode(node)).MaxBy(n => n.Position.Lat)!;
 
     private static AircraftModel PresetTaxiAircraft()
     {

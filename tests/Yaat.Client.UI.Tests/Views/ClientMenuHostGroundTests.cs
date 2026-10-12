@@ -180,32 +180,32 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     public void GetHoldShortChoices_SendHSWithThePreviewRoute()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        AircraftModel target = TaxiingOnW3();
+        AircraftModel target = TaxiingAcrossOnG();
         MainViewModel main = OakMain(target, []);
         var host = new ClientMenuHost(main, target, new Border());
 
         HoldShortMenu holdShort = host.GetHoldShortChoices(Callsign);
 
-        // W3's bar is mid-way along 12/30 and the room names no active runway: one row naming both ends, sending the
-        // lower-numbered one, which binds the same bar.
-        Assert.Equal("route W3 · RWY 30", holdShort.RouteLine);
+        // G crosses 10L/28R mid-runway on its way to 28L (the destination, which is no row) and the room names no active
+        // runway: one row naming both ends, sending the lower-numbered one, which binds the same bar.
+        Assert.Equal("route G · RWY 28L", holdShort.RouteLine);
         HoldShortChoice runway = Assert.Single(holdShort.Rows);
-        Assert.Equal((HoldShortChoice.RunwayBadge, "Runway 12/30", "HS 12"), (runway.Label.Badge, runway.Label.Name, runway.Command));
-        Assert.Equal(Runway30HoldShortNode.Id, runway.Preview.Segments[^1].ToNodeId);
+        Assert.Equal((HoldShortChoice.RunwayBadge, "Runway 10L/28R", "HS 10L"), (runway.Label.Badge, runway.Label.Name, runway.Command));
+        Assert.Equal(Bar28ROnG.Id, runway.Preview.Segments[^1].ToNodeId);
     }
 
     [AvaloniaFact]
     public void GetHoldShortChoices_ActiveEnd_NamesTheRunwayRow()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        AircraftModel target = TaxiingOnW3();
+        AircraftModel target = TaxiingAcrossOnG();
         MainViewModel main = OakMain(target, []);
-        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["30"] });
+        main.ApplyActiveRunways(new Dictionary<string, List<string>> { ["OAK"] = ["28R"] });
         var host = new ClientMenuHost(main, target, new Border());
 
         HoldShortChoice runway = Assert.Single(host.GetHoldShortChoices(Callsign).Rows);
 
-        Assert.Equal(("Runway 30", "HS 30"), (runway.Label.Name, runway.Command));
+        Assert.Equal(("Runway 28R", "HS 28R"), (runway.Label.Name, runway.Command));
     }
 
     [AvaloniaFact]
@@ -1219,7 +1219,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
     public void Builder_Taxiing_HoldShortFollowAndGiveWay_SendAndPreview()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        AircraftModel target = TaxiingOnW3();
+        AircraftModel target = TaxiingAcrossOnG();
         AircraftModel candidate = GroundAircraft(OtherCallsign, "Taxiing", new LatLon(target.Position.Lat + 0.002, target.Position.Lon));
         MainViewModel main = OakMain(target, [candidate]);
         var host = new SendCapturingHost(new ClientMenuHost(main, target, new Border()), "AB");
@@ -1228,7 +1228,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
 
         string[] groundItems = ["Hold short of…", "Follow…", "Give way to…"];
         Assert.Equal(groundItems, Headers(CommandTree(menu)).Where(groundItems.Contains));
-        Assert.Equal(["route W3 · RWY 30"], Headers(Item(CommandTree(menu), "Hold short of…").Items));
+        Assert.Equal(["route G · RWY 28L"], Headers(Item(CommandTree(menu), "Hold short of…").Items));
         MenuItem followRow = TrafficRow(Item(CommandTree(menu), "Follow…").Items, OtherCallsign);
         MenuItem giveWayRow = TrafficRow(Item(CommandTree(menu), "Give way to…").Items, OtherCallsign);
         Assert.Equal(["Moving"], Headers(Item(CommandTree(menu), "Follow…").Items));
@@ -1237,13 +1237,13 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         MenuItem holdShortRunway = Assert.Single(Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>(), m => m.Header is not string);
         RaisePointerEntered(holdShortRunway);
         Assert.NotNull(main.Ground.PreviewRoute);
-        Assert.Equal(Runway30HoldShortNode.Id, main.Ground.PreviewRoute.Segments[^1].ToNodeId);
+        Assert.Equal(Bar28ROnG.Id, main.Ground.PreviewRoute.Segments[^1].ToNodeId);
 
         Click(holdShortRunway);
         Click(followRow);
         Click(giveWayRow);
 
-        Assert.Equal([(Callsign, "HS 12", "AB"), (Callsign, $"FOLLOWG {OtherCallsign}", "AB"), (Callsign, $"GW {OtherCallsign}", "AB")], host.Sent);
+        Assert.Equal([(Callsign, "HS 10L", "AB"), (Callsign, $"FOLLOWG {OtherCallsign}", "AB"), (Callsign, $"GW {OtherCallsign}", "AB")], host.Sent);
     }
 
     /// <summary>The traffic row in <paramref name="items"/> whose one-line header starts with <paramref name="callsign"/>.</summary>
@@ -1274,6 +1274,35 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         ac.HasActiveTaxiRoute = true;
         return ac;
     }
+
+    /// <summary>
+    /// A taxiing aircraft two G nodes north of runway 28R's northern bar on G, facing it, cleared along G to 28L: the route
+    /// crosses 10L/28R mid-runway on the way, so that runway is its one Hold short of… row (28L, its destination, is none).
+    /// </summary>
+    private static AircraftModel TaxiingAcrossOnG()
+    {
+        GroundNode bar = Bar28ROnG;
+        GroundNode start = NextNorthOnG(NextNorthOnG(bar));
+        AircraftModel ac = GroundAircraft(Callsign, "Taxiing", start.Position);
+        ac.Heading = new TrueHeading(GeoMath.BearingTo(start.Position, bar.Position));
+        ac.TaxiRoute = "G";
+        ac.CurrentTaxiway = "G";
+        ac.AssignedRunway = "28L";
+        ac.HasActiveTaxiRoute = true;
+        return ac;
+    }
+
+    /// <summary>Runway 28R's bar on G north of the runway: the first a southbound G taxi meets.</summary>
+    private static GroundNode Bar28ROnG =>
+        MenuGoldenFixtures
+            .OakLayoutForSim.Nodes.Values.Where(n =>
+                (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && id.Contains("28R") && n.Edges.Any(e => e.TaxiwayName == "G")
+            )
+            .MaxBy(n => n.Position.Lat)!;
+
+    /// <summary>The northernmost node one straight G edge from <paramref name="node"/>.</summary>
+    private static GroundNode NextNorthOnG(GroundNode node) =>
+        node.Edges.OfType<GroundEdge>().Where(e => e.TaxiwayName == "G").Select(e => e.OtherNode(node)).MaxBy(n => n.Position.Lat)!;
 
     private static MainViewModel MainWith(AircraftModel target, AircraftModel[] others)
     {
