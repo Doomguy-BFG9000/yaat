@@ -13,7 +13,11 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 - linear: yaat
 - The plan lives in Linear: every task is a Linear issue in team YAAT, per `~/.claude/docs/plan-operations.md`; `docs/plans/MAIN.md` is its generated snapshot, never edited by hand, and `docs/plans/README.md` says what each design folder holds.
 
-  The open release fences the slice as the user-level CLAUDE.md's "An open release fences the work" says (`vNext+1` never counts); within the fence, the project order below decides. The only items pulled into the release without the owner asking are user submissions (next paragraph) and their blockers.
+  The open release fences the slice as the user-level CLAUDE.md's "An open release fences the work" says (`vNext+1` never counts).
+
+  `vHotfix` is the first fence: while it holds an open issue it fences ahead of `vNext`, its items are worked first, and the owner adds one with `linear release add yaat --hotfix <ID>`; `prepare-release` ships them as a hotfix.
+
+  Within the fence, the project order below decides. The only items pulled into the release without the owner asking are user submissions (next paragraph) and their blockers.
 
   A **user submission** is a bug report or feature request from a person other than the owner: a defect they hit or a feature they asked for (a Discord thread, a named reporter, an attached bug bundle or recording), whoever filed it, an agent included. A defect or idea only an agent, a nightly review or an audit found does not count.
 
@@ -21,7 +25,9 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
   **An item that blocks one in the open release joins it too**: whenever an **add**, a **split** or a ruling makes an open issue wait on another (a sub-issue of a release item, a tool or fix the release item needs first), add the blocker to the open release and record the relation (`save_issue` with `blocks: ["<the release item>"]`), so the release's issue list shows everything it waits on.
 
-  Adding to the open release is `linear release add yaat <ID>...` (`--next` for `vNext+1`, the release after, which never fences work); never the MCP's `addReleases: ["vNext"]`, since every pipeline names its open release `vNext` and the name is ambiguous. `vNext` and `vNext+1` are standing placeholders that keep their ids across cuts: `linear release complete` moves what shipped into a new release named after the version, and moves `vNext+1`'s issues into `vNext`.
+  Adding to the open release is `linear release add yaat <ID>...` (`--next` for `vNext+1`, the release after, which never fences work; `--hotfix` for `vHotfix`, the owner's call alone); never the MCP's `addReleases: ["vNext"]`, since every pipeline names its open release `vNext` and the name is ambiguous.
+
+  `vNext` and `vNext+1` are standing placeholders that keep their ids across cuts: `linear release complete` moves what shipped into a new release named after the version, and moves `vNext+1`'s issues into `vNext`.
 
   Project order, which is the order the queue is worked (Linear's project order is the record; `linear list` prints it): the feature-branch projects (`Active runways (feat/active-runways)`, `Precompute cache (feat/precompute-cache)`, `Follow on the taxi graph (feat/follow-on-graph)`), `Bug reports and feature requests`, `Context-menu quick commands (#471)`.
 

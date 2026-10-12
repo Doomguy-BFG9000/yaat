@@ -16,9 +16,34 @@ Everything inside a phase is independent and is launched together: long commands
 - **Address yaat-server only through `$SERVER`** (step 1.1), and never `git -C` a path you have not verified exists.
 - **Commits from parallel work go in one at a time.** Two commits racing in one checkout collide on git's index lock, and a partial commit's stash sweeps up the other's files.
 
+## Hotfix or regular
+
+A **regular** release cuts `main`. A **hotfix** ships only the items in the Linear release `vHotfix`, ahead of `vNext` and without the rest of `main`; the general route (items landed on `main` first, `hotfix/v<version>` cut from the last release tag, `cherry-pick -x`, the branch deleted after the tag) is `~/.claude/docs/plan-operations.md` "Hotfix", and this file adds only what yaat does at each step.
+
+A hotfix that touches the server builds and deploys from the hotfix tag; a regular release keeps building from `main`.
+
+Phase 1 asks which one. Every phase below is the regular path unless a step carries an **On a hotfix** note, and the hotfix steps that are not a note on one phase are in the table:
+
+| Step | On a hotfix |
+|---|---|
+| 1.3 | `PREV_TAG` is the tag the hotfix branch is cut from: the latest tag merged into `main` |
+| 1.4 | A revision bump, above the last release and below the next regular one |
+| 1.6 | Cut `hotfix/v{version}` in both repos and cherry-pick the items' commits |
+| 2.2, 2.3, 2.4, 2.11 | Skipped: a hotfix recomputes no cache, consolidates no recordings, refreshes no screenshots and has no showcase or reels |
+| 2.5 | Not applied: a hotfix ships only `vHotfix` items, and open user bugs wait for the regular cut |
+| 2.7, 2.8 | Run over the hotfix branches, `$PREV_TAG..hotfix/v{version}` in yaat and `$SERVER_BASE..hotfix/v{version}` in yaat-server |
+| 5.2, 5.4, 5.5 | Done on the branch |
+| 6.3 | Branches and tags are pushed separately, in both repos |
+| 7.2, 7.5 | The hotfix image build and deploy commands |
+| 8.1, 8.4 | `release complete --hotfix`, then delete the branches |
+
 ## Phase 1: Ground the run
 
 Sequential and short, and finished before any work starts: the secret check can stop the release, and every later phase reads what the other steps produce.
+
+### 1.0 Ask: hotfix or regular
+
+When `linear queue yaat` lists `vHotfix` items first and they are Landed, ask whether this run is the hotfix for them or the regular release. With no Landed `vHotfix` item the run is regular. A hotfix run takes the **On a hotfix** notes below; its items are the Landed `vHotfix` issues and nothing else.
 
 ### 1.1 Resolve the sibling repo once, and assert it exists
 
@@ -45,11 +70,15 @@ Confirm that the `LMKIT_LICENSE_KEY` secret is configured on the repo (`gh secre
 
 ### 1.3 Read the current version and the previous release
 
-Read `Directory.Build.props` at the repo root to get the current `<Version>` value. Run `git tag --sort=-v:refname | head -5` to find existing release tags; the latest is `PREV_TAG`, the lower bound of this cycle's work in both repos. yaat-server isn't release-tagged, so its cycle is anchored on the tag's commit date:
+Read `Directory.Build.props` at the repo root to get the current `<Version>` value. Run `git tag --merged main --sort=-v:refname | head -5` to find existing release tags; the latest is `PREV_TAG`, the lower bound of this cycle's work in both repos. Only tags merged into `main` count, so a hotfix tag, which sits on its own branch, never becomes the base of the next regular cut.
+
+yaat-server carries the same `v<version>` tag at the commit each release shipped (step 5.5), so its cycle is anchored on `PREV_TAG` in `$SERVER`. Until the first tagged release it has no such tag, and its cycle is anchored on the tag's commit date:
 
 ```bash
 PREV_DATE=$(git log -1 --format=%cI "$PREV_TAG")
 ```
+
+**On a hotfix**, `PREV_TAG` is the tag `hotfix/v{version}` is cut from, and the version in `Directory.Build.props` on `main` is not the base: read it from the tag.
 
 ### 1.4 Ask for the new version
 
@@ -65,6 +94,8 @@ Suggest the next version based on the current one. Ask the user what the new ver
 
 "Minor rev" is *not* semver's "minor": a release of ordinary fixes is a revision bump. A 0.13 or 1.0 is only ever asked for by name.
 
+**On a hotfix** the bump is a revision bump of `PREV_TAG`'s version. The next regular release's version must be greater than the last hotfix's, because Velopack offers the highest semver: after `0.16.2-beta` as a hotfix, the next regular cut is `0.16.3-beta` or `0.17.0-beta`, never `0.16.2-beta`.
+
 ### 1.5 Locate the unreleased CHANGELOG section
 
 Read `CHANGELOG.md`. Find the topmost version heading (a line starting with `## `, ignoring the file title `# Changelog`). Cross-check against `git tag --sort=-creatordate | head -10`:
@@ -72,9 +103,36 @@ Read `CHANGELOG.md`. Find the topmost version heading (a line starting with `## 
 - **Topmost heading matches a released tag** → there is no unreleased section. The CHANGELOG is stale relative to HEAD. **Offer to write it inline now by `/changelog-and-commit`'s rules** (Step 3 opens `## Unreleased` and consolidates it as the difference from the last release; Step 4 words the bullets), then re-read the file. Do not proceed past this step until the topmost heading is an unreleased section. Do not fall back to scraping git log.
 - **Topmost heading is `[Unreleased]` or an untagged version** (e.g. `## 0.2.0-alpha` with no matching `v0.2.0-alpha` tag) → that's the unreleased section. Capture its full body (everything from the heading up to but not including the next `## ` heading). This is the source of truth for the release notes.
 
+**On a hotfix** the unreleased section is `main`'s and holds more than the hotfix ships. The hotfix section is written on the branch (step 1.6) from the `vHotfix` items' bullets only. After a hotfix, `main` carries the hotfix's released `## <v>` heading directly below `## Unreleased` (step 8.4), so the topmost heading stays the unreleased one.
+
+### 1.6 On a hotfix: cut the branches and cherry-pick
+
+Skip on a regular release. Every item's commits are on `main` already (plan-operations "Hotfix" step 2); this step puts them on `hotfix/v{version}` in both repos, with `$SERVER` pointing at a checkout on that branch (a paired worktree is fine, step 1.1).
+
+```bash
+git switch -c hotfix/v{version} "$PREV_TAG"
+git -C "$SERVER" switch -c hotfix/v{version} "$PREV_TAG"
+```
+
+yaat-server is cut from its own `$PREV_TAG` tag, the commit that release shipped (step 5.5). Until the first tagged release it has none: cut from the live server's `/api/version` `.server` sha (`curl https://<domain>/api/version`).
+
+A commit belongs to a hotfix item by its `Refs: YAAT-<n>` trailer, in either repo. For each item, list its commits oldest first and pick them with `-x`, so each carries its `main` original:
+
+```bash
+git log --reverse --format=%H --grep 'Refs: YAAT-<n>' "$PREV_TAG"..main
+git -C "$SERVER" log --reverse --format=%H --grep 'Refs: YAAT-<n>' "$PREV_TAG"..main
+git cherry-pick -x <sha>...
+```
+
+Pick the items in the order they landed. Nothing else from `main` goes onto either branch. A conflict is a stop: report it to the user rather than resolving it silently, since it means the item depends on `main` work outside the hotfix.
+
+Then write the hotfix's `CHANGELOG.md` section on the yaat branch: the branch, cut from `PREV_TAG`, has no `## Unreleased`, so add `## {version}` (dated like its siblings) holding only the hotfix items' bullets, copied from `main`'s `## Unreleased`. `release.yml` extracts that section from the tagged commit and fails without it. Step 8.4 moves the same bullets on `main`.
+
 ## Phase 2: Launch every independent check
 
 Needs Phase 1. Launch 2.1 to 2.4 in the background, then 2.5 to 2.11 as subagents, then work 2.12 inline while they run. Phase 3 acts on what they return.
+
+**On a hotfix**, 2.2, 2.3, 2.4 and 2.11 are skipped and 2.5 does not apply; 2.1 runs with both checkouts on their hotfix branches, and 2.9, 2.10 and 2.12 are scoped to the hotfix bullets.
 
 ### 2.1 Run the full cross-repo test suite
 
@@ -125,6 +183,8 @@ The Discord bot's `/create-issue` labels its issues `bug` (`/create-feature-requ
 
 For each user-reported bug, its Linear issue must be Landed in the open release, or the user must have agreed in this session or a comment on the issue to defer it. Any other one stops the release: list them for step 3.1, which asks the user, one question per bug, whether to fix it first or defer it; a deferral is written as a comment on the Linear issue.
 
+**On a hotfix** this stop does not apply: a hotfix ships only `vHotfix` items, and open user bugs wait for the regular cut.
+
 ### 2.6 Decide every version-bearing file (subagent)
 
 More than one file carries a version number, and they do **not** all move together. Walk this table every release and state the verdict for each before continuing — a missed bump here ships a server that mis-gates clients, which is worse than a stale changelog because it locks users out.
@@ -147,6 +207,8 @@ Bump `Minimum` to the released version **only if an older client talking to the 
 Adding a **new optional** field is not breaking — an old client ignores it. Server-only changes, client-only changes, sim/physics changes, and doc changes are never breaking.
 
 State the verdict explicitly, e.g. *"`Minimum` stays at 0.9.18-beta — this cycle only added fields"* or *"`Minimum` → 0.9.21-beta: `TrainingRoomInfoDto.MemberInitials` was replaced by `Members`"*.
+
+**On a hotfix** the same table applies on the branches: `Recommended` becomes the hotfix version in yaat-server's `hotfix/v{version}`, and `Minimum` moves only on the breaking-change test.
 
 **Caveat to tell the user when you do bump `Minimum`:** the gate is enforced by the *client*, so it only protects users running a build that already has the check. Raising `Minimum` cannot rescue anyone on a version older than the release that introduced the gate — those clients still fail the old way. The bump is still correct; it just starts helping one release later.
 
@@ -185,11 +247,13 @@ git diff --name-only $PREV_TAG..HEAD
 git diff --name-only $PREV_TAG..HEAD -- src/Yaat.Sim src/Yaat.Client.Strips src/Yaat.Client.Tdls tools/Yaat.VStrips.Web tools/Yaat.VTdls.Web
 ```
 
-yaat-server — anchor on the commit that was HEAD at the prev-tag's timestamp and ignore the `extern/yaat` submodule pointer (nothing keeps it current, and the droplet re-resolves yaat via `--remote` at deploy time, so a pointer change ships nothing new):
+yaat-server — anchor on `$PREV_TAG` in `$SERVER` (step 5.5 tags every release there); before the first tagged release, on the commit that was HEAD at the prev-tag's timestamp. Ignore the `extern/yaat` submodule pointer (nothing keeps it current, and the image build checks yaat out at `client_ref`, default `main`, so a pointer change ships nothing new):
 ```
-SERVER_BASE=$(git -C "$SERVER" rev-list -1 --before="$PREV_DATE" HEAD)
+SERVER_BASE=$(git -C "$SERVER" rev-parse --verify -q "$PREV_TAG^{commit}" || git -C "$SERVER" rev-list -1 --before="$PREV_DATE" HEAD)
 git -C "$SERVER" diff --name-only "$SERVER_BASE" HEAD -- . ':(exclude)extern/yaat'
 ```
+
+**On a hotfix** run both queries with HEAD on the hotfix branches (`$PREV_TAG..HEAD` in yaat, `$SERVER_BASE..HEAD` in yaat-server), so the verdict covers only the cherry-picked work.
 
 Redirect the combined output to `.tmp/deploy-scope-since-$PREV_TAG.log`.
 
@@ -207,7 +271,9 @@ Before the release notes are locked, walk the commits going into this release an
 **Build the commit list.** Capture both repos — user-visible changes can land on either side:
 
 - yaat: `git log $PREV_TAG..HEAD --oneline`
-- yaat-server: `git -C "$SERVER" log --since "$PREV_DATE" --oneline`
+- yaat-server: `git -C "$SERVER" log "$SERVER_BASE"..HEAD --oneline`, with `SERVER_BASE` computed as in step 2.7
+
+**On a hotfix** the lists are the same two commands with HEAD on the hotfix branches.
 
 Redirect both lists to `.tmp/release-commits-since-$PREV_TAG.log` so you can scan without re-running.
 
@@ -278,6 +344,8 @@ The candidates go to step 3.1 as a focused diff (drop / fold / keep). Do not aut
 ## Phase 3: Settle the findings and land the pre-cut work
 
 Needs Phase 2's audits back; the background commands may still be running. Phase 4 starts when every exit condition at the end of this phase holds.
+
+**On a hotfix** nothing lands in 3.2: a fix the audits call for is a `main` commit first and a further cherry-pick onto the branch. 3.3 and 3.4 are skipped with their steps, and 3.5 omits the Highlights block below the usual threshold.
 
 ### 3.1 Put the findings to the user
 
@@ -364,6 +432,8 @@ CHANGELOG.md heading change:
   after:  ## 0.1.1-alpha - 2026-04-24
 ```
 
+On a hotfix the heading is the one written in step 1.6, so show it as new rather than promoted.
+
 Match the existing file style by inspecting an already-released sibling section (e.g. `## 0.1.0-alpha`):
 - If sibling sections have no `v` prefix, don't add one. If they do, keep it.
 - If sibling sections include a date (`## 0.1.0-alpha - 2025-12-30`), include one. If not, just leave the version.
@@ -378,6 +448,8 @@ Ask the user to review. Apply any requested edits to the highlights or the unrel
 ## Phase 5: Cut the release
 
 Needs the user's approval from Phase 4. Steps 5.1 to 5.3 are one edit set; 5.4 commits it and 5.5 tags it.
+
+**On a hotfix** every edit, commit and tag here lands on `hotfix/v{version}` in each repo, never on `main`. There is no showcase to rename (5.2 item 3) and no `docs/architecture.md` update (5.3).
 
 ### 5.1 Apply every version bump
 
@@ -407,6 +479,8 @@ Commit yaat-server's version edits from 5.1 in that repo, staging `src/Yaat.Serv
 
 Create the tag: `git tag v{version}`.
 
+Also tag yaat-server at the commit it shipped, with the same name: `git -C "$SERVER" tag v{version}`, after its 5.4 commit (the tip of `main` on a regular release, of `hotfix/v{version}` on a hotfix). The next hotfix cuts yaat-server's `hotfix/v<version>` from this tag, and 1.3 and 2.7 anchor the next cycle on it.
+
 ## Phase 6: Push both repos
 
 Needs the release commit and tag from Phase 5.
@@ -427,9 +501,13 @@ Pushing causes no downtime — the room-occupancy check and the deploy decision 
 
 If "abort" is picked, stop.
 
+**On a hotfix** the options are the same, ordered by the 2.7 verdict; a CLIENT_ONLY hotfix still pushes its branch and tag, and builds no image.
+
 ### 6.2 Check both repos before either push
 
 Push both repos so any cross-repo work made during this cycle ships together. Run these checks before pushing either repo.
+
+**On a hotfix** read each check against `hotfix/v{version}`: the status line expects `## hotfix/v{version}`, and the authorship range is `$PREV_TAG..hotfix/v{version}` in yaat and `$SERVER_BASE..hotfix/v{version}` in yaat-server.
 
 **Confirm where each HEAD is:**
 
@@ -449,23 +527,28 @@ git -C "$SERVER" log --format='%h %s' --invert-grep --grep='Co-Authored-By:' ori
 
 Anything printed is a commit this workflow did not author. Halt and report it before pushing — a release push is the point after which the message can no longer be amended.
 
-**Confirm no unexpected local tags are pending** (yaat only; yaat-server isn't release-tagged):
+**Confirm no unexpected local tags are pending**, in both repos:
 
 ```bash
 comm -23 <(git tag | sort) <(git ls-remote --tags origin | sed 's/.*refs.tags.//;s/\^{}//' | sort -u)
+comm -23 <(git -C "$SERVER" tag | sort) <(git -C "$SERVER" ls-remote --tags origin | sed 's/.*refs.tags.//;s/\^{}//' | sort -u)
 ```
 
-This should print nothing but the release tag you just created. If it lists others, delete or investigate them before pushing — do not push them along (step 6.3, "Never use `--tags`").
+Each should print nothing but the release tag you just created. If it lists others, delete or investigate them before pushing — do not push them along (step 6.3, "Never use `--tags`").
 
-### 6.3 Push yaat-server, then yaat, then the tag
+### 6.3 Push yaat-server, then yaat, then the tags
 
-- First push yaat-server's pending commits, its version-bump commit from 5.1 included (no tag — yaat-server isn't release-tagged): `git -C "$SERVER" push origin main`. Run even if you think there's nothing pending — it's idempotent. If the push is rejected, rebase (`git -C "$SERVER" pull --rebase origin main`) and re-push.
+- First push yaat-server's pending commits, its version-bump commit from 5.1 included: `git -C "$SERVER" push origin main`. Run even if you think there's nothing pending — it's idempotent. If the push is rejected, rebase (`git -C "$SERVER" pull --rebase origin main`) and re-push. Then, **in a separate command**, push its tag: `git -C "$SERVER" push origin v{version}`.
 - Then push yaat's release commit, and **only after that returns**, push the release tag **by name in a separate command**:
 
   ```bash
   git push origin main
   git push origin v{version}
   ```
+
+**On a hotfix** the pushes are the branches, then the tags, each its own command and never coalesced with a `main` push: `git -C "$SERVER" push origin hotfix/v{version}` first (the image build runs on that ref, so the branch must be on the remote before step 7.2 dispatches), then `git -C "$SERVER" push origin v{version}`; then in yaat `git push origin hotfix/v{version}` and, after it returns, `git push origin v{version}`.
+
+`main` is not pushed. The branch push starts `ci.yml` on the branch; the tag push starts `Release` and `Release (macOS)` as on a regular release.
 
 **Two pushes, not one.** GitHub sometimes coalesces a simultaneous branch push and tag push into a single delivered `push` webhook event; when that happens the `release.yml` workflow (`push: tags: ['v*']`) does not fire and only the `main`-triggered CI workflow runs. A tag pushed on its own always produces its own event.
 
@@ -505,7 +588,7 @@ If the list is missing `Release` or `Release (macOS)`, the tag push was coalesce
 2. **Transient infrastructure** — Apple's timestamp service (`CMS signature encoding failed: The timestamp service is not available. (-67885)`), a notarization upload/poll timeout, `smoke-intel`'s model download from Hugging Face, a runner lost mid-job — re-run the failed jobs: `gh run rerun <run-id> --repo leftos/yaat --failed`, then watch the re-run the same way. The `build` jobs stay green and are not repeated.
 3. **A `CI` failure confined to `Formatting (CSharpier)` or `Style diagnostics`** (an info-level IDE rule in a test file, say) while `Release` and `Release (macOS)` are green is not a release defect: the installers are fine, so carry on to the publish (7.3) or the deploy (7.5).
 
-   Commit and push the fix only after the draft is published or the deploy prints `Deployment complete!` — the droplet re-resolves yaat main, and a commit past the tag fails the deploy's tag-equals-deployed-commit publish check.
+   Commit and push the fix only after the draft is published or the deploy prints `Deployment complete!` — the image is built from yaat at `client_ref` (default `main`), and a commit past the tag fails the deploy's tag-equals-deployed-commit publish check. A hotfix image is built from the tag itself, so a later commit on `main` cannot reach it.
 4. **Anything else** (compile error, packaging error, a missing secret) is a release defect: report it with the error lines and stop. Do not publish the draft and do not deploy until the user decides how to fix forward; a hidden draft is recoverable, a published release with a broken or missing installer is not.
 
 Report each run's final conclusion to the user in the message that moves on to the next step.
@@ -518,9 +601,17 @@ Run it **in the background**, through the gate wrapper (a green-looking failed b
 pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 1800 -Slot heavy -- pwsh deploy-to-droplet.ps1 -BuildImageOnly
 ```
 
-It dispatches yaat-server's `docker-image.yml`, watches the ~20-minute CI build, and exits without touching the droplet — the live server keeps serving throughout, so no room check is needed yet. (`docker-image.yml` advances `extern/yaat` to origin/main at build time, so dispatching immediately after the push is safe.)
+It dispatches yaat-server's `docker-image.yml`, watches the ~20-minute CI build, and exits without touching the droplet — the live server keeps serving throughout, so no room check is needed yet. (`docker-image.yml` checks `extern/yaat` out at its `client_ref` input, default `main`, at build time, so dispatching immediately after the push is safe.)
 
 **Do not land further commits on yaat main until the deploy finishes** — the image bakes in whatever main holds, and the deploy only auto-publishes the draft release when the deployed client commit *is* the tagged commit. If the build fails, surface it and stop — do not deploy a stale image.
+
+**On a hotfix** the image is built from both repos' `hotfix/v{version}` branches with `extern/yaat` pinned to the yaat tag, which is why 6.3 pushes the server branch first:
+
+```bash
+pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 1800 -Slot heavy -- pwsh deploy-to-droplet.ps1 -BuildImageOnly -ServerRef hotfix/v{version} -ClientRef v{version}
+```
+
+The image lands on `:latest`, and `main` may keep moving: nothing the build reads is on `main`. Run this and the 7.5 deploy from the **main** checkout: its `deploy-to-droplet.ps1` has the `-ServerRef` / `-ClientRef` / `-ReleaseTag` flags, and the hotfix branch's copy, cut from the last tag, may not.
 
 ### 7.3 Publish a CLIENT_ONLY release (waits on 7.1)
 
@@ -554,6 +645,12 @@ The deploy publishes the draft release, so a still-running or failed `Release (m
 pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot heavy -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
 ```
 
+**On a hotfix** the command is the same plus the release tag, which the publish check compares the deployed client commit against, and with no `-ServerRef` / `-ClientRef` (the script refuses them together with `-SkipCiBuild`):
+
+```bash
+pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot heavy -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs -ReleaseTag v{version}
+```
+
 `-SkipCiBuild` deploys the image step 7.2 already built instead of building again; always pass `-NoLogs` — without it the script tails server logs indefinitely and blocks the agent until timeout. The script calls `POST /admin/prepare-restart` first (needs `ADMIN_PASSWORD` in yaat `.env`, matching the droplet) so active training sessions survive the deploy. Use `-SkipSessionSave` only for emergency deploys. Wait for the `Deployment complete!` banner before declaring the release done.
 
 ### 7.6 Verify the release is public
@@ -580,6 +677,14 @@ It creates a release `v{version}` and moves into it each Landed issue of `vNext`
 
 Then it completes `v{version}` at the tag commit. `vNext` and `vNext+1` keep their ids and names. Report its `<ID>: Done` / `<ID>: stays in vNext` / `<ID>: moved to vNext` lines.
 
+**On a hotfix** cut the `vHotfix` release instead, from `main`'s checkout, and skip the cut-item landing and the `vNext+1` move above (they belong to `vNext`):
+
+```bash
+uv run --project ~/.claude/tools/linear python -m linear release complete yaat --hotfix --version v{version} --sha "$(git rev-parse v{version}^{commit})" --repo-root .
+```
+
+A cherry-picked landing counts as shipped, and the emptied `vHotfix` becomes the completed release `v{version}`.
+
 If it exits 2 with `LINEAR_OAUTH_CLIENT_ID is not set`, the shell predates the user variables: run it from PowerShell after `$env:LINEAR_OAUTH_CLIENT_ID = [Environment]::GetEnvironmentVariable('LINEAR_OAUTH_CLIENT_ID','User')` and the same for `LINEAR_OAUTH_CLIENT_SECRET`. After a failure, re-run the same command: it reuses the open `v{version}` release the failed run left.
 
 Then sweep the project statuses with the Linear MCP `save_project`: a project whose every issue is Done or Canceled → `completed` (the snapshot also does this), one with an In Progress issue → `started`. Then regenerate the plan snapshot (`linear snapshot yaat --repo-root "$YAAT"`) and commit `docs/plans/MAIN.md` as `docs: plan snapshot` and push it, if it changed; the deploy is over, so a commit past the tag is safe now.
@@ -592,8 +697,16 @@ After 8.1's `linear release complete`, rename `vNext reels` to `<version> reels`
 
 Close each issue the user approved in 3.1 from 2.9's table. When closing, comment with the version, the implementing commit SHA, and a short description of the shipped behavior in user terms — the reporter should be able to tell whether their case is handled without reading the diff.
 
+### 8.4 On a hotfix: move the changelog bullets and delete the branches
+
+Skip on a regular release, and skip 8.2 on a hotfix: it has no reels.
+
+On `main`, move the hotfix items' bullets out of `## Unreleased` into a `## {version}` heading (dated like its siblings) directly below it, and commit and push that as a `docs:` commit once the release is public. The branch carries the same bullets as its own section (step 1.6).
+
+Then delete `hotfix/v{version}` in both repos, locally and on the remote: `git branch -D hotfix/v{version}` and `git push origin --delete hotfix/v{version}`, and the same with `git -C "$SERVER"`. The tags keep the commits, and the fixes are on `main` already.
+
 ## What the tag push ships
 
-The tag push triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block.
+The tag push triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` at the tagged commit (using the tag name; on a hotfix that is the branch's own section), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block.
 
 The highlights you and the user agreed on in Phase 4 are exactly what ships — no AI rewriting at release time. Every release is created as a draft and published by this flow: step 7.3 for client-only releases, the deploy script for server-affecting ones (full mechanics: `docs/installer-release.md`).

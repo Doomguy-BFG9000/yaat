@@ -6,6 +6,12 @@ YAAT ships as a Velopack installer with auto-update, built and published by a ta
 
 The version lives in `Directory.Build.props` at the yaat repo root (`<Version>`). A push of a `v*` tag whose version matches that property triggers a release; the `/prepare-release` skill bumps the property, promotes the changelog heading, and pushes the tag.
 
+### Hotfix releases
+
+A hotfix is released from a `hotfix/v<version>` branch cut at the last release tag, by the same `v*` tag and `release.yml` as a regular release (the changelog section it extracts is the branch's own); `/prepare-release` has the procedure.
+
+Its version sits above the last release and below the next regular one: Velopack offers an installed client the highest semver in its channel, so a regular release numbered at or below the last hotfix would never be offered to the users who took it. After `0.16.2-beta` as a hotfix, the next regular release is `0.16.3-beta` or `0.17.0-beta`.
+
 ## Packaging (Velopack)
 
 [Velopack](https://github.com/velopack/velopack) produces the installers via the `vpk` CLI. Each platform job downloads the self-contained `dotnet publish` output, runs `vpk pack` with `--packId YaatClient`, and emits a per-platform installer plus auto-update metadata:

@@ -2,7 +2,8 @@
 # Usage: .\deploy-to-droplet.ps1 [-Target <name>] [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
 #        .\deploy-to-droplet.ps1 [-Target <name>] -BuildImageOnly   (build+push the ghcr image in CI, no deploy)
 #        .\deploy-to-droplet.ps1 [-Target <name>] -SkipCiBuild [-NoLogs] ...   (deploy the already-built image)
-#        .\deploy-to-droplet.ps1 [-Target <name>] -ServerRef hotfix/<name> -ClientRef <tag|sha> ...   (hotfix: pinned refs)
+#        .\deploy-to-droplet.ps1 [-Target <name>] -BuildImageOnly -ServerRef hotfix/v<version> -ClientRef v<version>   (release hotfix, step 1: build)
+#        .\deploy-to-droplet.ps1 [-Target <name>] -SkipCiBuild -NoLogs -ReleaseTag v<version>   (step 2: deploy)
 #        .\deploy-to-droplet.ps1 [-Target <name>] -BuildOnDroplet [-NoCache] [-CacheReserveGb <gb>] ...
 #        .\deploy-to-droplet.ps1 -Target yaat2 -RebootOnly [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
 #        .\deploy-to-droplet.ps1 [-Target <name>] -StatusOnly    (report active rooms only, no deploy)
@@ -55,13 +56,20 @@
 # -ServerRef / -ClientRef  Pin what the CI image builds (default: both "main", which ships
 #               every commit on both mains, released or not). -ServerRef is the yaat-server
 #               branch or tag the workflow runs on; -ClientRef is the yaat branch, tag or
-#               commit the submodule is checked out at. The server hotfix flow: read the
-#               running commits from <url>/api/version, branch hotfix/<name> off the server
-#               one, commit the fix there and push it, then deploy with
-#               -ServerRef hotfix/<name> -ClientRef <the running client commit or its release tag>.
-#               Merge the hotfix branch into main afterwards. Combines with -BuildImageOnly;
+#               commit the submodule is checked out at. Combines with -BuildImageOnly;
 #               refused with -SkipCiBuild, -BuildOnDroplet and -RebootOnly, which build nothing.
 #               The droplet's `git pull` of the compose files still tracks yaat-server main.
+#               A release hotfix (a client tag v<version> cut on yaat's hotfix/v<version>, with
+#               yaat-server's hotfix/v<version> beside it) runs in two invocations:
+#                 -BuildImageOnly -ServerRef hotfix/v<version> -ClientRef v<version>
+#                 -SkipCiBuild -NoLogs -ReleaseTag v<version>
+#
+# -ReleaseTag v<version>  The client release tag the post-deploy publish check compares the
+#               deployed client commit against, and publishes when its GitHub release is a
+#               draft. Default: -ClientRef when that is a release tag (v<major>.<minor>.<patch>
+#               with an optional -suffix), else v<Version> from this checkout's
+#               Directory.Build.props, which names main's version, not a hotfix's. Not a pin,
+#               so it is allowed with -SkipCiBuild; refused when -ClientRef names a different tag.
 #
 # -WaitForEmptyRooms  Do NOT deploy. Poll the target's /admin/status endpoint every
 #                     -PollSeconds (default 60) and block until the server reports zero
@@ -124,12 +132,24 @@ param(
   [switch]$SkipCiBuild,
   [string]$ServerRef = "main",
   [string]$ClientRef = "main",
+  [string]$ReleaseTag,
   [int]$DrainSeconds = 30,
   [int]$PollSeconds = 60,
   [int]$CacheReserveGb = 10
 )
 
 $ErrorActionPreference = "Stop"
+
+# -ServerRef / -ClientRef only steer the CI image build; the other paths never build one.
+$refsPinned = ($ServerRef -ne "main") -or ($ClientRef -ne "main")
+if ($refsPinned -and ($SkipCiBuild -or $BuildOnDroplet -or $RebootOnly)) {
+  throw "-ServerRef/-ClientRef pin the CI image build, which -SkipCiBuild, -BuildOnDroplet and -RebootOnly do not run. Drop the pins or the flag."
+}
+
+# The release the post-deploy publish check names, resolved up front so a -ReleaseTag that
+# contradicts -ClientRef fails before a CI build or any downtime.
+. (Join-Path $PSScriptRoot "deploy-release-tag.ps1")
+$resolvedRelease = Resolve-ReleaseTag -ClientRef $ClientRef -ReleaseTag $ReleaseTag -PropsPath (Join-Path $PSScriptRoot "Directory.Build.props")
 
 # Per-deployment configuration lives in deploy-targets.ps1 (shared with deploy-secrets.ps1).
 . (Join-Path $PSScriptRoot "deploy-targets.ps1")
@@ -160,12 +180,6 @@ $estimatedDowntime =
 $serverRepo = "leftos/yaat-server"
 $clientRepo = "leftos/yaat"
 $composeImageFiles = "-f docker-compose.yml -f docker-compose.image.yml"
-
-# -ServerRef / -ClientRef only steer the CI image build; the other paths never build one.
-$refsPinned = ($ServerRef -ne "main") -or ($ClientRef -ne "main")
-if ($refsPinned -and ($SkipCiBuild -or $BuildOnDroplet -or $RebootOnly)) {
-  throw "-ServerRef/-ClientRef pin the CI image build, which -SkipCiBuild, -BuildOnDroplet and -RebootOnly do not run. Drop the pins or the flag."
-}
 
 # Load this target's secrets from a local .env.<target> if present, else the shared .env.
 $envFile = Join-Path $PSScriptRoot ".env.$Target"
@@ -437,34 +451,38 @@ function Resolve-CommitLabel {
 # not make an unmatched release public. (Client-only releases skip the deploy; the
 # /prepare-release flow publishes those directly.)
 function Publish-DraftClientRelease {
-  param([string]$DeployedClientSha)
-  $props = Get-Content (Join-Path $PSScriptRoot "Directory.Build.props") -Raw
-  if ($props -notmatch "<Version>([^<]+)</Version>") {
-    Write-Host "⚠ Could not read <Version> from Directory.Build.props — skipping draft-release publish check." -ForegroundColor Yellow
-    return
-  }
-  $tag = "v$($Matches[1])"
-  $viewJson = @(gh release view $tag --repo $clientRepo --json isDraft 2>$null)
+  param(
+    [Parameter(Mandatory)][string]$Tag,
+    [Parameter(Mandatory)][string]$TagSource,
+    [string]$DeployedClientSha
+  )
+  Write-Host "  Publish check: release $Tag (name from $TagSource)" -ForegroundColor Gray
+  $viewJson = @(gh release view $Tag --repo $clientRepo --json isDraft 2>$null)
   if (($LASTEXITCODE -ne 0) -or ($viewJson.Count -eq 0)) {
-    Write-Host "  No GitHub release for $tag — nothing to publish." -ForegroundColor Gray
+    Write-Host "  No GitHub release for $Tag — nothing to publish." -ForegroundColor Gray
     return
   }
   if (-not ($viewJson -join "" | ConvertFrom-Json).isDraft) {
-    Write-Host "  Release $tag is already published." -ForegroundColor Gray
+    Write-Host "  Release $Tag is already published." -ForegroundColor Gray
     return
   }
-  $tagSha = (git -C $PSScriptRoot rev-list -1 $tag 2>$null | Select-Object -First 1)
-  if ((-not $DeployedClientSha) -or (-not $tagSha) -or ($DeployedClientSha -ne $tagSha)) {
-    Write-Host "⚠ Draft release $tag stays hidden: deployed client commit ($DeployedClientSha) is not the tagged release commit ($tagSha)." -ForegroundColor Yellow
-    Write-Host "  Publish manually once the matching server is live: gh release edit $tag --repo $clientRepo --draft=false" -ForegroundColor Yellow
+  $tagSha = (git -C $PSScriptRoot rev-list -1 "refs/tags/$Tag" 2>$null | Select-Object -First 1)
+  if (-not $tagSha) {
+    Write-Host "⚠ Draft release $Tag stays hidden: tag $Tag is not in this checkout: git fetch --tags" -ForegroundColor Yellow
+    Write-Host "  Publish manually once the matching server is live: gh release edit $Tag --repo $clientRepo --draft=false" -ForegroundColor Yellow
     return
   }
-  gh release edit $tag --repo $clientRepo --draft=false
+  if ((-not $DeployedClientSha) -or ($DeployedClientSha -ne $tagSha)) {
+    Write-Host "⚠ Draft release $Tag stays hidden: deployed client commit ($DeployedClientSha) is not the tagged release commit ($tagSha)." -ForegroundColor Yellow
+    Write-Host "  Publish manually once the matching server is live: gh release edit $Tag --repo $clientRepo --draft=false" -ForegroundColor Yellow
+    return
+  }
+  gh release edit $Tag --repo $clientRepo --draft=false
   if ($LASTEXITCODE -ne 0) {
-    Write-Host "⚠ Failed to publish draft release $tag (gh exit $LASTEXITCODE). Publish manually: gh release edit $tag --repo $clientRepo --draft=false" -ForegroundColor Yellow
+    Write-Host "⚠ Failed to publish draft release $Tag (gh exit $LASTEXITCODE). Publish manually: gh release edit $Tag --repo $clientRepo --draft=false" -ForegroundColor Yellow
     return
   }
-  Write-Host "✓ Published GitHub release $tag (was draft pending this deploy)" -ForegroundColor Green
+  Write-Host "✓ Published GitHub release $Tag (was draft pending this deploy)" -ForegroundColor Green
   # No explicit Discord dispatch here: publishing with the operator's user token fires
   # the release:published event, which triggers discord-release.yml on its own.
   # Dispatching as well posts a duplicate announcement.
@@ -638,7 +656,9 @@ if ($BuildImageOnly) {
   try {
     Invoke-CiImageBuild
     Write-Host ""
-    Write-Host "✓ Image build complete — deploy it with: .\deploy-to-droplet.ps1 -Target $Target -SkipCiBuild -NoLogs" -ForegroundColor Green
+    # A release tag named on this run must reach the deploy run too, which takes no pins.
+    $releaseTagArg = if ($resolvedRelease.Source -ne "Directory.Build.props") { " -ReleaseTag $($resolvedRelease.Tag)" } else { "" }
+    Write-Host "✓ Image build complete — deploy it with: .\deploy-to-droplet.ps1 -Target $Target -SkipCiBuild -NoLogs$releaseTagArg" -ForegroundColor Green
     exit 0
   }
   catch {
@@ -765,7 +785,12 @@ try {
     Write-Host "✓ Server is ready" -ForegroundColor Green
     $sessionNote = if ($sessionsSaved) { "`nActive sessions were checkpointed and should restore on reconnect." } else { "" }
     Send-DiscordStatus -Title "Server is back up" -Description "``$serverUrl`` is back online.`nServer: ``$commitHash```nClient (yaat): ``$submoduleHash``$sessionNote" -Color 5814783
-    Publish-DraftClientRelease -DeployedClientSha $deployedClientSha
+    if ($resolvedRelease.Tag) {
+      Publish-DraftClientRelease -Tag $resolvedRelease.Tag -TagSource $resolvedRelease.Source -DeployedClientSha $deployedClientSha
+    }
+    else {
+      Write-Host "⚠ Could not read <Version> from Directory.Build.props — skipping draft-release publish check." -ForegroundColor Yellow
+    }
   }
   else {
     Write-Host "⚠ Server startup check timed out (may still be initializing)" -ForegroundColor Yellow
