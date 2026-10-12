@@ -99,6 +99,7 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 | vatsim-server-rs | `..\_ext\csko\vatsim-server-rs` | CRC protocol reference (wire format, DTO ordering) — **read-only emulation**, use vNAS messaging-master for mutation-capable methods |
 | vatsim-vnas | `..\_ext\vatsim-vnas` | vNAS source: common (GeoCalc), data (nav/scenarios), messaging (CRC DTOs — definitive reference) |
 | vedst | `..\_ext\vFlightDataSystems\VATSIM_EDST_frontend` | vEDST web client (`vFlightDataSystems/VATSIM_EDST_frontend`) — **read-only reference** for the hub methods, callbacks, DTO shapes and `/vnas` endpoints yaat-server serves it ([`docs/vedst.md`](docs/vedst.md)) |
+| vatsim.dev | `..\_ext\vatsimnetwork\vatsim.dev` | VATSIM developer docs (`vatsimnetwork/vatsim.dev`) — **read-only reference** for VATSIM Connect (OAuth2, `/api/user`, `openapi/connect.yaml`) and its sandbox (`auth-dev.vatsim.net`, test accounts: `docs/services/connect/sandbox.md`) |
 
 **vNAS APIs:** Config: `https://configuration.vnas.vatsim.net/` | Data: `https://data-api.vnas.vatsim.net/api/artccs/{id}` | Airport ground map: `https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map` (used by `AirportLayoutDownloader`, cached at `%LOCALAPPDATA%/yaat/cache/airports/`)
 
