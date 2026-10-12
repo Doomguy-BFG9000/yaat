@@ -476,6 +476,7 @@ tests/CLAUDE.md                   # Test-project Claude guidance: docs/test-harn
 Setup-CrcEnvironment.ps1          # Adds YAAT1 to CRC's DevEnvironments.json (-Servers overrides for self-hosted)
 deploy-targets.ps1                # Per-deployment map (DropletIp, ServerPath, ServerUrl, RemoteEnvFile) + Resolve-DeployTarget; dot-sourced by the deploy scripts
 deploy-to-droplet.ps1             # Deploys yaat-server to a droplet (CI-built ghcr image by default; -BuildOnDroplet / -BuildImageOnly variants; -ServerRef/-ClientRef pin a hotfix build to `hotfix/v<version>` and `v<version>` instead of both mains, -ReleaseTag names the tag the publish check compares; the procedure is `prepare-release`'s hotfix path)
+deploy-release-tag.ps1            # Names the client release tag deploy-to-droplet.ps1's publish check compares against (Resolve-ReleaseTag from -ReleaseTag, -ClientRef or Directory.Build.props); dot-sourced by deploy-to-droplet.ps1, defines functions only
 deploy-secrets.ps1                # Merges yaat-server/.env + .env.<target> over the droplet's env file (key names only printed, timestamped backup, -DryRun)
 deploy-ladd.ps1                   # Ships yaat-server/ladd/ladd.json (FAA LADD block list, restricted) to <ServerPath>/ladd/; -Restart recreates the container
 update-ladd.ps1                   # Monthly LADD routine in one command: fetch-ladd.py (ADX portal document sync) -> refresh-ladd.py -> deploy-ladd.ps1 ->
@@ -486,6 +487,7 @@ tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and a
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
 tools/build-artcc-boundaries.py   # Downloads the NASR 28-day ARB CSV (or --zip) and writes src/Yaat.Sim/Data/Artcc/ArtccBoundaries.geojson (--strata LOW,HIGH; re-run per cycle)
 tools/bug_bundle.py               # Inspects, extracts, installs, and validates v4 bug bundles (*.yaat-bug-report-bundle.zip, *-recording.zip): info (bundle contents), history (per-callsign triage), snapshot (at a tick), actions (filtered log), terminal (all broadcasts). Subcommands bridge RecordingArchive queries and the bundle export manifest.
+tools/erase-user-data.ps1         # Privacy deletion request: calls the server's DELETE /admin/data/{cid} (ADMIN_PASSWORD from .env.<target> or .env) and prints what was removed; exits 0 erased, 1 retry (409), 2 incomplete, 3 failure
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
 tools/refresh-airport-airlines.ps1 # Builds Data/airport-airlines.json.br from BTS T-100 segment ZIPs, OurAirports, and OpenFlights carrier/route crosswalks.
 tools/refresh-test-layouts.py     # Re-fetches each tests/Yaat.Sim.Tests/TestData/<ID>.geojson (plain 3-4 letter stems only; `-`/prefixed snapshots are skipped) from the vNAS training-airport map API, normalized to LF; an airport with no map is kept as committed. `--check` reports what would change and exits 1 if anything would.
@@ -1278,6 +1280,7 @@ StarsDatablockClassifier.cs    # Pure: projects a track's STARS view for a TCP (
 EramPointoutState.cs           # Per-aircraft ERAM pointout record (mirrors vatsim-server-rs radar_state::PointoutState)
 EramSectorKey.cs               # (Facility, Sector) key for the per-aircraft ERAM FDB-open and point-out-minimize lists
                                # Round-tripped via the Eram satellite (AircraftEramStateDto.Pointouts/ForcedPointoutsTo), like other serialized ERAM state
+TrackCorrelation.cs            # Static: whether a radar target is correlated with its flight plan (SquawksAssignedCode, IsEramCorrelated); association, not a per-update code match
 
 # Coordination
 CoordinationChannel.cs         # Channel config: ListId, Title, SendingTcps, Receivers, Items

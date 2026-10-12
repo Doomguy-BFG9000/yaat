@@ -1,32 +1,42 @@
 # Changelog
 
-## Unreleased
+## v0.16.2-beta [2026/10/11]
+
+### Highlights
+
+- `RES` pre-clears a taxiing aircraft's next taxiway or spot hold short before it stops, and the right-click menu offers Resume taxi.
+- Tower Cab 3D joins your YAAT room without CRC and shows in Room Members.
+- Arrivals exit toward the gate or parking their remarks name.
+- A kick removes all of a person's connections and lasts through a planned restart.
 
 ### Added
 
-- On request, the YAAT1 operator can delete one user's uploaded speech recordings and saved restart rooms in a single step.
-- `RES` to a taxiing aircraft clears its next taxiway or spot hold short, read back as "continue taxi"; runway hold shorts still need `CROSS`.
+- On request, the server operator can delete one user's uploaded speech recordings and saved restart rooms in a single step.
 - A taxiing aircraft's right-click quick commands offer Resume taxi when a taxiway or spot hold short lies ahead.
 - A feed consumer such as vTBFM can list the YAAT rooms its VATSIM user may see: their ARTCC's rooms and rooms they are in.
-- Tower Cab 3D joins a YAAT room without CRC and shows in Room Members; a kick removes all of a person's connections until pulled back, tells CRC why, and survives a planned restart.
+- Tower Cab 3D joins its user's YAAT room without CRC and shows in Room Members.
 
 ### Changed
 
-- YAAT1 now deletes opt-in speech recordings after 12 months, restart snapshots once restored (7 days at most), and server log lines after 90 days.
-- On SFO 28R, cargo, registration-callsign and listed bizjet arrivals exit right; an arrival whose remarks name its gate or parking area exits toward it.
-- The Join Room list and the room title name the ARTCC of the room's loaded scenario, else its creator's.
+- `RES` pre-clears a taxiing aircraft's next taxiway or spot hold short before it stops there; only `CROSS` pre-clears a runway hold short.
+- A kick removes all of a person's connections until pulled back, tells CRC why, and survives a planned restart.
+- The server now deletes opt-in speech recordings after 12 months, restart snapshots once restored (7 days at most), and log lines after 90 days.
+- Arrivals whose remarks name their gate or parking exit toward it; on SFO 28R, cargo, registration-callsign and listed bizjet arrivals exit right.
+- At SFO, listed bizjet operators asking to taxi in are sent to non-gate parking, like registration-callsign aircraft.
+- The Join Room list names each room's ARTCC by its loaded scenario, else its creator's; the room title shows the same label as of joining.
+- A taxiing aircraft held back by a parked or held neighbour shows the "→CALLSIGN (auto)" ground datablock badge.
 
 ### Fixed
 
-- `PUSH` onto a taxiway whose end joins the stand's lead-in through a curve, such as SFO F5's `PUSH T7A`, pushes straight back instead of being refused.
+- `PUSH` onto a taxiway whose end curves into the stand's lead-in, such as SFO F5's `PUSH T7A`, pushes straight back instead of being refused.
 - Pilot position reports and terrain-height checks no longer miss a nearby airport lying due east or west of the aircraft.
-- `HFROFF` releases held departures that had not spawned yet, so an untowered IFR runway departure no longer asks for release again and waits.
+- `HFROFF` releases held departures that had not spawned yet, so in solo an untowered IFR runway departure no longer asks again for release.
 - A fresh `TAXI` or `PUSH` replaces the earlier queued taxi plan and pending ground `WAIT`/`GIVEWAY` instructions, so stale ones no longer fire later.
 - Signing in while VATSIM is down reports VATSIM as unavailable instead of failing with a server error.
-- A taxi from the ramp no longer routes through a neighbour's occupied stand and waits behind it forever; a blocked start is named in the reply.
-- A pattern altitude pre-issued with a TG, SG, LA or COPT now applies before a wrong-side pattern join, so the aircraft no longer flies an unneeded teardrop.
-- An option clearance naming another runway with an altitude (`COPT MLT 28L 20`) keeps this circuit's altitude and applies the new one from the 28L circuit on.
-- The context menu's Temporary altitude, Cruise, Squawk and Speed popups refuse unreadable input with a message and stay open, instead of crashing on `FL230` or `23,000`.
+- A ramp taxi no longer routes through a neighbour's occupied stand and waits there forever; the reply names a blocked start.
+- A pattern altitude given with TG, SG, LA or COPT now applies before a wrong-side pattern join, avoiding an unneeded teardrop.
+- An option clearance naming another runway and altitude (`COPT MLT 28L 20`) keeps this circuit's altitude, applying the new one from the 28L circuit.
+- The context menu's Temporary altitude, Cruise, Squawk and Speed popups refuse unreadable input with a message instead of crashing on `FL230` or `23,000`.
 - The context menu no longer offers the For section while a delayed spawn is selected.
 - The ground view's Hold short of… menu no longer lists the runway the taxi already ends at, whose row did nothing.
 - The context menu's heading pickers and Warp popup start from the datablock's magnetic heading, so an unchanged Warp no longer turns the aircraft.
@@ -36,9 +46,9 @@
 - Ground view: Taxi here to a taxiway node or intersection now stops at that node instead of the junction before it.
 - Ground view: right-clicking a runway centerline node opens the runway menu, with taxi to either end for departure.
 - In solo, a pilot told `FOLLOW` in the air now reads back "follow the traffic".
-- CRC's SAID shows an aircraft squawking a code other than its flight plan's, such as after `RANDSQ`, as unidentified: teal icon, callsign only.
+- CRC's SAID shows an aircraft without a flight plan, or off its assigned code as after `RANDSQ`, as unidentified: teal icon, callsign only.
 - CRC's ERAM shows an untracked aircraft squawking a code other than its assigned one as uncorrelated, or a Mode C intruder in the conflict-alert band.
-- A taxiing aircraft restored from an older recording whose route no longer fits the airport now stops and holds in position, taking ground commands and ground menus.
+- A taxi restored from a recording or server restart whose route no longer fits the airport holds in position, taking ground commands and menus.
 
 ## v0.16.1-beta [2026/10/10]
 

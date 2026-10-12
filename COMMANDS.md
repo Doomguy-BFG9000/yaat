@@ -273,6 +273,8 @@ Conditionals are **additive** — issuing one never cancels the others. A scenar
 
 A freshly-issued **immediate** command (one with no precondition) still supersedes: it clears the conditional list and replaces the conflicting active control surface. When you re-issue an immediate command that conflicts with one already in flight, YAAT supersedes only the **same control surface** (altitude, lateral, or speed) — orthogonal active targets survive. For example, after `DM 020, DCT VPCOL`, re-issuing `DM 025` updates the altitude target but leaves `DCT VPCOL` flying.
 
+A fresh `TAXI`, `TAXIAUTO`, `PUSH` or `PUSHM` (forced forms included) replaces the taxi plan queued behind the current movement, including a pending `WAIT`/`GIVEWAY` that would taxi the aircraft later, and the warning names what was dropped (`lost: WAIT 30 TAXI M4 M1`). Deferred frequency changes, squawks, altitudes and speeds are kept. `HOLD`, `RES`, a lone `HS` or `CROSS`, and a mid-push `PUSH FACE`/`PUSH TAIL` leave the queued route alone.
+
 A **queued pattern entry** (`ELD`/`ERD`/`ELC`/`ERC`/`ELB`/`ERB`/`EF`) or **queued approach clearance** (`CAPP`/`CVA`/`JFAC`/…) is lateral work for this purpose. After `DCT VPCOL; ERD 28R`, a vector — `RELR 20`, `FH 250`, or a fresh `DCT` — cancels the queued entry and warns which instruction was lost; `DM`/`CM` and `SPD` leave it queued.
 
 `CFIX` also leaves it queued: a crossing restriction annotates the route rather than replacing it, so a chain such as `CFIX NRRLI 210 280; CFIX WWAVS 160 280` stacks on the route without disturbing a queued clearance or an active `DCT`.
@@ -1047,6 +1049,8 @@ The pilot says "unable" once, and does not use W3 for the rest of that landing: 
 An exit is judged with the expedite it will run under: `EXIT W3 EXP` at max effort; `EXIT W3` repeated while an `EXP` stands keeps braking at max effort; `EXIT W4` without `EXP` while an `EXP` stands is judged at the firm rate and, if accepted, drops the expedite.
 
 When an exit is assigned (via `EL`, `ER`, or `EXIT`), the aircraft maintains a higher rollout speed and only decelerates when kinematically necessary to reach the exit at the correct turn-off speed. High-speed exits (≤45° from runway heading) target ~30 kts; standard 90° exits target ~15 kts. Without an assigned exit, aircraft decelerate uniformly to 20 kts.
+
+With no `EL`/`ER`/`EXIT`, an arrival picks its exit side in this order: toward where it parks when its flight-plan remarks name a gate or parking area (`REM /V/ GATE F14`, `/V/ PARKING SIGNATURE, 28R`; a gate works at any airport with a ground layout, an area name needs the airport's `parkingAreas`, and parking within 250 ft of the extended centreline gives no side); else the side its facility sets for its class on that runway end (only SFO 28R has one: cargo, registration callsigns and listed bizjets exit right); else YAAT's own choice. A side picked from the remarks or the class is kept: the aircraft slows for a 90° exit on that side rather than switching sides for a high-speed exit, and falls back to the other side only when no exit on its side is reachable.
 
 The turn onto the exit keeps the braking the rollout chose it with, and the aircraft then stops at the hold-short at its normal taxi braking. Adding `EXP` ("without delay") raises the braking limit to a max-effort rate (jet ~7.5 kts/s vs the normal firm 5 kts/s; a piston 4.5 vs 4.0) so the pilot takes the earliest reachable exit and brakes at max effort all the way to the hold-short stop — reducing runway occupancy at the cost of a firmer rollout.
 
