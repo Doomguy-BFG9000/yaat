@@ -1,0 +1,727 @@
+<title>Quick Command Flyouts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one column of artboards; each has a header (command, situation, the aircraft menu with its strip) over three lanes: today, A, B. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-today: #6b7480; --tag-a: #1f7f71; --tag-b: #7a4fbf; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-today: #9aa3ae; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-today: #9aa3ae; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 72ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .lede code, .cap code, .open-list code { font: 12px var(--f-mono); color: var(--accent); }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .keys { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 18px; font-size: 12px; color: var(--muted); }
+  .keys span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  nav.index { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 28px; }
+  nav.index a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); background: var(--panel);
+                border-radius: 4px; padding: 4px 9px; }
+  nav.index a:hover, nav.index a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-head { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .art-meta { flex: 1 1 420px; min-width: 0; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 4px; text-wrap: balance; }
+  .art-meta .sends { font: 12px var(--f-mono); color: var(--accent); margin-bottom: 8px; }
+  .art-meta p { margin: 0 0 6px; max-width: 70ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .verb { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-top: 6px; }
+  .verb button { font: 500 12px var(--f-body); color: var(--ink); background: var(--panel); border: 0; padding: 5px 10px; cursor: pointer; }
+  .verb button + button { border-left: 1px solid var(--line); }
+  .verb button[aria-pressed="true"] { background: var(--accent); color: var(--panel); }
+  .verb button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 410px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; }
+  .tag.today { color: var(--tag-today); } .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 14px; overflow-x: auto; color-scheme: dark; }
+  .stub-stage { flex: 0 0 auto; padding: 12px; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .cascade { display: flex; align-items: flex-start; width: max-content; }
+  .cascade > .menu + .menu { margin-left: -4px; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 480px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; min-height: 32px; padding: 5px 11px;
+        border-radius: 4px; cursor: default; }
+  .mi[data-send], .mi[data-toggle], .mi[data-opens] { cursor: pointer; }
+  .mi[data-send]:hover, .mi[data-toggle]:hover, .mi[data-opens]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi[data-send]:focus-visible, .chip:focus-visible, .tab:focus-visible, .rchip:focus-visible { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.dis { opacity: .4; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto; }
+  .mi.sec { min-height: 26px; padding-top: 6px; padding-bottom: 2px; font-size: 12px; font-weight: 600; color: #cfd4da; grid-template-columns: 1fr; }
+  .mi.kind { min-height: 22px; padding-top: 4px; padding-bottom: 0; font-size: 11px; color: rgba(255, 255, 255, .8); grid-template-columns: 1fr; }
+  .mi.title { grid-template-columns: 1fr auto; min-height: 24px; padding-top: 4px; padding-bottom: 2px; font-size: 11px; letter-spacing: .02em; color: #a4adb8; }
+  .mi.title .r { font: 11px "JetBrains Mono", Consolas, monospace; color: #8c95a0; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .lbl { min-width: 0; }
+  .bdg { border: 1px solid var(--b); color: var(--b); border-radius: 3px; padding: 0 3px; font-size: 11px; line-height: 15px; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; align-items: baseline; flex-wrap: nowrap; overflow: hidden; }
+  .nm.st { flex-direction: column; align-items: flex-start; }
+  .nm .n { white-space: nowrap; }
+  .sb { font-weight: 600; }
+  .hi .n, .hi .det-i, .hi .dist { font-weight: 700; }
+  .det-i { font-size: 12px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .det-s { font-size: 11px; opacity: .8; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; }
+  .dist { padding-left: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
+  .cmd { padding-left: 16px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .gly { flex: 0 0 auto; display: block; }
+  .grow > .gly { margin-right: 8px; }
+  .grow.dim > :not(.nm), .grow.dim .nm > .n, .grow.dim .nm > .note { opacity: .5; }
+  .grow.dim .cmd { opacity: .35; }
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .nm.col { flex-direction: column; align-items: flex-start; }
+  .via { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #b8c0c9; }
+  .clead { font-size: 11px; color: #a4adb8; margin-right: 2px; }
+  .chip { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; background: #2a2f37; border: 1px solid #3a414b; border-radius: 4px;
+          padding: 1px 6px; cursor: pointer; line-height: 16px; }
+  .chip:hover { background: #34404f; }
+  .chip.warn { color: #ffc062; border-color: #5a4a2a; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; }
+  .tbox::placeholder { color: #8f969e; }
+  .tbox:focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .boxrow { display: flex; align-items: center; gap: 10px; }
+  .scroll { max-height: 300px; overflow-y: auto; scrollbar-color: #555 transparent; }
+  .scroll .mi.sec { position: sticky; top: 0; background: #2c2c2c; z-index: 1; }
+  .hint { font-size: 11.5px; color: #a4adb8; padding: 2px 11px 6px; }
+  .hint code { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .mark { width: 14px; text-align: center; font-size: 10px; margin-right: 6px; }
+  .mark.mv { color: #6ee0ce; } .mark.pk { color: #8c95a0; }
+
+  /* Tabs and runway chips inside a flyout. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px 8px; border-bottom: 1px solid #3d3d3d; margin-bottom: 4px; }
+  .tab, .rchip { font: 12px "JetBrains Mono", Consolas, monospace; color: #e4e7eb; background: #23272c; border: 1px solid #3a414b; border-radius: 4px;
+                 padding: 3px 8px; cursor: pointer; }
+  .tab small, .rchip small { font: 10.5px Inter, sans-serif; color: #9aa3ad; margin-left: 4px; }
+  .tab[aria-selected="true"] { background: #24406a; border-color: #4a6fa5; }
+  .tab:hover, .rchip:hover { background: #2e343b; }
+  .rchips { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 11px 6px; align-items: center; }
+  .rchips .clead { margin-right: 4px; }
+  .pending { display: flex; align-items: center; gap: 8px; color: #a4adb8; font-size: 12.5px; padding: 6px 11px; }
+  .spin { width: 12px; height: 12px; border: 2px solid #4a4f57; border-top-color: #8fc1ff; border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+  /* The aircraft menu stub: title, state line, the strip (no label row, per YAAT-545). */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; }
+  .strip { display: grid; grid-template-columns: repeat(5, 40px); gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .cell.latched { background: #24406a; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+  .mi.faint { opacity: .55; }
+
+  /* Hold-short ladder. */
+  .ladder { position: relative; padding: 2px 0 2px; }
+  .ladder::before { content: ""; position: absolute; left: 22px; top: 18px; bottom: 18px; width: 2px; background: #3f6f68; }
+  .stop { grid-template-columns: 24px minmax(0, 1fr) auto auto; position: relative; }
+  .stop .bar { width: 22px; height: 10px; display: block; position: relative; z-index: 1; }
+  .stop.me { cursor: default; }
+  .stop.me:hover { background: transparent; }
+  .stop.end { opacity: .5; }
+
+  /* Exit chips on the runway. */
+  .rwy { display: block; width: 100%; height: auto; max-width: 440px; }
+  .rwy .chipg { cursor: pointer; }
+  .rwy .chipg rect { fill: #2a2f37; stroke: #3a414b; }
+  .rwy .chipg:hover rect, .rwy .chipg:focus-visible rect { fill: #34404f; stroke: #8fc1ff; outline: none; }
+
+  .open-list { max-width: 90ch; padding-left: 20px; margin: 8px 0 0; }
+  .open-list li { margin: 8px 0; }
+  .open-list b { font-weight: 600; }
+  footer.note { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 80ch; }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 10px; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · first batch · mock for the owner's feedback</div>
+  <h1>Quick command flyouts</h1>
+  <p class="lede">The eight strip entries whose flyout today is a copied context submenu. Each artboard shows <b>today's submenu</b> as the reference, then two designed options, <b>A</b> and <b>B</b>, in the style of the Cleared for takeoff and pattern-entry flyouts: glyph rows that each show the command they send, and inline boxes where a value is typed. A and B differ in one real open choice, named in each option's title. Under every option: how it works, and its worst case in use.</p>
+  <p class="lede">Click any row or chip: the line under the lane says what it sends. Data is illustrative KOAK traffic and taxi routes (taxiway geometry not checked against the layout); the approach ids are KOAK's from the bundled CIFP. The menus follow the settled YAAT-545 ruling, so the strip has no label row.</p>
+  <div class="keys">
+    <span><i class="sw" style="background:#FFC062"></i>tower</span>
+    <span><i class="sw" style="background:#6EE0CE"></i>ground</span>
+    <span><i class="sw" style="background:#A8CAFF"></i>flight</span>
+    <span><i class="sw" style="background:#DDBDFF"></i>pattern</span>
+    <span><i class="sw" style="background:#24406A"></i>latched strip button (its flyout is open)</span>
+    <span><i class="sw" style="background:#E8A33D"></i>RW badge</span>
+    <span><i class="sw" style="background:#4FB8A8"></i>TW badge</span>
+    <span><i class="sw" style="background:#7FD1B9"></i>PR badge</span>
+  </div>
+  <nav class="index" id="index" aria-label="Artboards"></nav>
+  <div id="arts"></div>
+
+  <section class="art" id="open">
+    <div class="art-meta">
+      <h2>Open choices this canvas does not draw</h2>
+      <p>Each needs the owner's word or a mock of its own before a brief.</p>
+    </div>
+    <ol class="open-list">
+      <li><b>Live lists while open.</b> Follow, Give way to, Hold short of and Exit left/right are built when the menu opens. Whether a designed flyout refills while open (as Push back to does through <code>FollowInFlyout</code>), and how rows that move or vanish behave under the pointer, is not drawn.</li>
+      <li><b>Keyboard paths.</b> Arrow keys across chips and tabs, where focus lands on open (the first row, or a filter or typed box), and what Enter does in each box: not drawn beyond the Follow filter.</li>
+      <li><b>Route preview and aircraft highlight on chips and tabs.</b> Today a row previews its route (taxi, hold short) or highlights its aircraft (Follow, Give way) on hover; whether a chip, a tab or a ladder stop does the same is open.</li>
+      <li><b>Lazy search states.</b> Taxi to runway's "Finding runway entries…" and Other runways' later search: only the placeholder is shown; how a runway chip or tab looks while its search runs, and its "No runway entry found" state, are not drawn.</li>
+      <li><b>Exit glyph turned to the exit's angle.</b> The exits-ahead list carries taxiway, side, distance and planned, but no exit angle, so a glyph turned per exit (high-speed versus 90°) has no data behind it.</li>
+      <li><b>Screen edge and the 480 px cap.</b> A flyout opens on the menu's left near the screen's right edge; how the chip rows, the runway diagram and the tab bars wrap at the 480 px menu cap and on a short screen is not drawn.</li>
+      <li><b>Point menu strip and the popup pickers.</b> Ruled into YAAT-569's scope (Taxi here, Taxi to runway per end, Push to; Fly heading, Maintain altitude, Assign speed, Direct to and the rest), but not in this batch.</li>
+      <li><b>Order of the work.</b> Which design is built first is not a screen choice.</li>
+    </ol>
+  </section>
+  <footer class="note">Row templates reproduced from <code>MenuCommandRow.cs</code>, <code>MenuGlyphRow.cs</code> and <code>TakeoffFlyout.cs</code>: Inter text, commands in JetBrains Mono at 70%, outlined badges, 22 px glyphs at stroke 1.9 coloured by family, the Fluent dark menu surface, strip cells 40 px with the corner notch.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const FAM = { T: "#FFC062", G: "#6EE0CE", F: "#A8CAFF", P: "#DDBDFF", S: "#DCE2E8" };
+  const GL = {
+    EL: ["T", "M15 21V11a4 4 0 0 0-4-4H4 M8 3L4 7l4 4"],
+    ER: ["T", "M9 21V11a4 4 0 0 1 4-4h7 M16 3l4 4-4 4"],
+    CTL: ["T", "M2 20h20 M5 6l11 9 M10 15h6v-6"],
+    GA: ["T", "M4 19h7a6 6 0 0 0 6-6V5 M13 9l4-4 4 4"],
+    CTO: ["T", "M2 20h20 M5 16L19 6 M13 6h6v6"],
+    RFIS: ["T", "M12 2v3 M2 13h3 M19 13h3 M7 21l3-12h4l3 12 M12 12v2 M12 17v2"],
+    SPD: ["F", "M4 17a8 8 0 1 1 16 0 M12 17l4-5"],
+    CM: ["F", "M3 18l7-7 4 4 7-7 M15 8h6v6"],
+    FH: ["F", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z"],
+    DCT: ["F", "M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4"],
+    CAPP: ["F", "M3 12L21 5 M3 12L21 19 M3 12h18"],
+    EAPP: ["F", "M3 12l4.5-1.75 M10.2 9.2l4.5-1.75 M17.4 6.4L21 5 M3 12l4.5 1.75 M10.2 14.8l4.5 1.75 M17.4 17.6L21 19 M3 12h4.5 M10.2 12h4.5 M17.4 12H21"],
+    CVA: ["F", "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6"],
+    HOLDP: ["F", "M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z M8 18l-2 3"],
+    PUSH: ["G", "M12 3v12 M8 11l4 4 4-4 M6 20h12"],
+    PUSHTO: ["G", "M12 3v8 M9 8l3 3 3-3 M12 13a4 4 0 1 0 0 8a4 4 0 1 0 0-8"],
+    PRESET: ["G", "M4 21v-5a4 4 0 0 1 4-4h8a4 4 0 0 0 4-4V4 M17 7l3-3 3 3"],
+    TTR: ["G", "M19 3v18 M3 12h12 M11 8l4 4-4 4"],
+    DRAW: ["G", "M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3"],
+    HP: ["G", "M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6"],
+    RES: ["G", "M7 4l13 8-13 8z"],
+    HS: ["G", "M3 7h18 M3 10h18 M3 14h3 M9 14h3 M15 14h3 M3 17h3 M9 17h3 M15 17h3"],
+    CROSS: ["G", "M3 8h18 M3 16h18 M12 3v18 M9 18l3 3 3-3"],
+    FOL: ["G", "M4 17l5-5-5-5 M13 17l5-5-5-5"],
+    GW: ["G", "M3 5h18L12 20z"],
+    BRK: ["G", "M3 12h6 M15 12h6 M10 6l4 12"],
+    CRW: ["S", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v5l3 3"],
+  };
+  const LABEL = {
+    EL: "Exit left", ER: "Exit right", CTL: "Cleared to land", GA: "Go around", CTO: "Cleared for takeoff", RFIS: "Report field in sight",
+    SPD: "Assign speed", CM: "Maintain altitude", FH: "Fly heading", DCT: "Direct to", CAPP: "Cleared approach", EAPP: "Expect approach",
+    CVA: "Cleared visual", HOLDP: "Hold at fix", PUSH: "Push back", PUSHTO: "Push back to", PRESET: "Preset taxi route", TTR: "Taxi to runway",
+    DRAW: "Draw taxi route", HP: "Hold position", RES: "Resume taxi", HS: "Hold short of", CROSS: "Cross", FOL: "Follow", GW: "Give way to",
+    BRK: "Ignore ground conflicts", CRW: "Check release window",
+  };
+  const OPENS = new Set(["EL", "ER", "PRESET", "PUSHTO", "TTR", "HS", "FOL", "GW", "CAPP", "EAPP", "CTO"]);
+  const BADGE = { TW: "#4FB8A8", RW: "#E8A33D", PR: "#7FD1B9" };
+  const MONO_UNFILLED = "···";
+
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const gl = (id, size = 22) => {
+    const [fam, d] = GL[id];
+    return `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${FAM[fam]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  };
+  const menu = (inner, cls = "", label = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const sec = t => `<div class="mi sec">${esc(t)}</div>`;
+  const kind = t => `<div class="mi kind">${esc(t)}</div>`;
+  const title = (t, r = "") => `<div class="mi title"><span>${esc(t)}</span><span class="r">${esc(r)}</span></div>`;
+  const sendAttr = cmd => `data-send="${esc(cmd)}" tabindex="0"`;
+
+  function plain(label, o = {}) {
+    const act = o.sub ? `data-opens="1"` : (o.send !== undefined ? sendAttr(o.send) : "");
+    return `<div class="mi plain${o.dis ? " dis" : ""}${o.hot ? " hot" : ""}${o.faint ? " faint" : ""}" role="menuitem" ${act}><span class="lbl">${esc(label)}</span>${o.sub ? `<span class="chev">›</span>` : "<span></span>"}</div>`;
+  }
+
+  /** A MenuCommandRow: badge, name with inline or stacked detail, distance, command, optional submenu chevron. */
+  function crow(o) {
+    const badge = o.badge ? `<span class="bdg" style="--b:${BADGE[o.badge]}">${o.badge}</span>` : "<span></span>";
+    const det = !o.detail ? "" : (o.stacked ? `<span class="det-s">${esc(o.detail)}</span>` : `<span class="det-i">&nbsp;· ${esc(o.detail)}</span>`);
+    const act = o.sub ? `data-opens="1"` : sendAttr(o.cmd);
+    return `<div class="mi crow${o.hi ? " hi" : ""}${o.hot ? " hot" : ""}" role="menuitem" ${act}>${badge}<span class="nm${o.stacked ? " st" : ""}"><span class="n${o.sem ? " sb" : ""}">${esc(o.name)}</span>${det}</span><span class="dist">${esc(o.dist || "")}</span><span class="cmd">${esc(o.cmd)}</span>${o.sub ? `<span class="chev">›</span>` : "<span></span>"}</div>`;
+  }
+
+  /** A designed glyph row: glyph, label (HTML), note, optional block under the name, distance, command. */
+  function grow(o) {
+    const act = (o.cmd && !o.nosend) ? sendAttr(o.cmd) : (o.toggle ? `data-toggle="${o.toggle}" aria-expanded="false" tabindex="0"` : "");
+    const name = `<span class="nm${o.under ? " col" : ""}"><span class="n${o.sb ? " sb" : ""}">${o.label}${o.note ? `<span class="note">&nbsp;· ${esc(o.note)}</span>` : ""}</span>${o.under || ""}</span>`;
+    return `<div class="mi grow${o.dim ? " dim" : ""}${o.hi ? " hi" : ""}${o.cls ? " " + o.cls : ""}" role="menuitem" ${act}${o.key ? ` data-key="${esc(o.key)}"` : ""}${o.id ? ` id="${o.id}"` : ""}>${o.g ? gl(o.g) : o.lead || "<span></span>"}${name}<span class="dist">${esc(o.dist || "")}</span><span class="cmd">${esc(o.shown || o.cmd || "")}</span><span></span></div>`;
+  }
+  const chips = (lead, list) => `<span class="under">${lead ? `<span class="clead">${esc(lead)}</span>` : ""}${list.map(c => `<button type="button" class="chip${c.warn ? " warn" : ""}" ${sendAttr(c.cmd)} title="${esc(c.cmd)}">${esc(c.t)}</button>`).join("")}</span>`;
+  const via = t => `<span class="via">${esc(t)}</span>`;
+
+  /** A row whose command follows a typed box; empty or unreadable, it shows the unfilled marker and sends nothing. */
+  function boxRow(o) {
+    const box = `<input class="tbox" type="text" id="${o.id}" placeholder="${esc(o.ph)}" data-tpl="${esc(o.tpl)}" aria-label="${esc(o.aria)}" maxlength="${o.max || 8}" style="width:${o.w || 96}px" autocomplete="off" spellcheck="false">`;
+    const shown = o.tpl.replace("{}", MONO_UNFILLED);
+    return `<div class="mi grow dim boxed" role="menuitem" data-send="" data-tplrow="${o.id}">${gl(o.g)}<span class="nm col"><span class="n">${esc(o.label)}</span><span class="under">${box}</span></span><span class="dist"></span><span class="cmd">${esc(shown)}</span><span></span></div>`;
+  }
+
+  function stub(s) {
+    const cells = s.strip.map(id => `<span class="cell${id === s.active ? " latched" : ""}" title="${esc(LABEL[id])}" role="img" aria-label="${esc(LABEL[id])}${id === s.active ? " (flyout open)" : ""}">${gl(id, 32)}${OPENS.has(id) ? `<i class="notch"></i>` : ""}</span>`).join("");
+    const rows = (s.rows || ["Track", "Data Block", "All Commands"]).map(r => plain(r, { sub: true, faint: true })).join("");
+    return `<div class="stage stub-stage">${menu(`<div class="mtitle">${esc(s.title)}</div><div class="mstate">${esc(s.state)}</div>${sep()}${plain("Command…", { faint: true })}${sep()}<div class="strip">${cells}</div>${s.text ? s.text.map(t => plain(t, { faint: true })).join("") : ""}${sep()}${rows}`, "", "Aircraft menu")}</div>`;
+  }
+
+  function lane(l) {
+    const tag = { today: "Today", a: "A", b: "B" }[l.kind];
+    const dt = l.kind === "today" ? ["What it is", "Pain today"] : ["How it works", "Worst case"];
+    return `<section class="lane" data-lane>
+      <div class="lane-h"><span class="tag ${l.kind}">${tag}</span><h3>${esc(l.name)}</h3></div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>Click a row or a chip to see what it sends.</div>
+      <dl class="cap"><dt>${dt[0]}</dt><dd>${l.how}</dd><dt>${dt[1]}</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+
+  function art(a) {
+    return `<section class="art" id="${a.id}">
+      <div class="art-head">
+        <div class="art-meta">
+          <h2>${esc(a.title)}</h2>
+          <div class="sends">${esc(a.sends)}</div>
+          ${a.intro.map(p => `<p>${p}</p>`).join("")}
+          ${a.extra || ""}
+        </div>
+        ${stub(a.stub)}
+      </div>
+      <div class="lanes" data-lanes>${a.lanes.map(lane).join("")}</div>
+    </section>`;
+  }
+
+  /* ---------- 1. Exit left, on the rollout ---------- */
+  const EXITS_L = [["G", 1100, true], ["F", 2250, false], ["E", 3400, false]];
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  function runwayChips() {
+    const x0 = 46, x1 = 410, len = 5450, sx = d => x0 + (d / len) * (x1 - x0);
+    const exits = EXITS_L.map(([t, d, planned]) => {
+      const x = sx(d);
+      return `<g class="chipg" ${sendAttr("EL " + t)} role="button" aria-label="EL ${t}, ${ft(d)}${planned ? ", planned" : ""}">
+        <path d="M${x} 62 L${x - 14} 40" stroke="#5c646e" stroke-width="7" stroke-linecap="round"/>
+        <rect x="${x - 34}" y="6" width="44" height="30" rx="4"/>
+        <text x="${x - 12}" y="19" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" font-weight="600" fill="#ffffff">${t}${planned ? " •" : ""}</text>
+        <text x="${x - 12}" y="31" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#8fc1ff">EL ${t}</text>
+        <text x="${x}" y="104" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="#a4adb8">${d.toLocaleString("en-US")}</text></g>`;
+    }).join("");
+    return `<svg class="rwy" viewBox="0 0 440 150" role="group" aria-label="Runway 28L with the exits ahead on the left">
+      <rect x="20" y="62" width="400" height="22" rx="2" fill="#3a3f46"/>
+      <path d="M40 73 H410" stroke="#d9dde2" stroke-width="1.4" stroke-dasharray="10 9"/>
+      <text x="414" y="77" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="9" fill="#d9dde2" opacity=".6">10R</text>
+      <path d="M44 73 l-14 -6 v12 z" fill="#FFC062"/>
+      ${exits}
+      <text x="30" y="104" font-family="Inter, sans-serif" font-size="10.5" fill="#a4adb8">ft</text>
+      <g class="chipg" ${sendAttr("EL")} role="button" aria-label="Pilot's choice, EL">
+        <rect x="292" y="116" width="128" height="26" rx="4"/>
+        <text x="300" y="133" font-family="Inter, sans-serif" font-size="12" fill="#ffffff">Pilot's choice</text>
+        <text x="412" y="133" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#8fc1ff">EL</text></g>
+      <text x="20" y="133" font-family="Inter, sans-serif" font-size="11" fill="#a4adb8">• planned exit</text>
+    </svg>`;
+  }
+  const exitLeft = {
+    id: "exit-left", title: "Exit left", sends: "EL <twy> · EL",
+    intro: ["<b>N52417</b>, C172, on the landing rollout on 28L after the rollout has slowed. The server lists the exits ahead; the flyout shows those on the left, distances from the aircraft. Exit right on the rollout is the same design mirrored."],
+    stub: { title: "N52417 · C172", state: "Landing · rollout 28L · 48 kt", strip: ["EL", "ER", "DRAW"], active: "EL" },
+    lanes: [
+      { kind: "today", name: "Copied context submenu", how: "A section label, one command row per left exit (taxiway, “planned” under it, distance, <code>EL G</code>), a separator, then “Exit left · pilot's choice”.",
+        worst: "The pilot's-choice row shows no command, and it sits last: the longest pointer trip, on the one flyout used against a clock.",
+        body: menu(sec("Exits ahead, left side") + EXITS_L.map(([t, d, p]) => crow({ name: t, detail: p ? "planned" : null, stacked: true, dist: ft(d), cmd: "EL " + t })).join("") + sep() + plain("Exit left · pilot's choice", { send: "EL" })) },
+      { kind: "a", name: "Glyph rows", how: "The exit glyph leads every row: “Taxiway G” with “planned” as a dimmed note, the distance in its own column, the command at the right. A separator, then Pilot's choice with its glyph and <code>EL</code>. The pattern-entry flyout's row template.",
+        worst: "Rows are fixed when the menu opens. At 48 kt the C172 passes G in about 15 s, and a click on G after that still sends <code>EL G</code>, which the pilot refuses as no longer makeable.",
+        body: menu(title("Exits ahead, left side", "from the aircraft") + EXITS_L.map(([t, d, p]) => grow({ g: "EL", label: "Taxiway " + t, note: p ? "planned" : null, dist: ft(d), cmd: "EL " + t })).join("") + sep() + grow({ g: "EL", label: "Pilot's choice", cmd: "EL" }), "w") },
+      { kind: "b", name: "Chips on the runway", how: "The flyout draws 28L from the aircraft forward, to scale, with the left exits as stubs; each exit is a chip naming the taxiway and its command, the distance under the runway. Pilot's choice is a chip of its own.",
+        worst: "At the 480 px cap 5,450 ft is about 14 ft per pixel, so exits under about 450 ft apart put their chips on top of each other and a click goes to the neighbour; on 30 (10,520 ft) the gap needed doubles.",
+        body: menu(title("Exits ahead, left side", "distances from the aircraft, ft") + `<div style="padding:4px 6px 6px">${runwayChips()}</div>`, "w") },
+    ],
+  };
+
+  /* ---------- 2. Exit right, on final ---------- */
+  const EXITS_R = [["W5", 4750, true], ["W6", 6200, false], ["W7", 7900, false]];
+  const exitRight = {
+    id: "exit-right", title: "Exit right", sends: "ER <twy> · ER",
+    intro: ["<b>UAL455</b>, A320, on final for 30 at 5 NM. On final the list is the server's forecast, measured from the landing threshold, not from the aircraft. The open choice here is the row order and whether a typed exit belongs in the flyout."],
+    stub: { title: "UAL455 · A320", state: "Final 30 · 5.2 NM · 1,700 ft · 142 kt", strip: ["CTL", "GA", "SPD", "EL", "ER"], active: "ER" },
+    lanes: [
+      { kind: "today", name: "Copied context submenu", how: "“Exits ahead (distance from threshold)”, one row per right exit, a separator, “Exit right · pilot's choice”.",
+        worst: "Nothing on the rows says the distances are from the threshold; the section label is the only cue.",
+        body: menu(sec("Exits ahead (distance from threshold)") + EXITS_R.map(([t, d, p]) => crow({ name: t, detail: p ? "planned" : null, stacked: true, dist: ft(d), cmd: "ER " + t })).join("") + sep() + plain("Exit right · pilot's choice", { send: "ER" })) },
+      { kind: "a", name: "Header kept, pilot's choice last", how: "As Exit left A: the title names where distances are measured from, the listed exits as glyph rows nearest the threshold first, then a separator and Pilot's choice <code>ER</code>.",
+        worst: "On a 5 NM final “~4,750 ft” reads as close; an instructor who misses the title waits for an exit that is still a forecast, and the planned exit is one row below the top.",
+        body: menu(title("Exits ahead", "from the threshold") + EXITS_R.map(([t, d, p]) => grow({ g: "ER", label: "Taxiway " + t, note: p ? "planned" : null, dist: ft(d), cmd: "ER " + t })).join("") + sep() + grow({ g: "ER", label: "Pilot's choice", cmd: "ER" }), "w") },
+      { kind: "b", name: "Pilot's choice first, typed exit last", how: "Pilot's choice <code>ER</code> opens the flyout; the listed exits follow with “from threshold” on every distance; last, “Exit at” takes a taxiway and sends <code>ER W2</code>. Empty, it shows <code>ER ···</code>, fades and sends nothing.",
+        worst: "The first row opens level with the strip button, so a quick second click sends bare <code>ER</code> instead of the planned W5; a typed taxiway that is not a right exit is sent and refused by the pilot after the menu has closed.",
+        body: menu(grow({ g: "ER", label: "Pilot's choice", cmd: "ER" }) + sep() + EXITS_R.map(([t, d, p]) => grow({ g: "ER", label: "Taxiway " + t, note: p ? "planned" : null, dist: ft(d) + " from thr", cmd: "ER " + t })).join("") + sep() + boxRow({ id: "er-box", g: "ER", label: "Exit at", ph: "taxiway", tpl: "ER {}", aria: "Exit right at taxiway", max: 4, w: 96 }), "w") },
+    ],
+  };
+
+  /* ---------- 3. Preset taxi route ---------- */
+  const PRESETS = [
+    { name: "South ramp to 30", via: "W", d: 2300, cmd: "TAXI W 30", end: "Runway 30" },
+    { name: "Cargo to spot 5", via: "W V", d: 3150, cmd: "TAXI W V $5", end: "Spots" },
+    { name: "North field 28L", via: "W U L A B", d: 6800, cmd: "TAXI W U L A B 28L", end: "Runway 28L" },
+    { name: "North field 28R", via: "W U L A B C", d: 7400, cmd: "TAXI W U L A B C 28R", end: "Runway 28R" },
+    { name: "South ramp to 12", via: "W", d: 8900, cmd: "TAXI W 12", end: "Runway 12" },
+  ];
+  function presetGrouped() {
+    const groups = [];
+    PRESETS.forEach(p => { let g = groups.find(x => x.end === p.end); if (!g) { g = { end: p.end, rows: [] }; groups.push(g); } g.rows.push(p); });
+    return groups.map((g, i) => (i ? sep() : "") + title(g.end, ft(g.rows[0].d)) + g.rows.map(p => grow({ g: "PRESET", label: esc(p.name), note: "via " + p.via, dist: ft(p.d), cmd: p.cmd })).join("")).join("");
+  }
+  const preset = {
+    id: "preset", title: "Preset taxi route", sends: "TAXI … (the preset's finished command)",
+    intro: ["<b>UAL455</b>, A320, at parking, gate 22 on the south ramp. The presets are the facility's named routes, resolved for the aircraft's category from where it stands, nearest first. Hovering a row previews its route on the scope in every option."],
+    stub: { title: "UAL455 · A320", state: "At parking · gate 22", strip: ["PUSH", "PRESET", "DRAW", "PUSHTO", "CRW"], active: "PRESET" },
+    lanes: [
+      { kind: "today", name: "Copied context submenu", how: "One command row per preset: PR badge, name, dimmed via, distance from the aircraft, the <code>TAXI</code> command.",
+        worst: "The via and the command repeat the same taxiways twice on one line, and the line is trimmed at 480 px before the command is.",
+        body: menu(PRESETS.map(p => crow({ badge: "PR", name: p.name, sem: true, detail: "via " + p.via, dist: ft(p.d), cmd: p.cmd })).join("")) },
+      { kind: "a", name: "Flat, two-line rows", how: "Nearest first, as today: the preset glyph, the name on the first line, the taxiways in mono under it, the distance and the command at the right.",
+        worst: "Two-line rows double the height: eight presets take about 430 px. “North field 28L” and “North field 28R” sit one row apart and differ in the last character of the name.",
+        body: menu(PRESETS.map(p => grow({ g: "PRESET", label: esc(p.name), sb: true, under: via("via " + p.via), dist: ft(p.d), cmd: p.cmd })).join(""), "w") },
+      { kind: "b", name: "Grouped by where it ends", how: "Presets under the runway or spot they end at, the groups in the order of their nearest preset; one-line rows with the via as a note.",
+        worst: "With one preset per runway every row carries its own title and the flyout is taller than A; an instructor scanning for the nearest route reads every group's distance.",
+        body: menu(presetGrouped(), "w") },
+    ],
+  };
+
+  /* ---------- 4. Taxi to runway ---------- */
+  const T30 = [
+    { name: "At W1", reason: "full length", via: "W", d: 2300, cmd: "TAXI W 30", hi: true,
+      vars: [["For Departure 30", "TAXI W 30"], null, ["Hold short RWY 30", "TAXI W HS 30"]] },
+    { name: "At W3", avail: "~7,650 ft avail", via: "W W3", d: 1650, cmd: "TAXI W W3 30",
+      vars: [["For Departure 30", "TAXI W W3 30"], null, ["Hold short RWY 30", "TAXI W W3 HS 30"]] },
+    { name: "At W5", reason: "nearest", avail: "~7,100 ft avail", via: "W W5", d: 1100, cmd: "TAXI W W5 30", hi: true,
+      vars: [["For Departure 30", "TAXI W W5 30"], null, ["Hold short RWY 30", "TAXI W W5 HS 30"]] },
+  ];
+  const X28R = r => [["For Departure 28R, HS 28L", `TAXI ${r} HS 28L RWY 28R`], ["For Departure 28R, CROSS 28L", `TAXI ${r} 28R, CROSS 28L`], null,
+    ["Hold short RWY 28L", `TAXI ${r} HS 28L`], ["CROSS 28L, HS 28R", `TAXI ${r} HS 28R, CROSS 28L`]];
+  const T28R = [
+    { name: "At B", reason: "nearest, full length", via: "W U L A B", d: 6850, cmd: "TAXI W U L A B HS 28L RWY 28R", hi: true, vars: X28R("W U L A B") },
+    { name: "At C", avail: "~4,900 ft avail", via: "W U L A C", d: 7300, cmd: "TAXI W U L A C HS 28L RWY 28R", vars: X28R("W U L A C") },
+  ];
+  const OTHER = ["10L", "10R", "12", "15", "28L", "33"];
+  const T12 = [{ name: "At W7", reason: "nearest, full length", via: "W W7", d: 8650, cmd: "TAXI W W7 12", hi: true, vars: [["For Departure 12", "TAXI W W7 12"], null, ["Hold short RWY 12", "TAXI W W7 HS 12"]] }];
+  const detailOf = r => [r.reason, r.avail, "via " + r.via].filter(Boolean).join(" · ");
+  const taxiRowToday = (r, hot) => crow({ badge: "RW", name: r.name, sem: true, hi: r.hi, detail: detailOf(r), dist: ft(r.d), cmd: r.cmd, sub: true, hot });
+  const varsMenu = vars => menu(vars.map(v => v ? plain(v[0], { send: v[1] }) : sep()).join(""));
+  function chipRow(r) {
+    const rest = r.vars.filter(Boolean).slice(1);
+    const list = rest.map(([label, cmd]) => ({ t: label.replace(/^For Departure \S+, /, "").replace("Hold short RWY", "HS"), cmd, warn: /CROSS/.test(cmd) }));
+    return grow({ lead: `<span class="bdg" style="--b:${BADGE.RW}">RW</span>`, label: esc(r.name), sb: true, hi: r.hi, note: [r.reason, r.avail].filter(Boolean).join(" · ") || null,
+      under: via("via " + r.via) + chips("or", list), dist: ft(r.d), cmd: r.cmd });
+  }
+  function variantBlock(r) {
+    const head = `<div class="mi title" style="padding-top:8px"><span><span class="bdg" style="--b:${BADGE.RW}">RW</span><b style="color:#e4e7eb;font-size:12.5px">${esc(r.name)}</b> · ${esc(detailOf(r))}</span><span class="r">${esc(ft(r.d))}</span></div>`;
+    return head + r.vars.filter(Boolean).map(([label, cmd]) => grow({ g: "TTR", label: esc(label.replace(/^For Departure (\S+)/, "Departure $1")), cmd, cls: "", })).join("");
+  }
+  const taxiRunway = {
+    id: "taxi-to-runway", title: "Taxi to runway", sends: "TAXI … <rwy> · TAXI … HS <rwy> · crossing variants",
+    intro: ["<b>UAL455</b>, A320, at parking, gate 22, assigned runway 30; the room's departure runways are 30 and 28R. Taxi to runway is not in a default list: here it was added to At parking in the Quick commands editor.",
+      "The entries are searched when the flyout first opens (“Finding runway entries…”), Other runways when it opens. The open choice: the variants as chips on the entry row, or as rows of their own."],
+    stub: { title: "UAL455 · A320", state: "At parking · gate 22 · RWY 30", strip: ["PUSH", "PRESET", "DRAW", "PUSHTO", "TTR"], active: "TTR" },
+    lanes: [
+      { kind: "today", name: "Copied context submenu", how: "Group titles over RW rows; every row opens a submenu of its variants (For departure, Hold short, crossings); Other runways › end › entry › variant is four levels deep.",
+        worst: "Every send is a second hover: the row under the pointer opens its variants rather than sending, and a diagonal move to them crosses the next row and swaps the submenu.",
+        body: `<div class="cascade">${menu(plain("Runway 30 · assigned runway", { dis: true }) + T30.map((r, i) => taxiRowToday(r, i === 0)).join("") + sep() + plain("Runway 28R · departure runway", { dis: true }) + T28R.map(r => taxiRowToday(r)).join("") + sep() + plain("Other runways", { sub: true }))}<div style="margin-top:36px">${varsMenu(T30[0].vars)}</div></div>` },
+      { kind: "a", name: "Variants as chips on the row", how: "A click on the entry row sends its first variant: <code>TAXI W 30</code>, or with a crossing <code>TAXI … HS 28L RWY 28R</code>. Chips under the name send the others; a chip that clears a crossing is amber. Other runways is a line of runway chips that opens that runway's entries in place.",
+        worst: "On a crossing entry the row body holds short of 28L, but the amber chip a few pixels below sends <code>TAXI … 28R, CROSS 28L</code>: a slip clears a runway crossing. The crossing chips wrap to a second line on the 480 px cap.",
+        body: menu(title("Runway 30", "assigned") + T30.map(chipRow).join("") + sep() + title("Runway 28R", "departure · crosses 28L") + T28R.map(chipRow).join("") + sep()
+          + `<div class="rchips"><span class="clead">Other runways</span>${OTHER.map(r => `<button type="button" class="rchip" data-toggle="tx-a-${r}" aria-expanded="false">${r}</button>`).join("")}</div>`
+          + OTHER.map(r => `<div id="tx-a-${r}" hidden>${r === "12" ? title("Runway 12", "") + T12.map(chipRow).join("") : `<div class="pending"><span class="spin"></span>Finding runway entries… (${r})</div>`}</div>`).join(""), "w") },
+      { kind: "b", name: "Runway tabs, variants as rows", how: "A tab per runway end, the assigned and departure runways first, then the rest; the chosen runway's entries are titles with every variant as its own glyph row and command. No small targets; Other runways is just more tabs.",
+        worst: "A crossing entry has four variant rows, so 28R with two entries is about ten rows. The 28L and 28R tabs sit side by side and their rows look alike: after a slip on the tab, the instructor sends a route to the wrong parallel with only the highlighted tab to warn.",
+        body: menu(`<div data-tabgroup="tx-b"><div class="tabs" role="tablist">${[["30", "assigned"], ["28R", "departure"], ...OTHER.map(r => [r, ""])].map(([r, s], i) => `<button type="button" class="tab" role="tab" data-tab="${r}" aria-selected="${i === 0}">${r}${s ? `<small>${s}</small>` : ""}</button>`).join("")}</div>`
+          + `<div data-panel="30">${T30.map(variantBlock).join("")}</div><div data-panel="28R" hidden>${T28R.map(variantBlock).join("")}</div>`
+          + OTHER.map(r => `<div data-panel="${r}" hidden>${r === "12" ? T12.map(variantBlock).join("") : `<div class="pending"><span class="spin"></span>Finding runway entries…</div>`}</div>`).join("") + `</div>`, "w") },
+    ],
+  };
+
+  /* ---------- 5. Hold short of ---------- */
+  const BARS = [
+    { b: "RW", name: "28R", where: "on D", d: 400 }, { b: "TW", name: "C", where: "crossing on D", d: 900 },
+    { b: "RW", name: "28L", where: "on B", d: 1850 }, { b: "TW", name: "L", where: "crossing on A", d: 3400 },
+    { b: "TW", name: "W", where: "crossing on L", d: 5950 },
+  ];
+  const barMark = b => b === "RW"
+    ? `<svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><rect width="22" height="10" fill="#2c2c2c"/><path d="M1 3H21 M1 7H21" stroke="#E8A33D" stroke-width="1.8"/></svg>`
+    : `<svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><rect width="22" height="10" fill="#2c2c2c"/><path d="M1 3H21" stroke="#4FB8A8" stroke-width="1.8"/><path d="M1 7H21" stroke="#4FB8A8" stroke-width="1.8" stroke-dasharray="3 3"/></svg>`;
+  function ladder() {
+    const me = `<div class="mi stop me"><svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><circle cx="11" cy="5" r="4.5" fill="#6EE0CE"/></svg><span class="nm"><span class="n sb">N52417</span><span class="note">&nbsp;· now, taxiing on D</span></span><span></span><span></span></div>`;
+    const stops = BARS.map(x => `<div class="mi stop" role="menuitem" ${sendAttr("HS " + x.name)}>${barMark(x.b)}<span class="nm"><span class="bdg" style="--b:${BADGE[x.b]}">${x.b}</span><span class="n sb">${x.name}</span><span class="det-i">&nbsp;· ${x.where}</span></span><span class="dist">${ft(x.d)}</span><span class="cmd">HS ${x.name}</span></div>`).join("");
+    const end = `<div class="mi stop end"><svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><rect width="22" height="10" fill="#2c2c2c"/><path d="M1 3H21 M1 7H21" stroke="#E8A33D" stroke-width="1.8"/></svg><span class="nm"><span class="n">RWY 30</span><span class="note">&nbsp;· route ends here, already held</span></span><span class="dist">${ft(7200)}</span><span></span></div>`;
+    return `<div class="ladder">${me}${stops}${end}</div>`;
+  }
+  const holdShort = {
+    id: "hold-short", title: "Hold short of", sends: "HS <taxiway or runway>",
+    intro: ["<b>N52417</b>, C172, taxiing from the north ramp to runway 30 via D C B A L W, about 15 kt. One row per bar along the route, nearest first; the destination runway's bar is left out because the taxi already holds there. Hovering a row previews the route to that bar."],
+    stub: { title: "N52417 · C172", state: "Taxiing · 15 kt · via D C B A L W · RWY 30", strip: ["HP", "HS", "CROSS", "FOL", "GW", "BRK"], active: "HS" },
+    lanes: [
+      { kind: "today", name: "Copied context submenu", how: "The route line, disabled, over a separator, then a command row per bar: TW or RW badge, name, where, distance, <code>HS</code> command.",
+        worst: "Runway and taxiway bars differ only by a two-letter badge outline; the runway bars, the ones that matter, do not stand out.",
+        body: menu(`<div class="mi plain dis"><span class="lbl" style="font:12px 'JetBrains Mono',monospace">route D C B A L W · RWY 30</span><span></span></div>` + sep() + BARS.map(x => crow({ badge: x.b, name: x.name, sem: true, detail: x.where, dist: ft(x.d), cmd: "HS " + x.name })).join("")) },
+      { kind: "a", name: "Route ladder", how: "The route drawn top to bottom from the aircraft to RWY 30: every bar a stop on the line, runway bars as amber double lines, taxiway bars as teal dashed ones, each with its name, where, distance and command. The destination bar closes the ladder, dimmed.",
+        worst: "Stops are evenly spaced, not to scale: 28R at 400 ft and W at 5,950 ft look equally far. At 15 kt the C172 reaches the 28R bar in about 16 s, and a click after it has crossed still sends <code>HS 28R</code>.",
+        body: menu(title("Hold short of", "route D C B A L W") + ladder(), "w") },
+      { kind: "b", name: "Rows with a typed bar", how: "Today's rows with the hold-short glyph leading each and the route as the title; a last row takes a taxiway or runway name and sends <code>HS {name}</code>, showing <code>HS ···</code> and sending nothing while empty.",
+        worst: "The box takes the keyboard once the pointer reaches it: “28” then Enter sends <code>HS 28</code>, and a name not on the route goes out and comes back refused after the menu has closed (which names the sim accepts here is not checked).",
+        body: menu(title("Hold short of", "route D C B A L W") + BARS.map(x => grow({ g: "HS", label: `<span class="bdg" style="--b:${BADGE[x.b]}">${x.b}</span>${x.name}`, sb: true, note: x.where, dist: ft(x.d), cmd: "HS " + x.name })).join("") + sep() + boxRow({ id: "hs-box", g: "HS", label: "Hold short of", ph: "twy or rwy", tpl: "HS {}", aria: "Hold short of a taxiway or runway", max: 5, w: 110 }), "w") },
+    ],
+  };
+
+  /* ---------- 6. Follow / 7. Give way to ---------- */
+  const MOVING = [
+    ["UAL455", "A320", "taxiing on W", 600], ["N52417", "C172", "taxiing on L", 1250], ["SKW5521", "CRJ7", "pushing back · gate 24", 1700],
+    ["ASA1102", "B739", "taxiing on U", 2200], ["FDX1290", "B763", "taxiing on V", 3900], ["AAL2231", "A321", "taxiing on B", 5400],
+    ["SWA3317", "B38M", "taxiing on P · live feed", 6100, true],
+  ];
+  const PARKED = [
+    ["DAL1508", "B739", "holding short 30 at W1", 800], ["N8123K", "PA28", "at parking · north ramp", 1900], ["SWA2210", "B737", "at parking · gate 21", 2050],
+    ["JBU1135", "A320", "at parking · gate 25", 2400], ["ASA640", "B738", "at parking · gate 27", 3300], ["SWA1977", "B737", "holding in position on W", 4100],
+    ["N733XP", "C182", "at parking · north ramp", 4800],
+  ];
+  const trafficToday = (r, verb) => crow({ name: `${r[0]} · ${r[1]}`, detail: r[2], stacked: true, dist: ft(r[3]), cmd: `${verb} ${r[0]}` });
+  const trafficRow = (r, verb, g, extra = {}) => grow({ g, label: `${esc(r[0])} <span class="note" style="opacity:.75">${esc(r[1])}</span>`, sb: true, under: `<span class="det-s">${esc(r[2])}</span>`, dist: ft(r[3]), cmd: `${verb} ${r[0]}`, key: `${r[0]} ${r[1]}`, ...extra });
+  const moreLabel = rest => `More (${rest.length}, up to ${ft(Math.max(...rest.map(r => r[3])))})`;
+
+  function todayTraffic(verb, moving, openMore) {
+    const sect = (name, rows) => sec(name) + rows.slice(0, 4).map(r => trafficToday(r, verb)).join("") + (rows.length > 4 ? plain(moreLabel(rows.slice(4)), { sub: true, hot: openMore && name === "Moving" }) : "");
+    const main = menu(sect("Moving", moving) + sect("Parked or holding", PARKED));
+    if (!openMore) return main;
+    return `<div class="cascade">${main}<div style="margin-top:200px">${menu(moving.slice(4).map(r => trafficToday(r, verb)).join(""))}</div></div>`;
+  }
+  const follow = {
+    id: "follow", title: "Follow", sends: "FOLLOWG <callsign>",
+    intro: ["<b>SWA1234</b>, B737, holding on the ground on W after a runway exit. Follow lists the other ground aircraft nearest first, live-feed shadows included, under Moving and Parked or holding. Hovering a row highlights that aircraft on the scope in every option. The open choice: how the overflow past four per section is reached."],
+    stub: { title: "SWA1234 · B737", state: "Holding on ground · W", strip: ["RES", "DRAW", "FOL", "GW"], active: "FOL" },
+    lanes: [
+      { kind: "today", name: "Copied context submenu", how: "Section labels, four command rows each (callsign · type, state under it, distance, <code>FOLLOWG</code>), then “More (3, up to ~6,100 ft)” opening the rest.",
+        worst: "The aircraft past the fourth in a section is a third level down from the strip button.",
+        body: todayTraffic("FOLLOWG", MOVING, true) },
+      { kind: "a", name: "More kept as a designed second flyout", how: "The same sections in designed rows: the follow glyph, callsign with the type dimmed beside it, the state under it, distance, command. “More moving” opens a second flyout of the same rows beside this one.",
+        worst: "Still a second level, which the ruling's “never nested” reads against: reaching FDX1290 is a hover on More and a sideways move, and the path down to More highlights every aircraft it crosses on the scope.",
+        body: `<div class="cascade">${menu(title("Moving", "nearest first") + MOVING.slice(0, 4).map(r => trafficRow(r, "FOLLOWG", "FOL")).join("") + grow({ g: null, lead: "<span style='width:30px'></span>", label: "More moving", note: "3, up to ~6,100 ft", toggle: "", nosend: true, cls: "hot", shown: "›" }) + sep() + title("Parked or holding", "") + PARKED.slice(0, 4).map(r => trafficRow(r, "FOLLOWG", "FOL")).join("") + grow({ lead: "<span style='width:30px'></span>", label: "More parked", note: "3, up to ~4,800 ft", nosend: true, shown: "›" }))}<div style="margin-top:200px;margin-left:-4px">${menu(MOVING.slice(4).map(r => trafficRow(r, "FOLLOWG", "FOL")).join(""))}</div></div>` },
+      { kind: "b", name: "One scrolling list with a filter box", how: "A filter box first, then every aircraft in one list about eight rows tall that scrolls, the section titles sticking at the top. Typing narrows by callsign or type; Enter sends the top match, or <code>FOLLOWG</code> with the typed callsign when nothing matches.",
+        worst: "“SWA” then Enter sends the first SWA flight in list order, SWA3317 at 6,100 ft under Moving, not SWA2210 parked 2,050 ft away. On open the Parked section starts below the fold.",
+        body: menu(`<div class="boxrow" style="padding:6px 11px 4px">${gl("FOL")}<input class="tbox" type="text" id="fol-filter" data-filter="fol-list" data-verb="FOLLOWG" placeholder="Filter or type a callsign" aria-label="Filter or type a callsign" style="flex:1;min-width:0" autocomplete="off" spellcheck="false"></div><div class="hint" id="fol-list-hint">Enter sends the top match.</div>`
+          + `<div class="scroll" id="fol-list"><div class="mi sec" data-sect>Moving</div>${MOVING.map(r => trafficRow(r, "FOLLOWG", "FOL")).join("")}<div class="mi sec" data-sect>Parked or holding</div>${PARKED.map(r => trafficRow(r, "FOLLOWG", "FOL")).join("")}</div>`, "w") },
+    ],
+  };
+
+  const MOVING_GW = MOVING.filter(r => !r[4]);
+  function gwSections() {
+    const part = (name, rows, id) => title(name, "nearest first") + rows.slice(0, 4).map(r => trafficRow(r, "GW", "GW")).join("")
+      + (rows.length > 4 ? `<div id="${id}" hidden>${rows.slice(4).map(r => trafficRow(r, "GW", "GW")).join("")}</div>` + grow({ lead: "<span style='width:30px'></span>", label: `Show ${rows.length - 4} more`, note: `up to ${ft(Math.max(...rows.slice(4).map(r => r[3])))}`, toggle: id, nosend: true, shown: "▾" }) : "");
+    return part("Moving", MOVING_GW, "gw-a-mv") + sep() + part("Parked or holding", PARKED, "gw-a-pk");
+  }
+  function gwMerged() {
+    const all = [...MOVING_GW.map(r => [...r, true]), ...PARKED.map(r => [...r, false])].sort((a, b) => a[3] - b[3]);
+    const row = r => grow({ lead: `<span class="mark ${r[4] ? "mv" : "pk"}" aria-label="${r[4] ? "moving" : "parked or holding"}">${r[4] ? "▶" : "■"}</span>`, label: `${esc(r[0])} <span class="note" style="opacity:.75">${esc(r[1])}</span>`, sb: true, under: `<span class="det-s">${esc(r[2])}</span>`, dist: ft(r[3]), cmd: `GW ${r[0]}` });
+    return title("Nearest first", "▶ moving  ■ parked") + all.slice(0, 8).map(row).join("") + `<div id="gw-b-more" hidden>${all.slice(8).map(row).join("")}</div>`
+      + grow({ lead: "<span style='width:20px'></span>", label: `Show ${all.length - 8} more`, note: `up to ${ft(all[all.length - 1][3])}`, toggle: "gw-b-more", nosend: true, shown: "▾" });
+  }
+  const giveWay = {
+    id: "give-way", title: "Give way to", sends: "GW <callsign>",
+    intro: ["<b>SWA1234</b>, B737, taxiing via W U L to 28R (Give way to shows only with a taxi route). Same builder as Follow with the verb <code>GW</code> and no live-feed shadows. Both options expand the overflow in place, so neither nests; the open choice is whether the Moving and Parked split stays."],
+    stub: { title: "SWA1234 · B737", state: "Taxiing · 18 kt · via W U L · RWY 28R", strip: ["HP", "HS", "CROSS", "FOL", "GW", "BRK"], active: "GW" },
+    lanes: [
+      { kind: "today", name: "Copied context submenu", how: "Moving and Parked or holding, four rows each, then “More (n, up to ~d ft)” as a nested submenu.",
+        worst: "A moving aircraft fifth by distance is behind a submenu while a parked one 800 ft away is on top.",
+        body: todayTraffic("GW", MOVING_GW, false) },
+      { kind: "a", name: "Sections kept, More in place", how: "Moving and Parked or holding as titles; each row: the give-way glyph, callsign and type, state, distance, <code>GW</code>. “Show 2 more” opens the rest under the section's fourth row.",
+        worst: "Opening Moving's overflow pushes the Parked section down two rows, about 80 px; a click aimed where DAL1508 was lands on the row that took its place.",
+        body: menu(gwSections(), "w") },
+      { kind: "b", name: "One list, nearest first", how: "No sections: every aircraft nearest first, a moving ▶ or parked ■ mark before the callsign; the first eight, then “Show 5 more” in place.",
+        worst: "DAL1508, holding short 800 ft away, sits second, above most of the taxiing traffic an instructor usually yields to; the 10 px mark is the only cue that it is not moving.",
+        body: menu(gwMerged(), "w") },
+    ],
+  };
+
+  /* ---------- 8. Approach picker ---------- */
+  const APPS = {
+    "10L": [["RNAV", "RNAV (GPS) RWY 10L", "R10L"]],
+    "10R": [["RNAV", "RNAV (GPS) RWY 10R", "R10R"], ["VOR", "VOR RWY 10R", "S10R"]],
+    "12": [["ILS", "ILS RWY 12", "I12"], ["LOC", "LOC RWY 12", "L12"], ["RNAV", "RNAV (GPS) Y RWY 12", "R12-Y"], ["RNP", "RNAV (RNP) Z RWY 12", "H12-Z"]],
+    "28L": [["RNAV", "RNAV (GPS) Y RWY 28L", "R28LY"], ["RNP", "RNAV (RNP) Z RWY 28L", "H28LZ"]],
+    "28R": [["ILS", "ILS RWY 28R", "I28R"], ["LOC", "LOC RWY 28R", "L28R"], ["RNAV", "RNAV (GPS) Y RWY 28R", "R28RY"], ["RNP", "RNAV (RNP) Z RWY 28R", "H28RZ"]],
+    "30": [["ILS", "ILS RWY 30", "I30"], ["LOC", "LOC RWY 30", "L30"], ["RNAV", "RNAV (GPS) Y RWY 30", "R30-Y"], ["RNP", "RNAV (RNP) Z RWY 30", "H30-Z"]],
+  };
+  const RWYS = ["10L", "10R", "12", "28L", "28R", "30"];
+  const short = r => APPS[r].map(([k, , id]) => { const v = id.replace(/^[A-Z]/, "").replace(r, "").replace("-", ""); return v ? `${k} ${v}` : k; }).join(", ");
+  function kindRows(r, verb, glyphed) {
+    let k = null;
+    return APPS[r].map(([kd, name, id]) => {
+      const head = kd !== k ? (k = kd, glyphed ? "" : kind(kd)) : "";
+      return head + (glyphed
+        ? grow({ g: verb, label: esc(name), note: null, dist: "", cmd: `${verb} ${id}`, under: "" }).replace('<span class="dist"></span>', `<span class="dist" style="font-size:11px;color:#a4adb8">${kd}</span>`)
+        : `<div class="mi plain" role="menuitem" ${sendAttr(`${verb} ${id}`)} style="grid-template-columns:minmax(0,1fr) auto"><span class="lbl">${esc(name)}</span><span class="cmd">${verb} ${id}</span></div>`);
+    }).join("");
+  }
+  function approachLanes(verb) {
+    const label = verb === "CAPP" ? "Cleared approach" : "Expect approach";
+    const today = `<div class="cascade">${menu(RWYS.map(r => plain(`${r} · ${short(r)}`, { sub: true, hot: r === "28R" })).join(""))}<div style="margin-top:132px">${menu(kindRows("28R", verb, false))}</div></div>`;
+    const sectionA = r => title(`Runway ${r}`, short(r)) + kindRows(r, verb, true);
+    const others = RWYS.filter(r => r !== "30" && r !== "28R");
+    const a = menu(sectionA("30") + sep() + sectionA("28R") + sep()
+      + `<div class="rchips"><span class="clead">Other runways</span>${others.map(r => `<button type="button" class="rchip" data-toggle="ap-a-${verb}-${r}" aria-expanded="false">${r}</button>`).join("")}</div>`
+      + others.map(r => `<div id="ap-a-${verb}-${r}" hidden>${sectionA(r)}</div>`).join(""), "w");
+    const order = ["10L", "10R", "12", "28L", "28R", "30"];
+    const b = menu(`<div data-tabgroup="ap-b-${verb}"><div class="tabs" role="tablist">${order.map((r, i) => `<button type="button" class="tab" role="tab" data-tab="${r}" aria-selected="${i === 0}">${r}<small>${APPS[r].length}</small></button>`).join("")}</div>`
+      + order.map((r, i) => `<div data-panel="${r}"${i ? " hidden" : ""}>${kindRows(r, verb, true)}</div>`).join("") + `</div>` + sep()
+      + boxRow({ id: `ap-box-${verb}`, g: verb, label: "Approach", ph: "id, e.g. I28R", tpl: `${verb} {}`, aria: `${label} by approach id`, max: 6, w: 120 })
+      + `<div class="hint">The same flyout opens from All Commands › Approach › ${label}, and from the strip leaf's “(other)”. With a default approach it adds a first row, “${verb === "CAPP" ? "Cleared" : "Expect"} ILS 30 · default — ${verb} I30”, and opens on that runway.</div>`, "w");
+    return [
+      { kind: "today", name: "Copied context submenu", how: "With no default approach and no default runway, every runway is a submenu named by its kinds (“28R · ILS, LOC, RNAV Y, RNP Z”), each over kind headers and rows. With a default, the strip shows a leaf and this picker moves to an “(other)” text row.",
+        worst: "28L and 28R are adjacent submenus whose rows read the same apart from one character; the runway is named only on the parent row the pointer has left.",
+        body: today },
+      { kind: "a", name: "Strip only, runway sections", how: `One flyout for the strip: the room's active arrival runways (30, 28R) as open sections with their approaches as glyph rows, the kind at the right; the other runways as chips that open their section in place. All Commands and the “(other)” row keep today's submenu.`,
+        worst: `RNAV (GPS) Y RWY 28L and 28R sit one section apart with identical wording: opening the 28L chip puts its rows directly under 28R's, and a one-row slip sends <code>${verb} R28LY</code> for the wrong parallel. With no active runways in the room every runway is a chip and the flyout opens almost empty.`,
+        body: a },
+      { kind: "b", name: "One flyout shared everywhere", how: `One builder for the strip, All Commands and the leaf's “(other)” (which then needs no text row): a runway tab bar, the default runway selected when there is one, its approaches as glyph rows, and an “Approach” box sending <code>${verb} {id}</code>.`,
+        worst: `With no default runway the tabs open on 10L, the first in runway order; a click on the first row without reading the tab sends <code>${verb} R10L</code>. A typed id that is not published (I28L) goes out and is refused after the menu closes.`,
+        body: b },
+    ];
+  }
+  const approach = {
+    id: "approach", title: "Cleared approach / Expect approach", sends: "CAPP <id> · EAPP <id>",
+    intro: ["<b>UAL455</b>, A320, IFR arrival to KOAK with no expected approach and no assigned runway, so there is no default approach and the strip button opens the grouped picker. The same builder serves Join, the straight-in and force variants and JFAC in All Commands. The open choice: a strip-only flyout, or one flyout that All Commands and the “(other)” row share."],
+    extra: `<div class="verb" role="group" aria-label="Which command"><button type="button" data-verb="CAPP" aria-pressed="true">Cleared approach · CAPP</button><button type="button" data-verb="EAPP" aria-pressed="false">Expect approach · EAPP</button></div>`,
+    stub: { title: "UAL455 · A320", state: "Approach · KOAK · 6,000 ft · 210 kt", strip: ["CAPP", "CM", "SPD", "RFIS", "CTL"], active: "CAPP" },
+    lanes: approachLanes("CAPP"),
+  };
+
+  const ARTS = [exitLeft, exitRight, preset, taxiRunway, holdShort, follow, giveWay, approach];
+  document.getElementById("arts").innerHTML = ARTS.map(art).join("");
+  document.getElementById("index").innerHTML = ARTS.map(a => `<a href="#${a.id}">${esc(a.title)}</a>`).join("") + `<a href="#open">Open choices</a>`;
+
+  /* ---------- Interaction ---------- */
+  const say = (from, html) => { const lane = from.closest("[data-lane]"); if (lane) lane.querySelector("[data-sent]").innerHTML = html; };
+  function sendFrom(el) {
+    const cmd = el.getAttribute("data-send");
+    say(el, cmd ? `Sends <code>${esc(cmd)}</code> and closes the flyout and the menu.` : "Sends nothing while the box is empty or unreadable; the flyout stays open.");
+  }
+  document.addEventListener("click", e => {
+    if (e.target.closest("input")) return;
+    const verbBtn = e.target.closest("[data-verb]");
+    if (verbBtn) {
+      const verb = verbBtn.getAttribute("data-verb");
+      const artEl = document.getElementById("approach");
+      artEl.querySelectorAll("[data-verb]").forEach(b => b.setAttribute("aria-pressed", String(b === verbBtn)));
+      artEl.querySelector("[data-lanes]").innerHTML = approachLanes(verb).map(lane).join("");
+      artEl.querySelector(".cell.latched").innerHTML = gl(verb, 32) + `<i class="notch"></i>`;
+      return;
+    }
+    const tab = e.target.closest("[data-tab]");
+    if (tab) {
+      const group = tab.closest("[data-tabgroup]");
+      const key = tab.getAttribute("data-tab");
+      group.querySelectorAll("[data-tab]").forEach(t => t.setAttribute("aria-selected", String(t === tab)));
+      group.querySelectorAll("[data-panel]").forEach(p => { p.hidden = p.getAttribute("data-panel") !== key; });
+      say(tab, `Shows runway ${esc(key)}'s entries; sends nothing.`);
+      return;
+    }
+    const tog = e.target.closest("[data-toggle]");
+    if (tog && tog.getAttribute("data-toggle")) {
+      const target = document.getElementById(tog.getAttribute("data-toggle"));
+      if (target) {
+        target.hidden = !target.hidden;
+        tog.setAttribute("aria-expanded", String(!target.hidden));
+        say(tog, target.hidden ? "Collapsed; sends nothing." : "Opens in place; sends nothing, the flyout stays open.");
+      }
+      return;
+    }
+    const send = e.target.closest("[data-send]");
+    if (send) { sendFrom(send); return; }
+    const opens = e.target.closest("[data-opens]");
+    if (opens) say(opens, "Opens a further submenu; sends nothing.");
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target;
+    if (t.matches("input")) {
+      if (e.key !== "Enter") return;
+      if (t.hasAttribute("data-filter")) { filterEnter(t); return; }
+      const row = t.closest("[data-tplrow]");
+      if (row) sendFrom(row);
+      return;
+    }
+    if (t.matches("[data-send], [data-toggle]")) { e.preventDefault(); t.dispatchEvent(new MouseEvent("click", { bubbles: true })); }
+  });
+  document.addEventListener("input", e => {
+    const t = e.target;
+    if (t.hasAttribute("data-tpl")) {
+      const row = t.closest("[data-tplrow]");
+      const v = t.value.trim().toUpperCase();
+      const ok = /^[A-Z0-9$-]{1,6}$/.test(v);
+      const cmd = ok ? t.getAttribute("data-tpl").replace("{}", v) : "";
+      row.setAttribute("data-send", cmd);
+      row.classList.toggle("dim", !ok);
+      row.querySelector(".cmd").textContent = ok ? cmd : t.getAttribute("data-tpl").replace("{}", MONO_UNFILLED);
+    }
+    if (t.hasAttribute("data-filter")) filterList(t);
+  });
+  function filterList(input) {
+    const list = document.getElementById(input.getAttribute("data-filter"));
+    const q = input.value.trim().toUpperCase();
+    let first = null;
+    let sect = null, sectHas = false;
+    const close = () => { if (sect) sect.hidden = !sectHas; };
+    [...list.children].forEach(el => {
+      if (el.hasAttribute("data-sect")) { close(); sect = el; sectHas = false; return; }
+      const hit = !q || el.getAttribute("data-key").toUpperCase().includes(q);
+      el.hidden = !hit;
+      if (hit) { sectHas = true; if (!first) first = el; }
+    });
+    close();
+    const hint = document.getElementById(input.getAttribute("data-filter") + "-hint");
+    const verb = input.getAttribute("data-verb");
+    if (!q) hint.innerHTML = "Enter sends the top match.";
+    else if (first) hint.innerHTML = `Enter sends <code>${esc(first.getAttribute("data-send"))}</code> (top match).`;
+    else hint.innerHTML = `No aircraft matches; Enter sends <code>${esc(verb + " " + q)}</code> as typed.`;
+  }
+  function filterEnter(input) {
+    const list = document.getElementById(input.getAttribute("data-filter"));
+    const first = [...list.querySelectorAll("[data-send]")].find(el => !el.hidden);
+    const q = input.value.trim().toUpperCase();
+    if (first) { sendFrom(first); return; }
+    if (q) say(input, `Sends <code>${esc(input.getAttribute("data-verb") + " " + q)}</code> as typed; the sim refuses a callsign it does not know.`);
+  }
+})();
+</script>

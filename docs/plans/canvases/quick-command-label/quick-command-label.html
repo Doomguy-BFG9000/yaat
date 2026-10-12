@@ -1,0 +1,828 @@
+<meta charset="utf-8">
+<title>Quick-command label</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+/* Layout: a design canvas in the project's mock style (dark page, IBM Plex), one section per open choice,
+   each a row of live menu lanes that share one replay cursor path. Single dark look: the menus are the
+   app's dark Fluent theme, so the page stays dark on every host. */
+:root {
+  color-scheme: dark;
+  /* page */
+  --page: #0B0D0F;
+  --panel: #15181B;
+  --rule: #2A2F35;
+  --ink: #E4E7EB;
+  --soft: #B4BBC4;
+  --muted: #9AA3AD;
+  --accent: #8FC1FF;
+  --today: #FFC062;
+  /* the menu, measured from docs/releases/img/whats-new-quick-commands.png and QuickCommandStrip.cs */
+  --m-bg: #2B2B2B;
+  --m-hover: #404040;
+  --m-text: #FFFFFF;
+  --m-disabled: #7A7A7A;
+  --m-dim: #666666;
+  --m-sep: #7F7F7F;
+  --well: #1F2226;
+  --well-hover: #2C3036;
+  --tip-border: #474747;
+  /* type */
+  --f-page: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --f-page-mono: 'IBM Plex Mono', Consolas, monospace;
+  --f-app: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --f-app-mono: 'JetBrains Mono', Consolas, Menlo, monospace;
+}
+body { background: var(--page); color: var(--ink); font-family: var(--f-page); font-size: 14px; }
+.wrap { max-width: 1400px; margin: 0 auto; padding-inline: clamp(16px, 4vw, 48px); padding-block: 40px 72px; display: flex; flex-direction: column; gap: 60px; }
+header.top { display: flex; flex-direction: column; gap: 10px; max-width: 880px; }
+.eyebrow { font-family: var(--f-page-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-size: 34px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { margin: 0; font-size: 22px; font-weight: 600; text-wrap: balance; }
+p { margin: 0; line-height: 1.5; }
+.lede { font-size: 15px; color: var(--soft); max-width: 72ch; }
+.lede b { color: var(--ink); font-weight: 500; }
+section { display: flex; flex-direction: column; gap: 18px; }
+.sec-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 32px; }
+.sec-head .txt { display: flex; flex-direction: column; gap: 8px; max-width: 78ch; min-width: 0; }
+.sec-head .txt p { color: var(--soft); }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ctl { font: 500 13px var(--f-page); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.ctl:hover { border-color: #56606B; }
+.ctl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.readout { font-family: var(--f-page-mono); font-size: 12px; color: var(--accent); min-height: 18px; }
+.lanes { display: flex; flex-wrap: wrap; gap: 32px 28px; align-items: flex-start; }
+.lane { width: 306px; max-width: 100%; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.lane-head { display: flex; align-items: baseline; gap: 10px; }
+.tag { font-family: var(--f-page-mono); font-size: 12px; font-weight: 500; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--rule); color: var(--accent); }
+.tag.today { color: var(--today); }
+.lane-title { font-size: 14px; font-weight: 500; }
+.stage { position: relative; padding: 2px 12px 6px 2px; }
+.status { font-family: var(--f-page-mono); font-size: 11.5px; color: var(--muted); min-height: 32px; line-height: 1.4; }
+.cap { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--soft); }
+.cap .k { font-family: var(--f-page-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 2px; }
+.cap .worst .k { color: var(--today); }
+.note { font-size: 13px; color: var(--muted); max-width: 90ch; }
+footer { border-top: 1px solid var(--rule); padding-top: 24px; display: flex; flex-direction: column; gap: 10px; max-width: 90ch; }
+footer h2 { font-size: 16px; }
+footer ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--soft); font-size: 13px; line-height: 1.5; }
+code { font-family: var(--f-page-mono); font-size: 12px; color: var(--ink); }
+
+/* ---------- the menu (Fluent dark, compact) ---------- */
+.menu { width: 290px; box-sizing: border-box; background: var(--m-bg); border-radius: 8px; padding: 4px 0; font-family: var(--f-app); font-size: 14px; color: var(--m-text); position: relative; user-select: none; -webkit-user-select: none; box-shadow: 0 0 0 1px rgba(0,0,0,0.65), 0 10px 28px rgba(0,0,0,0.55); }
+.mrow { height: 25px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px 0 6px; white-space: nowrap; }
+.mrow.hov { background: var(--m-hover); }
+.mrow.title { height: 26px; font-weight: 700; color: var(--m-disabled); }
+.mrow svg { flex: none; }
+.msep { height: 1px; background: var(--m-sep); margin: 4px 12px 5px 4px; }
+.hline { position: relative; height: 23px; }
+.hline .st { position: absolute; inset: 0 12px 0 6px; display: flex; align-items: center; font-size: 11px; color: var(--m-dim); white-space: nowrap; overflow: hidden; }
+.ql { position: absolute; inset: 0 12px 0 6px; overflow: hidden; white-space: nowrap; display: flex; align-items: center; opacity: 0; }
+.qi { display: inline-block; white-space: nowrap; will-change: transform; }
+.qi .nm { font-size: 12px; color: #EDEDED; }
+.qi .dash { font-size: 12px; color: #9A9A9A; }
+.qi .cm { font-family: var(--f-app-mono); font-size: 11px; color: #B8B8B8; }
+.fade .hline .st, .fade .ql { transition: opacity 150ms linear; }
+.strip { padding: 5px 4px 3px 4px; }
+.strip.hov { background: var(--m-hover); }
+.qrows { display: flex; flex-direction: column; gap: 6px; }
+.qrow { display: flex; gap: 6px; }
+.qbtn { width: 42px; height: 42px; box-sizing: border-box; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; background: var(--well); padding: 0; display: grid; place-items: center; position: relative; cursor: default; }
+.qbtn.hov { background: var(--well-hover); }
+.qbtn:focus-visible { outline: 2px solid #FFFFFF; outline-offset: -1px; }
+.qbtn .cue { position: absolute; right: 4px; bottom: 4px; }
+.qbtn .cue.chev { right: 3px; bottom: 3px; }
+.tlabel { width: 224px; min-height: 52px; margin-bottom: 6px; display: flex; flex-direction: column; }
+.tl-title { font-size: 14px; font-weight: 600; line-height: 18px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tl-detail { font-family: var(--f-app-mono); font-size: 12px; line-height: 16px; opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tlabel.prompt .tl-title { opacity: 0.7; }
+.tip { position: absolute; z-index: 6; pointer-events: none; background: var(--m-bg); border: 1px solid var(--tip-border); border-radius: 4px; padding: 5px 8px 6px; font: 12px var(--f-app); color: var(--m-text); white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+.gapmark { position: absolute; z-index: 4; pointer-events: none; width: 34px; border-left: 1px dashed var(--today); display: flex; align-items: center; }
+.gapmark::before, .gapmark::after { content: ""; position: absolute; left: -4px; width: 8px; height: 1px; background: var(--today); }
+.gapmark::before { top: 0; }
+.gapmark::after { bottom: 0; }
+.gapmark span { font-family: var(--f-page-mono); font-size: 11px; color: var(--today); padding-left: 5px; }
+.ghost { position: absolute; left: 0; top: 0; z-index: 8; pointer-events: none; }
+.ghost .ring { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; border: 1.5px dashed var(--accent); opacity: 0.85; }
+.ghost svg { position: absolute; left: -1px; top: -1px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
+
+/* marquee speed specimens */
+.spec { display: flex; flex-direction: column; gap: 8px; }
+.spec .menu .ql { opacity: 1; }
+.spec-k { font-family: var(--f-page-mono); font-size: 11px; color: var(--muted); }
+.trk { position: relative; height: 14px; }
+.trk::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 2px; background: var(--rule); border-radius: 1px; }
+.trk i { position: absolute; top: 2px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--accent); }
+.spec-meta { font-family: var(--f-page-mono); font-size: 11.5px; color: var(--soft); line-height: 1.45; min-height: 34px; }
+@media (max-width: 420px) { .lane { width: 100%; } h1 { font-size: 28px; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">YAAT-545 · aircraft context menu · the label row above the icon strip</div>
+    <h1>Quick-command label</h1>
+    <p class="lede">The settled design removes the reserved label row. Pointing at or focusing an icon replaces the header's state line with <b>name — command</b> on one line, scrolling as a marquee when it overflows, and the tooltip goes. Three choices are still open.</p>
+    <p class="lede">Every lane is a live copy of the menu. Point at the icons yourself (Tab reaches them too), or watch the dashed replay cursor, which takes the same path through every lane of a section at the same moment. A lane hands the cursor back about two seconds after you leave it.</p>
+  </header>
+
+  <section id="timing">
+    <div class="sec-head">
+      <div class="txt">
+        <div class="eyebrow">Choice 1 · timing</div>
+        <h2>When the label comes and goes</h2>
+        <p>Moving from one icon to the next never leaves the strip: the 6 px gaps belong to the strip's own menu item, so every lane swaps labels at once between icons. The timing only matters when the pointer leaves the strip.</p>
+      </div>
+      <div class="controls"><button class="ctl" type="button" data-act="play">Pause replay</button><button class="ctl" type="button" data-act="restart">Restart</button></div>
+    </div>
+    <div class="readout" aria-live="off"></div>
+    <div class="lanes"></div>
+  </section>
+
+  <section id="speed">
+    <div class="sec-head">
+      <div class="txt">
+        <div class="eyebrow">Choice 1, continued · marquee</div>
+        <h2>How fast the long label scrolls</h2>
+        <p>The longest label a strip icon carries today is <code>Reduce to final approach speed - 145 kt</code> with its command <code>RFAS</code>. The line waits 800 ms, scrolls until the end is in view, waits 800 ms and scrolls back. The top specimen is the menu as it stands; the lower one is the menu at its narrowest once the 224 px label panel no longer pins its width and the five-icon row sets it.</p>
+      </div>
+      <div class="controls"><button class="ctl" type="button" data-act="play">Pause</button><button class="ctl" type="button" data-act="restart">Restart both</button></div>
+    </div>
+    <div class="lanes"></div>
+  </section>
+
+  <section id="point">
+    <div class="sec-head">
+      <div class="txt">
+        <div class="eyebrow">Choice 2 · the point menu</div>
+        <h2>Where the label goes when there is no state line</h2>
+        <p>A taxi-node point menu opens with its title and goes straight to the strip. Lanes A and B use the same 23 px line the state line has on the aircraft menu.</p>
+      </div>
+      <div class="controls"><button class="ctl" type="button" data-act="play">Pause replay</button><button class="ctl" type="button" data-act="restart">Restart</button></div>
+    </div>
+    <div class="readout" aria-live="off"></div>
+    <div class="lanes"></div>
+  </section>
+
+  <section id="cue">
+    <div class="sec-head">
+      <div class="txt">
+        <div class="eyebrow">Choice 3 · the flyout cue</div>
+        <h2>Telling an icon that opens a flyout from one that sends</h2>
+        <p>Today the label row says "Exit left ›" over "opens a submenu", and a 6 px triangle notch sits in the icon's corner. One line leaves no room for "opens a submenu". Exit left and Exit right open flyouts here; Cleared to land sends <code>CLAND</code>.</p>
+      </div>
+      <div class="controls"><button class="ctl" type="button" data-act="play">Pause replay</button><button class="ctl" type="button" data-act="restart">Restart</button></div>
+    </div>
+    <div class="readout" aria-live="off"></div>
+    <div class="lanes"></div>
+  </section>
+
+  <footer>
+    <h2>How the mock is built, and what it leaves out</h2>
+    <ul>
+      <li>Sizes come from the code and from <code>docs/releases/img/whats-new-quick-commands.png</code>: a 290 px menu on <code>#2B2B2B</code>, 25 px rows, 23 px state line, 42 px buttons (40 px cell and its border) 6 px apart, 52 px label panel plus 6 px spacing. That shot is an older build, so the well and glyph colours follow the current <code>QuickCommandStrip</code> (<code>#1F2226</code> wells, <code>FamilyColor</code>) instead.</li>
+      <li>Sections 1 and 2 use cue B (" ›") and the 30 px/s marquee, so each section differs only in what it tests. The label is drawn at 12 px, the name light and the command in JetBrains Mono, where the state line stays 11 px grey.</li>
+      <li>Inter and JetBrains Mono load from Google Fonts; Avalonia's text rendering and hinting differ a little, so an overflow measured here can be a few pixels off the app's.</li>
+      <li>The aircraft menu stops after Delete (the RPO items and Settings for this view… are left out), flyouts do not open, the latched icon state is not drawn, and arrow-key navigation is not reproduced. The 145 kt in the long label is illustrative.</li>
+      <li>In lane 2A the real menu would re-lay out every frame while the pointer sits on the band that moves; the mock waits 150 ms between flips so the loop can be seen.</li>
+    </ul>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const PAUSE_MS = 800;
+  const LINGER_MS = 600;
+  const LAYOUT_FLIP_MS = 150;
+  const TOOLTIP_DELAY_MS = 400;
+  const HANDBACK_MS = 2000;
+  const DEFAULT_SPEED = 30;
+
+  const FAM = { tower: '#FFC062', ground: '#6EE0CE', flight: '#A8CAFF' };
+  const GLYPHS = {
+    CTL: { fam: 'tower', d: 'M2 20h20 M5 6l11 9 M10 15h6v-6' },
+    GA: { fam: 'tower', d: 'M4 19h7a6 6 0 0 0 6-6V5 M13 9l4-4 4 4' },
+    RFAS: { fam: 'flight', d: 'M4 17a8 8 0 1 1 16 0 M12 17l4-5' },
+    EL: { fam: 'tower', d: 'M15 21V11a4 4 0 0 0-4-4H4 M8 3L4 7l4 4' },
+    ER: { fam: 'tower', d: 'M9 21V11a4 4 0 0 1 4-4h7 M16 3l4 4-4 4' },
+    TAXIHERE: { fam: 'ground', d: 'M12 21s-6-5.5-6-10.5a6 6 0 0 1 12 0c0 5-6 10.5-6 10.5z M12 8a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5' },
+    CUSTOM: { fam: 'ground', d: 'M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3' },
+  };
+  const FINAL = {
+    title: 'UAL1549 · B738',
+    state: 'Final · 1,800 ft · 152 kt · KSFO rwy 28R',
+    before: [['Command…'], ['Note…']],
+    strip: [
+      { g: 'CTL', name: 'Cleared to land 28R', cmd: 'CLAND' },
+      { g: 'GA', name: 'Go around 28R', cmd: 'GA' },
+      { g: 'RFAS', name: 'Reduce to final approach speed - 145 kt', cmd: 'RFAS' },
+      { g: 'EL', name: 'Exit left', sub: true },
+      { g: 'ER', name: 'Exit right', sub: true },
+    ],
+    after: [['Track', true], ['Data Block', true], ['Squawk', true], ['Display', true], ['Draw route'], ['Favorite Commands', true], ['All Commands', true], 'sep', ['Delete']],
+  };
+  const POINT = {
+    title: 'SWA1234 · B737 → B / C',
+    strip: [
+      { g: 'TAXIHERE', name: 'Taxi here', sub: true },
+      { g: 'CUSTOM', name: 'Custom taxi…' },
+    ],
+    after: [['Taxi here', true], ['Custom taxi…'], 'sep', ['Warp here']],
+  };
+
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function h(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function svg(w, ht, vb, inner, cls) {
+    const s = document.createElementNS(SVGNS, 'svg');
+    s.setAttribute('width', w);
+    s.setAttribute('height', ht);
+    s.setAttribute('viewBox', vb);
+    s.setAttribute('aria-hidden', 'true');
+    if (cls) s.setAttribute('class', cls);
+    s.innerHTML = inner;
+    return s;
+  }
+  const chevron = () => svg(8, 12, '0 0 8 12', '<path d="M2.5 2l4 4-4 4" fill="none" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>');
+  function sep() { return h('div', 'msep'); }
+  function menuRow(label, sub) {
+    const r = h('div', 'mrow');
+    r.append(h('span', null, label));
+    if (sub) r.append(chevron());
+    return r;
+  }
+  function glyphButton(item, cue) {
+    const b = h('button', 'qbtn');
+    b.type = 'button';
+    b.setAttribute('aria-label', item.name);
+    const g = GLYPHS[item.g];
+    b.append(svg(32, 32, '0 0 24 24', `<path d="${g.d}" fill="none" stroke="${FAM[g.fam]}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>`));
+    if (item.sub) {
+      b.append(cue === 'chevron'
+        ? svg(7, 10, '0 0 7 10', '<path d="M2 1.5l3.5 3.5L2 8.5" fill="none" stroke="#9AA3AD" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>', 'cue chev')
+        : svg(6, 6, '0 0 6 6', '<path d="M6 0V6H0z" fill="#9AA3AD"/>', 'cue notch'));
+    }
+    return b;
+  }
+  function labelLine() {
+    const box = h('div', 'ql');
+    const inner = h('span', 'qi');
+    box.append(inner);
+    return { box, inner };
+  }
+  function fillLabel(inner, item, cue) {
+    inner.replaceChildren(h('span', 'nm', item.name + ((item.sub && cue === 'label') ? ' ›' : '')));
+    if (!item.sub && item.cmd) {
+      inner.append(h('span', 'dash', ' — '), h('span', 'cm', item.cmd));
+    }
+  }
+  const tooltipText = (item) => (!item.sub && item.cmd) ? `${item.name} — ${item.cmd}` : item.name;
+
+  /* builds one menu; cfg: kind final|point, layout today|new, cue notch|chevron|label|plain, pointLine grow|reserve|none */
+  function buildMenu(cfg) {
+    const data = cfg.kind === 'final' ? FINAL : POINT;
+    const refs = { rowsByName: {}, rows: [], buttons: [], items: data.strip };
+    const m = h('div', 'menu');
+    if (cfg.timing === 'fade') m.classList.add('fade');
+    refs.menu = m;
+    refs.title = h('div', 'mrow title', data.title);
+    m.append(refs.title);
+    const wantsLine = cfg.layout === 'new' && (data.state || cfg.pointLine !== 'none');
+    if (data.state || wantsLine) {
+      const line = h('div', 'hline');
+      if (data.state) {
+        refs.st = h('div', 'st', data.state);
+        line.append(refs.st);
+      }
+      if (wantsLine) {
+        const { box, inner } = labelLine();
+        refs.ql = box;
+        refs.qi = inner;
+        line.append(box);
+      }
+      if (cfg.pointLine === 'grow') line.hidden = true;
+      refs.line = line;
+      m.append(line);
+    }
+    m.append(sep());
+    if (data.before) {
+      for (const [label, sub] of data.before) addRow(label, sub);
+      m.append(sep());
+    }
+    const strip = h('div', 'strip');
+    refs.strip = strip;
+    if (cfg.layout === 'today') {
+      const tl = h('div', 'tlabel prompt');
+      refs.tTitle = h('div', 'tl-title', 'Quick commands');
+      refs.tDetail = h('div', 'tl-detail', 'point at an icon');
+      tl.append(refs.tTitle, refs.tDetail);
+      refs.tlabel = tl;
+      strip.append(tl);
+    }
+    const rows = h('div', 'qrows');
+    let row = null;
+    data.strip.forEach((item, i) => {
+      if (i % 5 === 0) { row = h('div', 'qrow'); rows.append(row); }
+      const b = glyphButton(item, cfg.cue);
+      refs.buttons.push(b);
+      row.append(b);
+    });
+    refs.qrows = rows;
+    strip.append(rows);
+    m.append(strip, sep());
+    for (const entry of data.after) {
+      if (entry === 'sep') m.append(sep());
+      else addRow(entry[0], entry[1]);
+    }
+    return refs;
+
+    function addRow(label, sub) {
+      const r = menuRow(label, sub);
+      refs.rows.push(r);
+      refs.rowsByName[label] = r;
+      m.append(r);
+    }
+  }
+
+  class Marquee {
+    constructor(box, inner, speed) {
+      Object.assign(this, { box, inner, speed, active: false, phase: 'wait0', off: 0, t0: 0, d: 0 });
+    }
+    start(now) {
+      this.active = true;
+      this.phase = 'wait0';
+      this.t0 = now;
+      this.off = 0;
+      this.paint();
+    }
+    stop() { this.active = false; }
+    update(now) {
+      if (!this.active) return;
+      const d = Math.max(0, Math.ceil(this.inner.offsetWidth - this.box.clientWidth));
+      this.d = d;
+      if (d === 0) {
+        this.phase = 'fits';
+        this.off = 0;
+        this.paint();
+        return;
+      }
+      if (this.phase === 'fits') { this.phase = 'wait0'; this.t0 = now; }
+      const el = now - this.t0;
+      if (this.phase === 'wait0' && el >= PAUSE_MS) { this.phase = 'fwd'; this.t0 = now; }
+      else if (this.phase === 'fwd') {
+        this.off = Math.min(d, el / 1000 * this.speed);
+        if (this.off >= d) { this.phase = 'wait1'; this.t0 = now; }
+      } else if (this.phase === 'wait1' && el >= PAUSE_MS) { this.phase = 'back'; this.t0 = now; }
+      else if (this.phase === 'back') {
+        this.off = Math.max(0, d - el / 1000 * this.speed);
+        if (this.off <= 0) { this.phase = 'wait0'; this.t0 = now; }
+      }
+      this.paint();
+    }
+    shift(ms) { this.t0 += ms; }
+    paint() { this.inner.style.transform = `translateX(${-this.off.toFixed(2)}px)`; }
+  }
+
+  class Lane {
+    constructor(section, cfg) {
+      this.section = section;
+      this.cfg = cfg;
+      this.el = h('div', 'lane');
+      const head = h('div', 'lane-head');
+      head.append(h('span', 'tag' + (cfg.layout === 'today' ? ' today' : ''), cfg.tag), h('span', 'lane-title', cfg.title));
+      this.stage = h('div', 'stage');
+      this.refs = buildMenu(cfg);
+      this.stage.append(this.refs.menu);
+      this.ghostEl = h('div', 'ghost');
+      this.ghostEl.append(h('div', 'ring'), svg(16, 22, '0 0 16 22', '<path d="M1 1v16l4.2-4 2.8 6.6 2.6-1.1-2.8-6.5H14z" fill="#FFFFFF" stroke="#000000" stroke-width="1.2" stroke-linejoin="round"/>'));
+      this.stage.append(this.ghostEl);
+      if (cfg.layout === 'today') {
+        this.tip = h('div', 'tip');
+        this.tip.hidden = true;
+        this.gap = h('div', 'gapmark');
+        this.gapText = h('span', null, '58 px');
+        this.gap.append(this.gapText);
+        this.stage.append(this.tip, this.gap);
+      }
+      this.statusEl = h('div', 'status');
+      const cap = h('div', 'cap');
+      const how = h('p');
+      how.append(h('span', 'k', 'How it works'), document.createTextNode(cfg.how));
+      const worst = h('p', 'worst');
+      worst.append(h('span', 'k', cfg.layout === 'today' ? 'What it costs' : 'Worst case in use'), document.createTextNode(cfg.worst));
+      cap.append(how, worst);
+      this.el.append(head, this.stage, this.statusEl, cap);
+      if (this.refs.qi) this.mq = new Marquee(this.refs.ql, this.refs.qi, cfg.speed ?? DEFAULT_SPEED);
+
+      Object.assign(this, { hBtn: -1, inStrip: false, hRow: null, showing: -1, lingerT: null, lingerEnd: 0, lockUntil: 0,
+        manual: false, real: null, manualUntil: 0, ghost: { x: 0, y: 0 }, from: { x: 0, y: 0 }, to: { x: 0, y: 0 }, last: { x: 0, y: 0 }, statusText: '' });
+      this.wire();
+    }
+
+    wire() {
+      const local = (e) => {
+        const r = this.stage.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+      };
+      this.stage.addEventListener('pointermove', (e) => { this.manual = true; this.real = local(e); this.manualUntil = Infinity; });
+      this.stage.addEventListener('pointerdown', (e) => { this.manual = true; this.real = local(e); this.manualUntil = Infinity; });
+      this.stage.addEventListener('pointerleave', () => { this.real = null; this.manualUntil = performance.now() + HANDBACK_MS; });
+      this.refs.buttons.forEach((b, i) => {
+        b.addEventListener('click', (e) => e.preventDefault());
+        b.addEventListener('focus', () => { if (b.matches(':focus-visible')) this.btnEnter(i, performance.now()); });
+        b.addEventListener('blur', (e) => {
+          const next = e.relatedTarget;
+          if (!(next && this.refs.strip.contains(next)) && !this.inStrip) this.stripLeave(performance.now());
+        });
+      });
+    }
+
+    rel(el, fx, fy) {
+      const s = this.stage.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      return { x: r.left - s.left + r.width * fx, y: r.top - s.top + r.height * fy };
+    }
+    resolve(spec) {
+      if (spec.btn != null) return this.rel(this.refs.buttons[spec.btn], spec.fx ?? 0.5, spec.fy ?? 0.5);
+      if (spec.title) return this.rel(this.refs.title, spec.fx ?? 0.35, spec.fy ?? 0.5);
+      return this.rel(this.refs.rowsByName[spec.row], spec.fx ?? 0.25, spec.fy ?? 0.5);
+    }
+    hitTest(p) {
+      if (!p) return { btn: -1, strip: false, row: null };
+      const s = this.stage.getBoundingClientRect();
+      const X = s.left + p.x;
+      const Y = s.top + p.y;
+      const inside = (el) => {
+        const r = el.getBoundingClientRect();
+        return X >= r.left && X < r.right && Y >= r.top && Y < r.bottom;
+      };
+      return { btn: this.refs.buttons.findIndex(inside), strip: inside(this.refs.strip), row: this.refs.rows.find(inside) || null };
+    }
+    apply(hit, now) {
+      if (hit.row !== this.hRow) {
+        if (this.hRow) this.hRow.classList.remove('hov');
+        if (hit.row) hit.row.classList.add('hov');
+        this.hRow = hit.row;
+      }
+      this.refs.strip.classList.toggle('hov', hit.strip);
+      if (hit.btn !== this.hBtn) {
+        if (this.hBtn >= 0) { this.refs.buttons[this.hBtn].classList.remove('hov'); this.btnLeave(); }
+        if (hit.btn >= 0) { this.refs.buttons[hit.btn].classList.add('hov'); this.btnEnter(hit.btn, now); }
+        this.hBtn = hit.btn;
+      }
+      if (hit.strip !== this.inStrip) {
+        this.inStrip = hit.strip;
+        if (!hit.strip) this.stripLeave(now);
+      }
+    }
+
+    btnEnter(i, now) {
+      const item = this.refs.items[i];
+      if (this.cfg.layout === 'today') {
+        this.refs.tlabel.classList.remove('prompt');
+        this.refs.tTitle.textContent = item.sub ? `${item.name} ›` : item.name;
+        this.refs.tDetail.textContent = item.sub ? 'opens a submenu' : (item.cmd || '');
+        this.showing = i;
+        clearTimeout(this.tipT);
+        this.tip.hidden = true;
+        this.tipT = setTimeout(() => {
+          this.tip.textContent = tooltipText(item);
+          this.tip.style.left = `${this.last.x + 2}px`;
+          this.tip.style.top = `${this.last.y + 20}px`;
+          this.tip.hidden = false;
+        }, TOOLTIP_DELAY_MS);
+        return;
+      }
+      if (!this.refs.qi) { this.pointing = i; return; }
+      clearTimeout(this.lingerT);
+      this.lingerT = null;
+      fillLabel(this.refs.qi, item, this.cfg.cue);
+      if (this.cfg.pointLine === 'grow' && this.refs.line.hidden) {
+        this.refs.line.hidden = false;
+        this.lockUntil = now + LAYOUT_FLIP_MS;
+      }
+      this.refs.ql.style.opacity = '1';
+      if (this.refs.st) this.refs.st.style.opacity = '0';
+      if (this.showing !== i || !this.mq.active) this.mq.start(now);
+      this.showing = i;
+    }
+    btnLeave() {
+      if (this.cfg.layout === 'today') {
+        clearTimeout(this.tipT);
+        this.tip.hidden = true;
+      }
+      this.pointing = -1;
+    }
+    stripLeave(now) {
+      if (this.cfg.layout === 'today') {
+        this.refs.tlabel.classList.add('prompt');
+        this.refs.tTitle.textContent = 'Quick commands';
+        this.refs.tDetail.textContent = 'point at an icon';
+        this.showing = -1;
+        return;
+      }
+      if (!this.refs.qi || this.showing < 0) return;
+      if (this.cfg.timing === 'linger') {
+        if (!this.lingerT) {
+          this.lingerEnd = now + LINGER_MS;
+          this.lingerT = setTimeout(() => this.hideLabel(performance.now()), LINGER_MS);
+        }
+        return;
+      }
+      this.hideLabel(now);
+    }
+    hideLabel(now) {
+      clearTimeout(this.lingerT);
+      this.lingerT = null;
+      this.showing = -1;
+      if (!this.refs.qi) return;
+      this.refs.ql.style.opacity = '0';
+      if (this.refs.st) this.refs.st.style.opacity = '1';
+      if (this.cfg.timing !== 'fade') this.mq.stop();
+      if (this.cfg.pointLine === 'grow' && !this.refs.line.hidden) {
+        this.refs.line.hidden = true;
+        this.lockUntil = now + LAYOUT_FLIP_MS;
+      }
+    }
+    reset(now) {
+      this.apply({ btn: -1, strip: false, row: null }, now);
+      this.hideLabel(now);
+      if (this.cfg.layout === 'today') this.stripLeave(now);
+      this.real = null;
+      this.manual = false;
+    }
+
+    frame(now) {
+      if (this.manual && !this.real && now > this.manualUntil) this.manual = false;
+      const p = this.manual ? this.real : this.ghost;
+      if (p) this.last = p;
+      this.ghostEl.hidden = this.manual;
+      if (!this.manual) this.ghostEl.style.transform = `translate(${this.ghost.x.toFixed(1)}px, ${this.ghost.y.toFixed(1)}px)`;
+      if (now >= this.lockUntil) this.apply(this.hitTest(p), now);
+      if (this.mq) this.mq.update(now);
+      if (this.gap) this.placeGap();
+      this.updateStatus(now);
+    }
+    placeGap() {
+      const s = this.stage.getBoundingClientRect();
+      const top = this.refs.tlabel.getBoundingClientRect().top - s.top;
+      const bottom = this.refs.qrows.getBoundingClientRect().top - s.top;
+      const menuRight = this.refs.menu.getBoundingClientRect().right - s.left;
+      this.gap.style.left = `${menuRight - 44}px`;
+      this.gap.style.top = `${top}px`;
+      this.gap.style.height = `${bottom - top}px`;
+      this.gapText.textContent = `${Math.round(bottom - top)} px`;
+    }
+    updateStatus(now) {
+      const items = this.refs.items;
+      let s;
+      if (this.cfg.layout === 'today') {
+        s = this.showing >= 0 ? `Label row: ${items[this.showing].name}` : 'Label row: prompt';
+        if (!this.tip.hidden) s += ' · tooltip open';
+      } else if (!this.refs.qi) {
+        s = (this.hBtn >= 0) ? `No label; pointing at ${items[this.hBtn].name}` : 'No label on this menu';
+      } else if (this.showing >= 0) {
+        s = this.lingerT
+          ? `Label held: state line back in ${Math.max(0, Math.ceil(this.lingerEnd - now))} ms`
+          : `Label: ${items[this.showing].name}`;
+        if (this.mq.d > 0) s += ` · overflows ${this.mq.d} px`;
+      } else if (this.cfg.kind === 'point') {
+        s = this.cfg.pointLine === 'grow' ? 'Label line closed' : 'Label line blank';
+      } else {
+        s = 'Header: state line';
+      }
+      s += ` · menu ${this.refs.menu.offsetHeight} px tall`;
+      if (s !== this.statusText) {
+        this.statusText = s;
+        this.statusEl.textContent = s;
+      }
+    }
+  }
+
+  const easeInOut = (k) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+
+  class Section {
+    constructor(id, script) {
+      this.root = document.getElementById(id);
+      this.lanesEl = this.root.querySelector('.lanes');
+      this.readout = this.root.querySelector('.readout');
+      this.script = script;
+      this.lanes = [];
+      this.playing = !REDUCED;
+      this.started = false;
+      this.i = 0;
+      this.stepStart = 0;
+      this.pausedAt = 0;
+      this.playBtn = this.root.querySelector('[data-act="play"]');
+      this.playBtn.textContent = this.playing ? 'Pause replay' : 'Play replay';
+      this.playBtn.addEventListener('click', () => this.toggle(performance.now()));
+      this.root.querySelector('[data-act="restart"]').addEventListener('click', () => this.restart(performance.now()));
+    }
+    add(cfg) {
+      const lane = new Lane(this, cfg);
+      this.lanes.push(lane);
+      this.lanesEl.append(lane.el);
+    }
+    toggle(now) {
+      this.playing = !this.playing;
+      if (this.playing) this.stepStart += now - this.pausedAt;
+      else this.pausedAt = now;
+      this.playBtn.textContent = this.playing ? 'Pause replay' : 'Play replay';
+    }
+    restart(now) {
+      this.i = 0;
+      this.stepStart = now;
+      if (!this.playing) this.pausedAt = now;
+      for (const l of this.lanes) {
+        l.reset(now);
+        const p = l.resolve(this.script[0].to);
+        l.ghost = p; l.from = p; l.to = p;
+      }
+      this.say();
+    }
+    say() {
+      const prefix = this.playing ? 'Replay' : (REDUCED ? 'Replay paused (your system asks for reduced motion)' : 'Replay paused');
+      this.readout.textContent = `${prefix} · step ${this.i + 1} of ${this.script.length}: ${this.script[this.i].say}`;
+    }
+    tick(now) {
+      if (!this.started) { this.started = true; this.restart(now); }
+      if (this.playing) {
+        let st = this.script[this.i];
+        let el = now - this.stepStart;
+        if (el >= st.travel + st.dwell) {
+          this.i = (this.i + 1) % this.script.length;
+          this.stepStart = now;
+          st = this.script[this.i];
+          el = 0;
+          for (const l of this.lanes) { l.from = { ...l.ghost }; l.to = l.resolve(st.to); }
+          this.say();
+        }
+        const k = Math.min(1, el / st.travel);
+        const e = st.ease === 'linear' ? k : easeInOut(k);
+        for (const l of this.lanes) {
+          l.ghost = { x: l.from.x + (l.to.x - l.from.x) * e, y: l.from.y + (l.to.y - l.from.y) * e };
+        }
+      }
+      for (const l of this.lanes) l.frame(now);
+    }
+  }
+
+  /* ---------- section 1: timing ---------- */
+  const timing = new Section('timing', [
+    { to: { row: 'Note…' }, travel: 600, dwell: 1400, say: 'the pointer rests on Note…; the header shows the state line' },
+    { to: { btn: 0 }, travel: 500, dwell: 1500, say: 'the pointer reaches Cleared to land 28R' },
+    { to: { btn: 1 }, travel: 300, dwell: 1200, say: 'across the 6 px gap to Go around 28R; the gap is inside the strip, so nothing returns' },
+    { to: { btn: 2 }, travel: 300, dwell: 4400, say: 'on Reduce to final approach speed: the label overflows and scrolls after 800 ms' },
+    { to: { btn: 3 }, travel: 300, dwell: 1300, say: 'on Exit left, an icon that opens a flyout' },
+    { to: { row: 'All Commands' }, travel: 650, dwell: 1700, say: 'off the strip, down to All Commands' },
+    { to: { row: 'Note…' }, travel: 380, dwell: 1500, ease: 'linear', say: 'a quick pass up across the strip, back to Note…' },
+  ]);
+  timing.add({ tag: 'Today', title: 'Label row above the strip', kind: 'final', layout: 'today', cue: 'notch',
+    how: 'A 52 px label row and 6 px of spacing sit above the icons. It reads "Quick commands / point at an icon" until an icon is pointed at, then names it over its command; the tooltip repeats that after 400 ms.',
+    worst: 'The 58 px gap shows on every open, and the tooltip lands on the rows under the pointer while you aim at the next icon.' });
+  timing.add({ tag: 'A', title: 'Instant both ways', kind: 'final', layout: 'new', timing: 'instant', cue: 'label',
+    how: 'The label replaces the state line the moment the pointer reaches an icon; the state line returns the moment the pointer leaves the strip.',
+    worst: 'Crossing the strip on the way to another row flashes a label in the header for a fraction of a second, and the header text jumps twice.' });
+  timing.add({ tag: 'B', title: '150 ms cross-fade', kind: 'final', layout: 'new', timing: 'fade', cue: 'label',
+    how: 'State line and label cross-fade over 150 ms, in and out.',
+    worst: 'A quick crossing leaves both texts half drawn over each other, and a stay shorter than 150 ms never shows a readable label.' });
+  timing.add({ tag: 'C', title: 'Label holds 600 ms', kind: 'final', layout: 'new', timing: 'linger', cue: 'label',
+    how: 'After the pointer leaves the strip the label stays 600 ms, then the state line returns at once. Pointing at an icon again inside that time keeps the label up.',
+    worst: 'On reaching All Commands or Command…, the header still names an icon you are no longer pointing at for 0.6 s. Since the gaps are inside the strip, the hold only helps when the pointer slips off the strip\'s edge.' });
+
+  /* ---------- section 1b: marquee speed ---------- */
+  const speedRoot = document.getElementById('speed');
+  const speedLanes = speedRoot.querySelector('.lanes');
+  const specs = [];
+  let speedPlaying = !REDUCED;
+  let speedPausedAt = 0;
+  function specimen(width, speed, label) {
+    const wrap = h('div', 'spec');
+    const k = h('div', 'spec-k', label);
+    const menu = h('div', 'menu');
+    menu.style.width = `${width}px`;
+    menu.append(h('div', 'mrow title', FINAL.title));
+    const line = h('div', 'hline');
+    const { box, inner } = labelLine();
+    fillLabel(inner, FINAL.strip[2], 'label');
+    line.append(box);
+    menu.append(line);
+    const trk = h('div', 'trk');
+    const dot = h('i');
+    trk.append(dot);
+    const meta = h('div', 'spec-meta');
+    wrap.append(k, menu, trk, meta);
+    const mq = new Marquee(box, inner, speed);
+    specs.push({ mq, dot, meta, speed, text: '' });
+    return wrap;
+  }
+  function speedLane(speed, tag, how, worst) {
+    const lane = h('div', 'lane');
+    const head = h('div', 'lane-head');
+    head.append(h('span', 'tag', tag), h('span', 'lane-title', `${speed} px/s, 800 ms pause`));
+    const cap = h('div', 'cap');
+    const p1 = h('p');
+    p1.append(h('span', 'k', 'How it reads'), document.createTextNode(how));
+    const p2 = h('p', 'worst');
+    p2.append(h('span', 'k', 'Worst case in use'), document.createTextNode(worst));
+    cap.append(p1, p2);
+    lane.append(head, specimen(290, speed, 'Menu as drawn here (290 px)'), specimen(242, speed, 'Menu at the strip\'s width (242 px)'), cap);
+    speedLanes.append(lane);
+  }
+  speedLane(30, '30', 'The line moves slowly enough to read while it moves; the end comes into view about a second later than at 60.',
+    'In the narrow menu the command at the end shows only after the time given above, longer than a quick pass over the icon lasts.');
+  speedLane(60, '60', 'The end comes into view sooner and the full cycle is shorter.',
+    'Words move under the eye too fast to read in passing, so the name often takes a second cycle to read, and the line keeps moving in the corner of your eye while you aim.');
+  const phaseText = { wait0: 'waiting 800 ms', fwd: 'scrolling to the end', wait1: 'waiting 800 ms at the end', back: 'scrolling back', fits: 'fits; no scrolling' };
+  function speedRestart(now) {
+    for (const s of specs) s.mq.start(now);
+    if (!speedPlaying) speedPausedAt = now;
+  }
+  const speedPlayBtn = speedRoot.querySelector('[data-act="play"]');
+  speedPlayBtn.textContent = speedPlaying ? 'Pause' : 'Play';
+  speedPlayBtn.addEventListener('click', () => {
+    const now = performance.now();
+    speedPlaying = !speedPlaying;
+    if (speedPlaying) for (const s of specs) s.mq.shift(now - speedPausedAt);
+    else speedPausedAt = now;
+    speedPlayBtn.textContent = speedPlaying ? 'Pause' : 'Play';
+  });
+  speedRoot.querySelector('[data-act="restart"]').addEventListener('click', () => speedRestart(performance.now()));
+  let speedStarted = false;
+  function speedTick(now) {
+    if (!speedStarted) { speedStarted = true; speedRestart(now); }
+    for (const s of specs) {
+      if (speedPlaying) s.mq.update(now);
+      const d = s.mq.d;
+      s.dot.style.left = d > 0 ? `${(s.mq.off / d) * 100}%` : '0%';
+      const reach = (PAUSE_MS + (d / s.speed) * 1000) / 1000;
+      const cycle = (2 * PAUSE_MS + 2 * (d / s.speed) * 1000) / 1000;
+      const t = d > 0
+        ? `Overflows ${d} px · command fully in view ${reach.toFixed(1)} s after the pointer arrives · cycle ${cycle.toFixed(1)} s · ${phaseText[s.mq.phase]}`
+        : 'Fits the line; no scrolling';
+      if (t !== s.text) { s.text = t; s.meta.textContent = t; }
+    }
+  }
+
+  /* ---------- section 2: point menu ---------- */
+  const point = new Section('point', [
+    { to: { title: true }, travel: 600, dwell: 1300, say: 'the pointer rests on the title' },
+    { to: { btn: 0, fy: 0.55 }, travel: 2800, dwell: 2200, ease: 'linear', say: 'moving slowly down onto Taxi here, entering the strip from above' },
+    { to: { btn: 1 }, travel: 450, dwell: 1600, say: 'across to Custom taxi…' },
+    { to: { row: 'Warp here', fx: 0.3 }, travel: 650, dwell: 1600, say: 'off the strip to Warp here' },
+  ]);
+  point.add({ tag: 'Today', title: 'Label row above the strip', kind: 'point', layout: 'today', cue: 'notch',
+    how: 'The same 52 px row and 6 px spacing sit above a two-icon strip, under a title with no state line.',
+    worst: 'The gap is larger than the strip it labels.' });
+  point.add({ tag: 'A', title: 'Line opens while pointing', kind: 'point', layout: 'new', timing: 'instant', cue: 'label', pointLine: 'grow',
+    how: 'A line opens under the title only while an icon is pointed at or focused, and closes when the pointer leaves the strip. The menu grows by 23 px.',
+    worst: 'The strip jumps 23 px down as the pointer arrives. Entering from above, the top of the first row flips between the two layouts, and the pointer can settle on the strip\'s padding instead of the icon it aimed at, so the click does nothing.' });
+  point.add({ tag: 'B', title: 'Blank line kept', kind: 'point', layout: 'new', timing: 'instant', cue: 'label', pointLine: 'reserve',
+    how: 'A 23 px line stays under the title; the label fills it while an icon is pointed at.',
+    worst: 'At rest the point menu carries an empty 23 px row, a smaller copy of the gap this issue removes.' });
+  point.add({ tag: 'C', title: 'No label', kind: 'point', layout: 'new', timing: 'instant', cue: 'label', pointLine: 'none',
+    how: 'The point menu shows no label; the icons stand alone.',
+    worst: 'With the tooltip gone the icons have no names here. On a taxi node the text rows below repeat them, but on a radar point Direct to, Hold left, Hold right and Warp here have no text row.' });
+
+  /* ---------- section 3: flyout cue ---------- */
+  const cue = new Section('cue', [
+    { to: { row: 'Note…' }, travel: 600, dwell: 1200, say: 'the pointer rests on Note…' },
+    { to: { btn: 0 }, travel: 500, dwell: 1600, say: 'on Cleared to land 28R, which sends CLAND' },
+    { to: { btn: 3 }, travel: 450, dwell: 2400, say: 'on Exit left, which opens a flyout' },
+    { to: { btn: 4 }, travel: 300, dwell: 2000, say: 'on Exit right, which opens a flyout' },
+    { to: { row: 'All Commands' }, travel: 650, dwell: 1300, say: 'off the strip to All Commands' },
+  ]);
+  cue.add({ tag: 'Today', title: 'Notch and a second line', kind: 'final', layout: 'today', cue: 'notch',
+    how: 'The triangle notch marks the icon, and the label row says "Exit left ›" over "opens a submenu".',
+    worst: 'It needs the two-line label row this issue removes.' });
+  cue.add({ tag: 'A', title: 'Corner chevron on the icon', kind: 'final', layout: 'new', timing: 'instant', cue: 'chevron',
+    how: 'A small › in the icon\'s corner replaces the triangle notch; the label shows the name alone.',
+    worst: 'A mark this small is the only cue, and it is no easier to spot at a glance than the notch it replaces.' });
+  cue.add({ tag: 'B', title: 'Label ends with ›', kind: 'final', layout: 'new', timing: 'instant', cue: 'label',
+    how: 'The notch stays, and the label ends with " ›" where a command would go, as a submenu row in the menu does.',
+    worst: 'A name long enough to overflow hides the › past the line\'s end until the marquee reaches it.' });
+  cue.add({ tag: 'C', title: 'No cue in the label', kind: 'final', layout: 'new', timing: 'instant', cue: 'plain',
+    how: 'The notch alone marks the icon; the label shows the name.',
+    worst: 'Someone who has not learned the notch clicks expecting a command to go out and gets a flyout instead. Nothing is sent, but it surprises.' });
+
+  const sections = [timing, point, cue];
+  function loop(now) {
+    for (const s of sections) s.tick(now);
+    speedTick(now);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => {
+      const now = performance.now();
+      for (const s of sections) s.restart(now);
+      speedRestart(now);
+    });
+  }
+})();
+</script>
