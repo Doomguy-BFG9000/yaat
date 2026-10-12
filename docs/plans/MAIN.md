@@ -29,12 +29,6 @@
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
 - [ ] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext
-- [/] YAAT-644 Accept VATSIM sandbox tokens on /feed/rooms in a development yaat-server · release vNext
-- [/] YAAT-645 List member count, aircraft count and paused per room on /feed/rooms · release vNext
-
-## Tick-path unification
-
-- [ ] YAAT-320 Retire the tick-path plan folder now every step has shipped · release vNext
 
 ## Say again
 
@@ -475,3 +469,4 @@
 - [ ] YAAT-647 Count the ERAM coverage coast's 24 s from the anchor sweep, as the disconnect coast does
 - [ ] YAAT-648 Withhold a STARS-to-STARS auto-accept only on what the STARS display shows, not ERAM coverage
 - [ ] YAAT-649 Rebuild the server's ERAM disconnect coasts from the Sim after a rewind or reload
+- [ ] YAAT-653 Reconstruction from a mid-lineup restore never starts the cleared aircraft's takeoff roll (S2-OAK-4, N152SP)
