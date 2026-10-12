@@ -163,6 +163,8 @@ Old snapshots leave the fields null and resolve by id exactly as before — no s
 
 `ToSnapshot` flags it (`TaxiSegmentDto.IsFreeSpace`, from `VirtualNode.IsVirtualEdge`) and `FromSnapshot` rebuilds it from the nodes' own positions; an *unflagged* pair with no edge still voids the route — a bundle whose node ids predate the current parser must drop the route, not sprout stray legs (`VfrFollowSequencesToFinalTests` caught exactly that).
 
+A restored taxi whose route the current layout cannot rebuild (an archive without `LayoutFormatVersion` restores against today's layout, whose node ids may differ) is not left phaseless: `TaxiingPhase.EndWithLostRoute` brakes it and holds it in position, with no pilot transmission ([ground/navigator.md](ground/navigator.md)).
+
 `TaxiRouteDto` also carries `DestinationParking` / `DestinationSpot` (nullable, additive) so a restored taxi-to-parking still installs `AtParkingPhase` at the end of the route.
 
 `TaxiRouteDto.TurnAboutShape` and `TurnAboutTargetNodeId` (additive, no schema bump) keep `TaxiRoute.TurnAboutShape` and `TurnAboutTargetNodeId` across a restore, so a route that turns the aircraft about on its taxiway still reports the pending shape and its target node (`AircraftGroundOps.TaxiTurnAboutShape` / `TaxiTurnAboutTargetNodeId`) while segment 0 is unflown, and a far-end route with no leg back that cleared both at its target restores cleared. Older snapshots read them as `TaxiTurnAboutShape.None` and null.

@@ -38,6 +38,7 @@
 - In solo, a pilot told `FOLLOW` in the air now reads back "follow the traffic".
 - CRC's SAID shows an aircraft squawking a code other than its flight plan's, such as after `RANDSQ`, as unidentified: teal icon, callsign only.
 - CRC's ERAM shows an untracked aircraft squawking a code other than its assigned one as uncorrelated, or a Mode C intruder in the conflict-alert band.
+- A taxiing aircraft restored from an older recording whose route no longer fits the airport now stops and holds in position, taking ground commands and ground menus.
 
 ## v0.16.1-beta [2026/10/10]
 

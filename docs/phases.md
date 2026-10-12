@@ -179,7 +179,7 @@ A follower braking along its clearing route past the bar, with its lead still on
 
 **A stand is `AtParkingPhase`; anything else a ground movement stops on is `HoldingInPositionPhase`** — the same rule in four writers.
 
-They are `GroundCommandHandler.AddAirTaxiTerminus` (`ATXI`/`LAND` to a helipad or parking vs a taxi spot), `TaxiingPhase.CompleteRoute` (`route.DestinationParking` vs a spot), `GroundCommandHandler.TryTaxi`'s zero-segment shortcut (the same discriminator, for a `TAXI` issued to an aircraft already standing on its destination), and `FlightCommandHandler.ApplyWarpGround` (`GroundNodeType.Parking or Helipad` vs everything else).
+They are `GroundCommandHandler.AddAirTaxiTerminus` (`ATXI`/`LAND` to a helipad or parking vs a taxi spot), `TaxiingPhase.CompleteRoute` (`route.DestinationParking` vs a spot; `TaxiingPhase.EndWithLostRoute` writes the hold for a restored taxi whose route could not be rebuilt), `GroundCommandHandler.TryTaxi`'s zero-segment shortcut (the same discriminator, for a `TAXI` issued to an aircraft already standing on its destination), and `FlightCommandHandler.ApplyWarpGround` (`GroundNodeType.Parking or Helipad` vs everything else).
 
 `GroundCommandHandler.InstallTugMove` applies it too for every `PUSH` form and `PUSHM`, with `HoldingAfterPushbackPhase` in place of `HoldingInPositionPhase` for a spot or node terminus — `TryPushback` and `TryPushbackMulti` take either of those two (or a running `PushbackPhase`, for a redirect) as a precondition, so an aircraft pushed onto a spot can be pushed again.
 
@@ -286,6 +286,7 @@ Skip any of these and old recordings will throw `InvalidOperationException` on r
 - **Three ways a go-around picks its climb-out altitude.** `GoAroundHelper.ResolveClimbOutAltitude`: published missed-approach altitude when MAP phases were built; else pattern altitude − 300 ft when re-entering the pattern (AIM 4-3-2 — the same gate `UpwindPhase` uses to release the crosswind turn, so the turn is available the instant the phase hands off); else `null`, meaning `GoAroundPhase` self-clears at 2000 ft AGL.
 
   Pattern altitude comes from `PatternGeometry.ResolveAuthoredOverrides`, not the bare `CategoryPerformance.PatternAltitudeAgl` constant — the airport's authored per-runway TPA and a commanded `MRT 15` override both have to win, or the go-around levels off above the circuit it is joining.
+- **A route-driven ground phase never completes without a successor.** A `TaxiingPhase` that ends with no phase after it leaves the aircraft with no phase, where no ground command reaches it. Every end of the taxi (route complete on entry, route complete mid-taxi, route lost on restore) installs the stand-or-hold phase before it returns true.
 - **`ManagesSpeed` is contagious.** If you set it on a non-pattern phase and don't drive `TargetSpeed`, the aircraft will not auto-decelerate or hold a speed restriction. Only set `ManagesSpeed = true` if you take responsibility for speed.
 - **Zero forward speed needs `ManagesSpeed` too.** Setting `ctx.Targets.TargetSpeed = 0` once in `OnStart` is not enough. On the first sub-tick
   `FlightPhysics.UpdateSpeed` snaps a reached target to `null` (`|goal − IAS| < SpeedSnapKts`, 2 kt), after which the auto-speed schedule — guarded

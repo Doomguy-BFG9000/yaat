@@ -132,6 +132,22 @@ public class AircraftMenuBuilderTests
     }
 
     [AvaloniaFact]
+    public void GroundAircraftWithNoPhase_AllCommandsLeavesOutTheFlightGroups()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var host = new RecordingMenuHost("");
+        AircraftModel ac = Fixture("taxiing");
+        ac.CurrentPhase = "";
+        ac.IsOnGround = true;
+
+        List<string> all = Sequence(AllCommandsItem(Build(ac, host, _ => [])));
+
+        Assert.DoesNotContain(all, item => item.StartsWith("Heading", StringComparison.Ordinal));
+        Assert.DoesNotContain(all, item => item.StartsWith("Altitude", StringComparison.Ordinal));
+        Assert.DoesNotContain("Pattern", all);
+    }
+
+    [AvaloniaFact]
     public void AirborneIfr_AllCommandsListsTheGroupsInOneFixedOrder()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());

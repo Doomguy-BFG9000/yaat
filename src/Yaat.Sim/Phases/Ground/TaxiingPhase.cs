@@ -147,10 +147,14 @@ public sealed class TaxiingPhase : Phase
             return TickHoldAtStartOnly(ctx, route);
         }
 
-        if (route is null || route.IsComplete)
+        if (route is null)
         {
-            Log.LogDebug("[Taxi] {Callsign}: OnTick exit — route {State}", ctx.Aircraft.Callsign, route is null ? "null" : "complete");
-            return true;
+            return EndWithLostRoute(ctx);
+        }
+
+        if (route.IsComplete)
+        {
+            return CompleteRoute(ctx, route);
         }
 
         if (!_initialized)
@@ -1387,6 +1391,48 @@ public sealed class TaxiingPhase : Phase
             }
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// End a taxi that has no route left to follow: a restore whose recorded route the current layout could not rebuild
+    /// leaves the phase running with none. The aircraft first brakes to a crawl, as <see cref="TickHoldAtStartOnly"/> does, so a
+    /// restore mid-taxi is never an instant stop from taxi speed. It then hands over to the phase that follows, or, when none
+    /// does, holds in position and awaits further instructions rather than ending with no phase, where no ground command could
+    /// reach it. The warning names the runway when the stop is inside that runway's hold line.
+    /// </summary>
+    private static bool EndWithLostRoute(PhaseContext ctx)
+    {
+        if (ctx.Aircraft.IndicatedAirspeed > StartNodeHoldArmSpeedKts)
+        {
+            // Physics brakes toward the pinned target at the ground decel rate.
+            ctx.Targets.TargetSpeed = 0;
+            return false;
+        }
+
+        string where =
+            (ctx.GroundLayout is { } layout) && (FollowingPhase.RunwayInsideHoldLine(ctx.Aircraft, layout) is { } runway)
+                ? $" inside the hold line of runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)}"
+                : "";
+
+        PhaseList? phases = ctx.Aircraft.Phases;
+        if ((phases is not null) && (phases.Phases.Count > phases.CurrentIndex + 1))
+        {
+            Log.LogWarning(
+                "[Taxi] {Callsign}: taxi route lost (it could not be rebuilt on restore); stopped{Where}, {NextPhase} next",
+                ctx.Aircraft.Callsign,
+                where,
+                phases.Phases[phases.CurrentIndex + 1].Name
+            );
+            return true;
+        }
+
+        Log.LogWarning(
+            "[Taxi] {Callsign}: taxi route lost (it could not be rebuilt on restore); holding in position{Where}",
+            ctx.Aircraft.Callsign,
+            where
+        );
+        phases?.InsertAfterCurrent(new HoldingInPositionPhase());
         return true;
     }
 

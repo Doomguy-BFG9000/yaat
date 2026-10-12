@@ -87,13 +87,14 @@ public static class AircraftMenuBuilder
     /// <summary>
     /// Whether the aircraft's phase hides the flight groups (Heading, Altitude, Speed, Navigation, Hold, Approach,
     /// Procedures) and Pattern from All Commands, leaving Tower: a ground phase, a takeoff still on the ground, a landing
-    /// roll and the touch-and-go variants. An aircraft with no phase shows them. The radar's Draw route follows the same rule.
+    /// roll and the touch-and-go variants. An aircraft with no phase shows them in the air and hides them on the ground. The
+    /// radar's Draw route follows the same rule.
     /// </summary>
     public static bool HidesFlightCommands(string? phase, bool isOnGround)
     {
         if (string.IsNullOrEmpty(phase))
         {
-            return false;
+            return isOnGround;
         }
 
         return AircraftCommandApplicability.IsGroundPhase(phase)
