@@ -13,7 +13,6 @@
 
 ## Context-menu quick commands (#471)
 
-- [/] YAAT-545 Close the gap the quick-command label row leaves above the icon strip · release vNext
 - [ ] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
 - [ ] YAAT-650 Give every context-critical command a quick-command icon in its situation's strip
 
@@ -28,7 +27,7 @@
 - [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts
 - [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call
-- [ ] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext
+- [/] YAAT-585 vTBFM: list and pick a YAAT room with the user's VATSIM token (contributed PR) · release vNext
 
 ## Say again
 
@@ -82,7 +81,7 @@
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-314 Ground paths that set taxi speed instead of braking to it (unmeasured sites)
-- [ ] YAAT-319 Clear-runway and line-up restart a turn restored mid-arc · release vNext
+- [/] YAAT-319 Clear-runway and line-up restart a turn restored mid-arc · release vNext
 - [ ] YAAT-324 Ground conflict limit drops a runway-crossing aircraft's speed in one second instead of braking · release vNext
 - [ ] YAAT-325 GIVEWAY to traffic that is just starting to taxi releases at once
 - [ ] YAAT-328 HOLD issued mid runway crossing stops the aircraft dead on the runway · release vNext
@@ -470,3 +469,4 @@
 - [ ] YAAT-648 Withhold a STARS-to-STARS auto-accept only on what the STARS display shows, not ERAM coverage
 - [ ] YAAT-649 Rebuild the server's ERAM disconnect coasts from the Sim after a rewind or reload
 - [ ] YAAT-653 Reconstruction from a mid-lineup restore never starts the cleared aircraft's takeoff roll (S2-OAK-4, N152SP)
+- [ ] YAAT-654 Count a CRC-staffed ERAM center as attended for auto-accept and the unaccepted-handoff anomaly
