@@ -4,9 +4,6 @@
 
 ## Tower Cab room attach (feat/towercab-room-attach)
 
-- [ ] YAAT-610 Persist a room's kicked and invited CIDs across a planned restart · release vNext
-- [ ] YAAT-611 Bind a CRC connection to a room its CID is not kicked from · release vNext
-- [ ] YAAT-612 Tell a CRC user why their room bind was refused after a kick · release vNext
 - [ ] YAAT-623 Merge feat/towercab-room-attach (#1103) · release vNext
 
 ## Bug reports and feature requests
@@ -25,10 +22,7 @@
 
 ## Context-menu quick commands (#471)
 
-- [ ] YAAT-445 Seed the context menu's heading pickers and warp popup with magnetic heading, not true · release vNext
-- [ ] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus · release vNext
-- [ ] YAAT-478 Resolve a shorthand expected approach before picking the visual approach's default runway · release vNext
-- [ ] YAAT-517 Hold short of… destination-runway row sends a no-op HS · release vNext
+- [/] YAAT-449 Find why a grounded aircraft can end with no phase, and give it ground menus · release vNext
 - [ ] YAAT-545 Close the gap the quick-command label row leaves above the icon strip · release vNext
 - [ ] YAAT-569 Give every quick command a designed flyout instead of a nested context submenu · release vNext
 - [ ] YAAT-581 Offer RES in the context menu for a HOLD-ed taxiing aircraft
@@ -197,6 +191,7 @@
 - [ ] YAAT-429 Navigation queued blocks (JRADO, JRADI, DEPART, airway intercept) are lost silently after a snapshot restore · release vNext
 - [ ] YAAT-430 A restored or deferred AI-controller dispatch uses the student's facility hint, not the controller's
 - [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
+- [ ] YAAT-628 Restore recording tests against the archive's bundled airport layout · release vNext
 
 ## Wave 5 — Command queue and dispatch architecture
 
@@ -294,12 +289,12 @@
 - [ ] YAAT-559 Add every vNAS training airport with a real ground layout to the test data
 - [ ] YAAT-579 Write yaat's agent overlays (docs/agents/implementer.md and siblings)
 - [ ] YAAT-580 Move yaat-server CLAUDE.md's architecture narrative into its docs
-- [ ] YAAT-588 Teach prepare-release the vHotfix tag-branch hotfix path · release vNext
 - [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 
 ## Singles
 
 - [ ] YAAT-4 Airport sidecar ideas
+- [/] YAAT-625 Move server tests that replace the CWT table to the real aircraft data · release vNext
 - [ ] YAAT-132 Table-drive AircraftChangeTracker.DetectChanges comparisons (yaat-server)
 - [ ] YAAT-133 Fly direct to the destination after the last route fix, then hold
 - [ ] YAAT-134 Procedure-turn leftovers: HOLDP magnetic course, LOC declination, navaid key
@@ -371,6 +366,8 @@
 - [ ] YAAT-479 Load CIFP approaches for airports whose ident is a three-character FAA LID
 - [ ] YAAT-528 VFR straight-out takeoff readback says "straight-out departure", not "fly runway heading"
 - [ ] YAAT-530 Close the client driver's recorded test gaps (discovery cleanup, :enabled argument, scaled screenshot, dropped pipe lines)
+- [ ] YAAT-627 Show 360, not 000, for a magnetic heading of exactly 0.5 degrees
+- [ ] YAAT-630 Treat a transponder set to Off as not replying, like Standby
 
 ## Backlog
 
@@ -463,8 +460,4 @@
 - [ ] YAAT-614 Turn a shots-folder write failure into a step or tool error in the client driver
 - [ ] YAAT-617 Make AltitudeResolver refuse an AGL altitude when navdata is not loaded
 - [ ] YAAT-619 Keep a CRC client from binding to a room retired during the bind
-
-## No project
-
-- [ ] YAAT-625 Move server tests that replace the CWT table to the real aircraft data
-- [ ] YAAT-626 ERAM correlation: untracked standby target and tracked 1200 code
+- [ ] YAAT-629 Give the tools that load TestVnasData the aircraft tables they now require
