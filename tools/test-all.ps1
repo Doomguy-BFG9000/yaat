@@ -6,6 +6,8 @@
 #   pwsh tools/test-all.ps1                                        # Release (default — ~30% faster on Sim)
 #   pwsh tools/test-all.ps1 -Full                                  # Also run the heavy Nightly + PathfinderGrid sweeps
 #   pwsh tools/test-all.ps1 -Config Debug                          # Debug (better stack traces for failures)
+#   pwsh tools/test-all.ps1 -BuildOnly                             # Build both repos, run no tests
+#   pwsh tools/test-all.ps1 -NoBuild                               # Test the binaries the last build left (after -BuildOnly)
 #   pwsh tools/test-all.ps1 -ServerDir X:\dev\yaat-server          # Override yaat-server checkout (worktree-friendly)
 #   $env:YAAT_SERVER_DIR='X:\dev\yaat-server'; pwsh tools/test-all.ps1   # Same via env var
 #
@@ -33,11 +35,24 @@ param(
     [string]$YaatDir,
     [string]$ServerDir,
 
-    [switch]$Full
+    [switch]$Full,
+
+    # Build both repos and stop: lets several commands that need the Release binaries share one build
+    # instead of each building the same obj/ trees at once.
+    [switch]$BuildOnly,
+
+    # Skip the builds and test what the last build left. Only for a tree just built with -BuildOnly:
+    # on any other tree the tests run against stale binaries.
+    [switch]$NoBuild
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($BuildOnly -and $NoBuild) {
+    Write-Host '-BuildOnly and -NoBuild cannot be combined: one builds without testing, the other tests without building.' -ForegroundColor Red
+    exit 2
+}
 
 if (-not $YaatDir) {
     $YaatDir = $env:YAAT_DIR
@@ -182,11 +197,19 @@ if ($Full) {
 # drop a transient .sln in the repo root, which then conflicts with the .slnx
 # on the next invocation ("more than one project or solution file") — see
 # /yaat.sln and /yaat-server.sln in .gitignore.
-if (-not (Run-Step 'Build yaat' $yaatDir "dotnet build yaat.slnx -c $Config -p:TreatWarningsAsErrors=true")) {
-    Stop-OnBuildFailure 'Build yaat'
+if ($NoBuild) {
+    Write-Host "`nSkipping the builds (-NoBuild): testing the binaries the last $Config build left." -ForegroundColor Yellow
+} else {
+    if (-not (Run-Step 'Build yaat' $yaatDir "dotnet build yaat.slnx -c $Config -p:TreatWarningsAsErrors=true")) {
+        Stop-OnBuildFailure 'Build yaat'
+    }
+    if (-not (Run-Step 'Build yaat-server' $serverDir "dotnet build yaat-server.slnx -c $Config -p:TreatWarningsAsErrors=true $serverSimArg")) {
+        Stop-OnBuildFailure 'Build yaat-server'
+    }
 }
-if (-not (Run-Step 'Build yaat-server' $serverDir "dotnet build yaat-server.slnx -c $Config -p:TreatWarningsAsErrors=true $serverSimArg")) {
-    Stop-OnBuildFailure 'Build yaat-server'
+if ($BuildOnly) {
+    Write-Host "`nBoth builds passed; no tests run (-BuildOnly)." -ForegroundColor Green
+    exit 0
 }
 Write-Host "`nRunning both test suites in parallel..." -ForegroundColor Cyan
 $yaatTests = Start-TestJob $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter"
@@ -202,6 +225,7 @@ if ($failed) {
     Write-Host 'One or more steps failed.' -ForegroundColor Red
     exit 1
 } else {
-    Write-Host 'All builds and tests passed.' -ForegroundColor Green
+    $summary = if ($NoBuild) { 'All tests passed (builds skipped: -NoBuild).' } else { 'All builds and tests passed.' }
+    Write-Host $summary -ForegroundColor Green
     exit 0
 }

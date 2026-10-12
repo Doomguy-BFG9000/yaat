@@ -727,7 +727,7 @@ A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules b
 ## Releases
 
 **Feature showcase**:
-A Markdown page with one short section and one screenshot per major feature a release introduces or reworks (`docs/releases/whats-new-next.md`, renamed `whats-new-<version>.md` at the cut). Every release ships one; `prepare-release` step 2.11 checks it.
+A Markdown page with one short section and one screenshot per major feature a release introduces or reworks (`docs/releases/whats-new-next.md`, renamed `whats-new-<version>.md` at the cut). Every minor or major release ships one, and a revision release none; `prepare-release` step 2.11 checks it.
 
 **Hotfix**:
 A release that ships only the items in the Linear release `vHotfix`, ahead of `vNext` and without the rest of `main`: built from `hotfix/v<version>` branches in both repos, cut at the last release and holding cherry-picked (`-x`) commits, tagged `v<version>`, and deleted after the tag is pushed (`prepare-release`, "Hotfix or regular").

@@ -130,27 +130,39 @@ Then write the hotfix's `CHANGELOG.md` section on the yaat branch: the branch, c
 
 ## Phase 2: Launch every independent check
 
-Needs Phase 1. Launch 2.1 to 2.4 in the background, then 2.5 to 2.11 as subagents, then work 2.12 inline while they run. Phase 3 acts on what they return.
+Needs Phase 1. Run 2.0's build first and wait for it. Then launch 2.1 to 2.4 in the background, then 2.5 to 2.11 as subagents, then work 2.12 inline while they run. Phase 3 acts on what they return.
 
-**On a hotfix**, 2.2, 2.3, 2.4 and 2.11 are skipped and 2.5 does not apply; 2.1 runs with both checkouts on their hotfix branches, and 2.9, 2.10 and 2.12 are scoped to the hotfix bullets.
+**On a hotfix**, 2.2, 2.3, 2.4 and 2.11 are skipped and 2.5 does not apply; 2.0 and 2.1 run with both checkouts on their hotfix branches, and 2.9, 2.10 and 2.12 are scoped to the hotfix bullets.
+
+### 2.0 Build once
+
+2.1's suite, 2.2's precompute tool and 2.4's captures all run from the same Release build. Launched together, each compiles the same `obj\Release` trees at once, and one of them fails on a file another holds (`error CS2012: Cannot open … for writing`). Build both repos once, before anything else in this phase:
+
+```bash
+pwsh tools/gate.ps1 -Log .tmp/build-prerelease.log -TimeoutSeconds 600 -Slot heavy -- pwsh tools/test-all.ps1 -BuildOnly
+```
+
+A red build stops the release here. Every later Phase 2 command runs with `--no-build` (or `-NoBuild`), so none of them builds again.
+
+2.3's dry run builds nothing. If it finds duplicates, its live run builds and tests on its own, so it starts only after 2.1's suite has finished.
 
 ### 2.1 Run the full cross-repo test suite
 
-The suite builds and tests yaat + yaat-server in Release configuration; failures here would ship to users. Run it in the background:
+The suite tests yaat + yaat-server in Release configuration, on 2.0's build; failures here would ship to users. Run it in the background:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/test-all-prerelease.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1
+pwsh tools/gate.ps1 -Log .tmp/test-all-prerelease.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1 -NoBuild
 ```
 
 If anything fails, stop and surface it. Do not proceed to the version-bump commit (Phase 5) on a red suite — fix forward (or abort the release), then re-run.
 
-The verdict must cover the tree that ships: a commit that changes code or tests after this run started (2.3's consolidation, a 3.2 landing) means a re-run after the last such commit.
+The verdict must cover the tree that ships: a commit that changes code or tests after this run started (2.3's consolidation, a 3.2 landing) means a re-run after the last such commit. That re-run is the plain `pwsh tools/test-all.ps1`, which builds the changed tree first, and nothing else that builds runs beside it.
 
 ### 2.2 Check the precompute cache, and recompute it when stale
 
-Run `pwsh tools/gate.ps1 -Log .tmp/precompute-check.log -TimeoutSeconds 300 -Slot heavy -- dotnet run -c Release --project tools/Yaat.PrecomputeCache -- --check --online`. Every `::warning::` line names an airport whose push-target entry is missing or stale (a new AIRAC NavData serial, a changed ground map, sidecar or planner source); CI only warns about them, so this is where they are fixed.
+Run `pwsh tools/gate.ps1 -Log .tmp/precompute-check.log -TimeoutSeconds 300 -Slot heavy -- dotnet run -c Release --no-build --project tools/Yaat.PrecomputeCache -- --check --online`. Every `::warning::` line names an airport whose push-target entry is missing or stale (a new AIRAC NavData serial, a changed ground map, sidecar or planner source); CI only warns about them, so this is where they are fixed.
 
-When any are reported, recompute them in the background, beside 2.1's suite rather than after it: `pwsh tools/gate.ps1 -Log .tmp/precompute.log -TimeoutSeconds 3600 -Slot heavy -- dotnet run -c Release --project tools/Yaat.PrecomputeCache`. Step 3.4 commits the result.
+When any are reported, recompute them in the background, beside 2.1's suite rather than after it: `pwsh tools/gate.ps1 -Log .tmp/precompute.log -TimeoutSeconds 3600 -Slot heavy -- dotnet run -c Release --no-build --project tools/Yaat.PrecomputeCache`. Step 3.4 commits the result. A recompute after a 3.2 landing drops `--no-build`, since that landing changed the code.
 
 An `::error::` line (an unreadable entry) or a non-zero exit stops the release until it is fixed. The tool and its flags are in `src/Yaat.Sim/Data/PrecomputeCache/README.md`.
 
@@ -164,16 +176,16 @@ If the dry-run reports zero duplicates, the skill exits without committing and w
 
 ### 2.4 Refresh the screenshots
 
-Captures render the client as the code now stands, so a change this cycle that moved a picture shows up here. Run in the background, one gate call after another (the runs share one build output):
+Captures render the client as the code now stands, so a change this cycle that moved a picture shows up here. Run in the background, one gate call after another (the runs share one build output), on 2.0's build:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/guide-capture-all.log -TimeoutSeconds 1800 -Slot heavy -- dotnet run -c Release --project tools/Yaat.GuideCapture
+pwsh tools/gate.ps1 -Log .tmp/guide-capture-all.log -TimeoutSeconds 1800 -Slot heavy -- dotnet run -c Release --no-build --project tools/Yaat.GuideCapture
 for s in $(rg -o --no-filename -r '$1' 'img/(whats-new-[a-z0-9-]+)\.png' docs/releases/whats-new-next.md | sort -u); do
-  pwsh tools/gate.ps1 -Log ".tmp/guide-capture-$s.log" -TimeoutSeconds 600 -Slot heavy -- dotnet run -c Release --project tools/Yaat.GuideCapture -- --scene "$s" || echo "capture failed: $s"
+  pwsh tools/gate.ps1 -Log ".tmp/guide-capture-$s.log" -TimeoutSeconds 600 -Slot heavy -- dotnet run -c Release --no-build --project tools/Yaat.GuideCapture -- --scene "$s" || echo "capture failed: $s"
 done
 ```
 
-The plain run rewrites every user-guide PNG under `docs/user-guide/img/`, byte-identical where the picture has not moved, and skips every `whats-new-*` scene. The loop captures the showcase scenes `whats-new-next.md` uses, by name, into `docs/releases/img/`. Scene mechanics: `docs/guide-capture.md` and the `guide-capture` skill. Step 3.3 reviews what changed.
+The plain run rewrites every user-guide PNG under `docs/user-guide/img/`, byte-identical where the picture has not moved, and skips every `whats-new-*` scene. The loop captures the showcase scenes `whats-new-next.md` uses, by name, into `docs/releases/img/`; a release with no showcase (2.11) skips it. Scene mechanics: `docs/guide-capture.md` and the `guide-capture` skill. Step 3.3 reviews what changed.
 
 ### 2.5 Find open user-reported bugs (subagent)
 
@@ -324,9 +336,11 @@ Skipping the check leaves both errors available: a bullet that under-states its 
 
 ### 2.11 Check the feature showcase and the reels (subagent)
 
-Every release ships a **feature showcase** (`CONTEXT.md`): `docs/releases/whats-new-next.md`, one section per major feature this release introduces or reworks (or a set of UI and UX changes worth showing together), each a short paragraph and a screenshot under `docs/releases/img/`.
+A minor or major version bump (1.4) ships a **feature showcase** (`CONTEXT.md`): `docs/releases/whats-new-next.md`, one section per major feature this release introduces or reworks (or a set of UI and UX changes worth showing together), each a short paragraph and a screenshot under `docs/releases/img/`.
 
-Read the open release's issues (`linear list yaat`, release `vNext`) beside the unreleased section and check every candidate has its section; a missing one is written before the cut (step 3.2), its screenshot a `whats-new-<topic>` scene.
+A revision bump ships none, so on one this step checks only the reels below; a `whats-new-next.md` left from earlier work waits for the next minor release. A missing showcase is not a release failure: `release.yml` and the Discord announcement add the "What's new" link only when the file exists.
+
+On a minor or major bump, read the open release's issues (`linear list yaat`, release `vNext`) beside the unreleased section and check every candidate has its section; a missing one is written before the cut (step 3.2), its screenshot a `whats-new-<topic>` scene.
 
 **Sizzle reels never block a cut.** Reel issues live in the Linear release `vNext reels` in the yaat pipeline, not in `vNext`, and are recorded and edited after the cut in a session with no builds running. A feature that warrants a reel and has none is returned for step 3.1, which puts it to the user, one question per candidate: plan a reel (an **add** joined to `vNext reels` with the MCP `save_issue` `setReleases`), or none. Step 8.2 renames the reel release after the cut.
 
@@ -373,7 +387,7 @@ A landing invalidates what Phase 2 measured before it, so follow up each one by 
 
 ### 3.3 Review the refreshed screenshots
 
-Once 2.4's runs (and any re-runs from 3.2) finish, copy the user-guide images the showcase uses into its folder, so both pages show the same picture:
+Once 2.4's runs (and any re-runs from 3.2) finish, copy the user-guide images the showcase uses into its folder, so both pages show the same picture (skipped when the release has no showcase):
 
 ```bash
 for img in $(rg -o --no-filename -r '$1' 'img/([a-z0-9-]+\.png)' docs/releases/whats-new-next.md | rg -v '^whats-new-' | sort -u); do
@@ -459,7 +473,7 @@ Apply **every** version bump decided in 2.6 — `<Version>` in `Directory.Build.
 
 1. **Promote the CHANGELOG.md heading** in place — `Edit` the heading line to the chosen format (version + optional date, matching sibling sections). Do not touch the body of the section yet.
 2. **Insert the approved highlights** into CHANGELOG.md as a `### Highlights` subsection at the top of the version's section, immediately after the heading and before the first existing subsection (typically `### Added` or `### Fixed`). Use the bullets verbatim as approved in Phase 4 — these are what the GitHub release will surface.
-3. **Rename the showcase** `docs/releases/whats-new-next.md` to `whats-new-<version>.md` (and its image folder references). `release.yml` links that file from the GitHub release below the highlights, and the Discord announcement carries the link, so the name must match the version exactly (`whats-new-0.16.0-beta.md` for `v0.16.0-beta`).
+3. **Rename the showcase**, when the release has one (2.11): `docs/releases/whats-new-next.md` to `whats-new-<version>.md` (and its image folder references). `release.yml` links that file from the GitHub release below the highlights, and the Discord announcement carries the link, so the name must match the version exactly (`whats-new-0.16.0-beta.md` for `v0.16.0-beta`).
 
 ### 5.3 Update the architecture doc
 
@@ -467,7 +481,7 @@ Update `docs/architecture.md` if any new files were added (and it wasn't already
 
 ### 5.4 Stage and commit
 
-Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, the renamed showcase, `docs/architecture.md` if changed, **every user-facing doc updated in step 3.2** (e.g. `COMMANDS.md`, `docs/command-cheatsheet.json`, `docs/command-cheatsheet.html`, `USER_GUIDE.md`, `INSTALL.md`, etc.), and the screenshots reviewed in 3.3. List them explicitly so the user can audit before commit.
+Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, the renamed showcase if there is one, `docs/architecture.md` if changed, **every user-facing doc updated in step 3.2** (e.g. `COMMANDS.md`, `docs/command-cheatsheet.json`, `docs/command-cheatsheet.html`, `USER_GUIDE.md`, `INSTALL.md`, etc.), and the screenshots reviewed in 3.3. List them explicitly so the user can audit before commit.
 
 If the release commit is a partial commit of a dirty tree, follow the partial-commit protocol in `changelog-and-commit`'s `reference.md` ("Partial commits under prek") — stash the remainder including untracked files, commit with explicit paths, pop, then `git show --stat HEAD` to confirm nothing extra landed.
 
@@ -595,10 +609,10 @@ Report each run's final conclusion to the user in the message that moves on to t
 
 ### 7.2 Build the server image (when 6.1 chose an image build)
 
-Run it **in the background**, through the gate wrapper (a green-looking failed build would feed a stale image straight into step 7.5):
+Run it **in the background**, through the gate wrapper (a green-looking failed build would feed a stale image straight into step 7.5). The build runs on a GitHub runner and this command only dispatches and watches it, so it takes a light slot, as the deploy in 7.5 does: a heavy one would hold a local build's slot for twenty idle minutes.
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 1800 -Slot heavy -- pwsh deploy-to-droplet.ps1 -BuildImageOnly
+pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 1800 -Slot light -- pwsh deploy-to-droplet.ps1 -BuildImageOnly
 ```
 
 It dispatches yaat-server's `docker-image.yml`, watches the ~20-minute CI build, and exits without touching the droplet — the live server keeps serving throughout, so no room check is needed yet. (`docker-image.yml` checks `extern/yaat` out at its `client_ref` input, default `main`, at build time, so dispatching immediately after the push is safe.)
@@ -608,7 +622,7 @@ It dispatches yaat-server's `docker-image.yml`, watches the ~20-minute CI build,
 **On a hotfix** the image is built from both repos' `hotfix/v{version}` branches with `extern/yaat` pinned to the yaat tag, which is why 6.3 pushes the server branch first:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 1800 -Slot heavy -- pwsh deploy-to-droplet.ps1 -BuildImageOnly -ServerRef hotfix/v{version} -ClientRef v{version}
+pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 1800 -Slot light -- pwsh deploy-to-droplet.ps1 -BuildImageOnly -ServerRef hotfix/v{version} -ClientRef v{version}
 ```
 
 The image lands on `:latest`, and `main` may keep moving: nothing the build reads is on `main`. Run this and the 7.5 deploy from the **main** checkout: its `deploy-to-droplet.ps1` has the `-ServerRef` / `-ClientRef` / `-ReleaseTag` flags, and the hotfix branch's copy, cut from the last tag, may not.
@@ -642,13 +656,13 @@ Surface the room status in the same message as the deploy question, then use `As
 The deploy publishes the draft release, so a still-running or failed `Release (macOS)` at this point ships a release without a macOS installer; if a watch is still pending, wait for it (rooms cleared in step 7.4 stay cleared for the extra minutes, and the deploy's `prepare-restart` covers any that appear). Run it through the gate wrapper:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot heavy -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
+pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot light -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
 ```
 
 **On a hotfix** the command is the same plus the release tag, which the publish check compares the deployed client commit against, and with no `-ServerRef` / `-ClientRef` (the script refuses them together with `-SkipCiBuild`):
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot heavy -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs -ReleaseTag v{version}
+pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot light -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs -ReleaseTag v{version}
 ```
 
 `-SkipCiBuild` deploys the image step 7.2 already built instead of building again; always pass `-NoLogs` — without it the script tails server logs indefinitely and blocks the agent until timeout. The script calls `POST /admin/prepare-restart` first (needs `ADMIN_PASSWORD` in yaat `.env`, matching the droplet) so active training sessions survive the deploy. Use `-SkipSessionSave` only for emergency deploys. Wait for the `Deployment complete!` banner before declaring the release done.
