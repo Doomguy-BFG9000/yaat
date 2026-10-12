@@ -45,7 +45,7 @@ public class SfoHighIntensityFinalSpeedScheduleTests
             return null;
         }
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(RecordingGroundData.Evergreen("the Vref speed schedule on a 14 nm final"));
         List<string> errors = engine.LoadScenario(
             recording.ScenarioJson,
             522837118,

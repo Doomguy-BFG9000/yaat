@@ -35,7 +35,7 @@ public class Issue223TaxiTcRunwaySuffixTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("TC parsed as a taxiway in TAXI W B T TC @10");
         if (groundData.GetLayout("OAK") is null)
         {
             return null;

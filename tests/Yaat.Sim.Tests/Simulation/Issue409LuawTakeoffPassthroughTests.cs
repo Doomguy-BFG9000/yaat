@@ -37,7 +37,7 @@ public class Issue409LuawTakeoffPassthroughTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("CTO stopping behind a lined-up occupant");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("GroundConflictDetector", LogLevel.Debug)

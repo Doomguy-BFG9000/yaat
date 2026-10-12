@@ -53,7 +53,7 @@ public class Issue2Pcm28LStuckTests
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("PCM8702 departing 28L");
         if (groundData.GetLayout("OAK") is null)
         {
             return null;

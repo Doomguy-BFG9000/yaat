@@ -117,15 +117,18 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
             return null;
         }
 
-        AirportGroundLayout layout = archive.ReadLayout("mia");
-        SimulationEngine engine = BuildEngine(layout);
+        var groundData = RecordingGroundData.VersionPinned(RecordingPath, "the restored ENY3516 hold at the recorded 08R/26L bar on L1");
+        Assert.True(groundData.Bundles("mia"), "the recording bundles no MIA layout");
+        AirportGroundLayout? layout = groundData.GetLayout("mia");
+        Assert.NotNull(layout);
+        SimulationEngine engine = BuildEngine(groundData);
         SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
         engine.RestoreFromSnapshot(snapshot.State);
         return (engine, layout, archive);
     }
 
-    private SimulationEngine BuildEngine(AirportGroundLayout layout)
+    private SimulationEngine BuildEngine(RecordingGroundData groundData)
     {
         SimLogBuilder
             .CreateForTest(output)
@@ -136,7 +139,7 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
             .EnableCategory("CrossingRunwayPhase", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(new SingleLayoutGroundData(layout));
+        return new SimulationEngine(groundData);
     }
 
     private static void EnableRecordedCommandDelay(SimulationEngine engine)
@@ -287,16 +290,5 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
         }
 
         return false;
-    }
-
-    private sealed class SingleLayoutGroundData(AirportGroundLayout layout) : IAirportGroundData
-    {
-        public AirportGroundLayout? GetLayout(string airportId)
-        {
-            string shortId = airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
-            return string.Equals(shortId, layout.AirportId, StringComparison.OrdinalIgnoreCase) ? layout : null;
-        }
-
-        public string? GetSourceGeoJson(string airportId) => null;
     }
 }

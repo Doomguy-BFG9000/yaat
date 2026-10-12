@@ -41,7 +41,7 @@ public class Issue316SfoCrossWhileLuawTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("the hold short of an occupied 28L after a re-taxi");
         if (groundData.GetLayout("SFO") is null)
         {
             return null;

@@ -46,7 +46,7 @@ public class ScenarioResourceManifestTests
         var manifest = ScenarioResourceManifest.FromJson(json);
         Assert.Null(manifest.ReadError);
 
-        var groundData = new RecordingGroundData();
+        var groundData = new LayoutRequestSpy();
         ScenarioLoader.Load(json, groundData, new Random(0), MagneticDeclination.EvaluationDateUtc);
 
         string[] missing = [.. groundData.Requested.Where(id => !manifest.AirportIds.Contains(id)).Order(StringComparer.Ordinal)];
@@ -319,7 +319,7 @@ public class ScenarioResourceManifestTests
 
     private static void AssertLoaderReadsOnlyManifestAirports(string json, string[] expectedRequested)
     {
-        var groundData = new RecordingGroundData();
+        var groundData = new LayoutRequestSpy();
         ScenarioLoader.Load(json, groundData, new Random(0), MagneticDeclination.EvaluationDateUtc);
         var manifest = ScenarioResourceManifest.FromJson(json);
 
@@ -328,7 +328,7 @@ public class ScenarioResourceManifestTests
     }
 
     /// <summary>Records every airport the loader asks a layout for, FAA-coded, and has none to give.</summary>
-    private sealed class RecordingGroundData : IAirportGroundData
+    private sealed class LayoutRequestSpy : IAirportGroundData
     {
         public HashSet<string> Requested { get; } = new(StringComparer.Ordinal);
 

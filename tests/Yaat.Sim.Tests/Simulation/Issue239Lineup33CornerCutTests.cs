@@ -43,7 +43,7 @@ public class Issue239Lineup33CornerCutTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("a graph-aware line-up on 33 from taxiway C");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         return new SimulationEngine(groundData);
     }

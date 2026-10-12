@@ -46,7 +46,7 @@ public class HelicopterLandSpotFromDistanceTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("HelicopterApproachPhase", LogLevel.Trace).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("LAND @SIG1 from miles out keeping altitude until final"));
     }
 
     private static LatLon? SpotPosition()

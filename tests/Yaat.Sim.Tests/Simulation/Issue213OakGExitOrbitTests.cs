@@ -44,7 +44,7 @@ public class Issue213OakGExitOrbitTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("no orbit around the G exit bar on today's OAK geometry");
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundNavigator", LogLevel.Debug).InitializeSimLog();
 
         return new SimulationEngine(groundData);

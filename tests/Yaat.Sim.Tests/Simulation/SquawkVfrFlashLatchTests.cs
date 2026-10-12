@@ -25,7 +25,7 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
     private SimulationEngine BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("SQVFR latching off the beacon mismatch flash");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         return new SimulationEngine(groundData);
     }

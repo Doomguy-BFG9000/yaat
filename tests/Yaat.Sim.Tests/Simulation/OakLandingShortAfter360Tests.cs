@@ -45,7 +45,7 @@ public class OakLandingShortAfter360Tests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("a 360 on final resuming the approach"));
     }
 
     [Fact]

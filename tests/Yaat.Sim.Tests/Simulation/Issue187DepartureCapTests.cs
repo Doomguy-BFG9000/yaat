@@ -26,7 +26,7 @@ public class Issue187DepartureCapTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("SID initial-altitude caps on IAH and HOU departures"));
     }
 
     private void AssertHoldsInitialAltitude(string callsign, int expectedCapFt)

@@ -40,7 +40,7 @@ public class SfoPushIntoParkedNeighbourTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("PUSH $5A clearing the parked neighbour at D1");
         if (groundData.GetLayout("SFO") is null)
         {
             return null;

@@ -41,7 +41,7 @@ public class OakTaxiResolutionE2ETests(ITestOutputHelper output)
             .EnableCategory("TaxiPathfinder", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("four OAK taxi-resolution fixes"));
     }
 
     /// <summary>

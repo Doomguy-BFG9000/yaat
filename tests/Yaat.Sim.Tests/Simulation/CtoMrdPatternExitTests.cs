@@ -41,7 +41,7 @@ public class CtoMrdPatternExitTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("EXT on the climb-out after CTO MRD");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("DepartureClearanceHandler", LogLevel.Debug)

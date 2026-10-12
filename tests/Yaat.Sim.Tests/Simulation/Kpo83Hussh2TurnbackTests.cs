@@ -29,7 +29,7 @@ public class Kpo83Hussh2TurnbackTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("the HUSSH2 route not turning back over OAK");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         return new SimulationEngine(groundData);
     }

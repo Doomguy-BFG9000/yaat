@@ -44,7 +44,7 @@ public class Issue393SfoBareTaxiRunwayTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("TAXI <rwy> from the runway bar not taxiing to the reciprocal end");
         if (groundData.GetLayout("SFO") is null)
         {
             return null;

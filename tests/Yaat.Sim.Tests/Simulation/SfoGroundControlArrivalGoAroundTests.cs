@@ -103,7 +103,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
             SimLogBuilder.CreateForTest(output).EnableCategory("OccupiedRunwayGoAround", LogLevel.Debug).InitializeSimLog();
 
             SessionRecording recording = archive.ToBaseSessionRecording();
-            var engine = new SimulationEngine(new TestAirportGroundData());
+            var engine = new SimulationEngine(RecordingGroundData.Evergreen("which occupied-runway go-arounds still fire at SFO"));
             engine.Replay(recording, 0);
 
             TimedSnapshot? snapshot = archive.ReadSnapshotAt(restoreAt);

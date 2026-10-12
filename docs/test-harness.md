@@ -447,6 +447,13 @@ The default run passes `--filter-not-trait` for each of the three (untagged test
   the engine never mutates `Actions`, so parallel classes share one decode; `OpenArchive` → on-demand snapshot reader). The replay surface itself (ReplayFromStartTo /
   FastForwardTo / hybrid replay, WAIT presets, bug-bundle triage) is owned by [e2e-tdd-issue-debugging.md](e2e-tdd-issue-debugging.md) and
   [snapshots-and-replay.md](snapshots-and-replay.md) — go there for the replay flow, not here.
+- `RecordingGroundData` (`Helpers/RecordingGroundData.cs`) — the ground data every recording test whose archive bundles an airport layout builds its engine on, through `Evergreen(why)` or `VersionPinned(archivePath, why)`; `why` is required.
+
+  **Evergreen** is behaviour that must keep holding on today's airport (a regression test for a sim, pathfinder or parser fix): it runs on `TestData/<id>.geojson` and is maintained as the layout changes. When a parser change renumbers nodes, its fixture's recorded `#id` TAXI commands and snapshot routes are remapped to today's ids.
+
+  **Version-pinned** is behaviour that only makes sense on the airport as recorded (a restored mid-taxi route, recorded node ids): it runs on the archive's bundled layout, and its fixture's ids are never remapped. An airport the archive does not bundle falls back to `TestAirportGroundData`.
+
+  A pinned test diverges from the server on purpose (see [snapshots-and-replay.md](snapshots-and-replay.md)): every test archive is pre-format, and a pre-format bundled layout lacks runway coordinates, edge shapes and the runway-end dictionaries, so a pinned test reads runway geometry from `NavigationDatabase`. `Simulation/RecordingArchiveLayoutGuardTests` fails a test file that opens a layout-carrying archive without one of the two factories, reads `ReadLayout`/`ReadAllLayouts` directly, or builds `new TestAirportGroundData()` for it.
 
 ## The 30-second timeout discipline
 
@@ -584,8 +591,9 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
   renumber + shift). A sub-meter shift can flip a marginal route so `SegmentExpander` rejects it ("Cannot reach destination from end of taxi
   path"), the replayed command is rejected, and the aircraft "never taxis" (stuck in `HoldingAfterPushbackPhase`, which only exits on an
   explicit `TAXI`). Because a replayed rejection is only logged, the symptom gets misattributed to whatever commit landed at the same
-  rebase. Confirm with a **layout A/B** (swap `git show <refresh-commit>^:tests/.../sfo.geojson` back in and re-run). Pin the fixture to a
-  committed full-precision snapshot via `Helpers/PinnedSfoGroundData.cs`, and build gate-coverage routes from taxiway **names**
+  rebase. Confirm with a **layout A/B** (swap `git show <refresh-commit>^:tests/.../sfo.geojson` back in and re-run). A recording test that
+  must stay on the recorded airport is `RecordingGroundData.VersionPinned`, which needs no `TestData` geojson; a pure pathfinding test that
+  opens no archive pins a committed full-precision snapshot via `Helpers/PinnedSfoGroundData.cs`. Build gate-coverage routes from taxiway **names**
   (`FindIntersectionNode`, `TaxiPathfinder.FindRoute`), not hardcoded node IDs. The `ActionRouter` logs a rejected replayed command at
   Debug (category `ActionRouter`) and, when the record says live accepted it, a `replay-fidelity` warning.
 - **A recording whose student TAXI turned an aircraft about on its taxiway diverges when the type's gear does not fit.**

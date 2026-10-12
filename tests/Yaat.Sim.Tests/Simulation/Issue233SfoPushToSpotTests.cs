@@ -34,7 +34,7 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("PUSH $5A reversing straight to the spot");
         if (groundData.GetLayout("SFO") is null)
         {
             return null;

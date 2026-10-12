@@ -81,7 +81,7 @@ public class AirborneMrtCompletedChainE2ETests(ITestOutputHelper output)
                 return;
             }
 
-            var engine = new SimulationEngine(new TestAirportGroundData());
+            var engine = new SimulationEngine(RecordingGroundData.Evergreen("airborne MRT after a completed departure chain"));
             engine.Replay(recording, 0);
 
             TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreTime);

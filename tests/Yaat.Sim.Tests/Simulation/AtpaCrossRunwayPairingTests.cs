@@ -31,7 +31,7 @@ public class AtpaCrossRunwayPairingTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("AtpaProcessor", LogLevel.Debug).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("no ATPA cone between arrivals on different OAK finals"));
     }
 
     [Fact]

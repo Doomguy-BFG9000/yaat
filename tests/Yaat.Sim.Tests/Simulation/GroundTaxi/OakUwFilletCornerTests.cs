@@ -55,7 +55,7 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundNavigator", LogLevel.Debug).InitializeSimLog();
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(RecordingGroundData.Evergreen("the U-to-W corner taxied along today's fillet"));
         engine.Replay(recording, 0);
         for (int t = 1; t <= RouteResolvedBySeconds; t++)
         {

@@ -47,7 +47,7 @@ public class Issue207LandingRunwayCrossTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("a rollout taxi not holding short of the landing runway");
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Debug).InitializeSimLog();
 
         return new SimulationEngine(groundData);

@@ -23,6 +23,8 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class LandingExitListTests
 {
+    private const string GroundDataWhy = "named-exit list and exit choice on today's OAK and SFO layouts";
+
     private const string ReplayRecordingPath = "TestData/issue276-er-exit-left-recording.zip";
     private const string ReplayCallsign = "LXJ574";
 
@@ -970,7 +972,7 @@ public class LandingExitListTests
             return;
         }
 
-        var original = new SimulationEngine(new TestAirportGroundData());
+        var original = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy));
         original.Replay(recording, 430);
         for (int t = 0; (t < 150) && !((original.FindAircraft(ReplayCallsign) is { } rolling) && IsRollingOut(rolling)); t++)
         {
@@ -983,7 +985,7 @@ public class LandingExitListTests
         Assert.NotEmpty(original.FindAircraft(ReplayCallsign)!.Situation.ExitsAhead!);
 
         string snapshotJson = JsonSerializer.Serialize(original.CaptureSnapshot(), RecordingJsonOptions.Default);
-        var restored = new SimulationEngine(new TestAirportGroundData());
+        var restored = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy));
         restored.Replay(recording, original.Scenario!.ElapsedSeconds);
         restored.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(snapshotJson, RecordingJsonOptions.Default)!);
 
@@ -1019,7 +1021,7 @@ public class LandingExitListTests
             return;
         }
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy));
         engine.Replay(recording, 430);
         ResolvedExitInfo? lastCandidate = null;
         for (int t = 0; t < 200; t++)

@@ -38,7 +38,7 @@ public class S2Oak2CoordinateGroundDepartureTests
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("coordinate spawns at field elevation taxiing");
         if (groundData.GetLayout("OAK") is null)
         {
             return null;

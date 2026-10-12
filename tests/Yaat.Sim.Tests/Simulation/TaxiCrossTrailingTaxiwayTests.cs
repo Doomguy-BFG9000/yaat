@@ -38,7 +38,7 @@ public class TaxiCrossTrailingTaxiwayTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("TAXI C B CROSS 33 accepted");
         if (groundData.GetLayout("OAK") is null)
         {
             return null;

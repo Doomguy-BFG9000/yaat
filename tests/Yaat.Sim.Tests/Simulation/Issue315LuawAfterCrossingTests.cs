@@ -71,7 +71,7 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("LUAW after a re-taxi crossing one parallel to the other");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);

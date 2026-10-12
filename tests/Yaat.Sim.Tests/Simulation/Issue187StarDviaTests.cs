@@ -33,7 +33,7 @@ public class Issue187StarDviaTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("DVIA descending on a version-less STAR"));
     }
 
     private double RunDescentProbe(SimulationEngine engine, string callsign, int seconds)

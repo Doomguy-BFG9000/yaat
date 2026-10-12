@@ -48,7 +48,7 @@ public class Issue396GateTaxiPresetTests
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("gate-departure presets pushing back");
         if (groundData.GetLayout("SFO") is null)
         {
             return null;

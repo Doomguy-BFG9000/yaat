@@ -43,7 +43,7 @@ public class IssueCrossRunwayCtoMrtTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("CTO MRT lining up on the departure runway");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("LineUpPhase", LogLevel.Debug)

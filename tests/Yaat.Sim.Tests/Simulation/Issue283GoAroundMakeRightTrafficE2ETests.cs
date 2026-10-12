@@ -76,7 +76,7 @@ public class Issue283GoAroundMakeRightTrafficE2ETests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("MRT after a go-around");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("GoAroundPhase", LogLevel.Debug)

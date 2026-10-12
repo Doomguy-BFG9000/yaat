@@ -121,7 +121,7 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
             SimLogBuilder.CreateForTest(output).EnableCategory("RunwayExitPhase", LogLevel.Debug).InitializeSimLog();
 
             SessionRecording recording = archive.ToBaseSessionRecording();
-            var engine = new SimulationEngine(new TestAirportGroundData());
+            var engine = new SimulationEngine(RecordingGroundData.Evergreen("SFO arrival runway-occupancy times"));
             engine.Replay(recording, 0);
 
             TimedSnapshot? snapshot = archive.ReadSnapshotAt(restoreAt);

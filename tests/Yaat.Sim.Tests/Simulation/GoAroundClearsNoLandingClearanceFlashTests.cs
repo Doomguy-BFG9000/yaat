@@ -36,7 +36,7 @@ public class GoAroundClearsNoLandingClearanceFlashTests(ITestOutputHelper output
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("a go-around clearing the no-landing-clearance flash");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);

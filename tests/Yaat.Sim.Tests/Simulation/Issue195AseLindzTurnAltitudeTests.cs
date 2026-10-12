@@ -39,7 +39,7 @@ public class Issue195AseLindzTurnAltitudeTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("the LINDZ1 turn starting at 400 ft AGL"));
     }
 
     [Fact]

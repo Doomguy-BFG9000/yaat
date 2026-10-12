@@ -31,7 +31,7 @@ public class IssueN513sjNimi6PublishedHeadingReplayTests(ITestOutputHelper outpu
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("the NIMI6 published heading from a prior cycle");
         SimLogBuilder.CreateForTest(output).EnableCategory("CommandDispatcher", LogLevel.Debug).InitializeSimLog();
         return new SimulationEngine(groundData);
     }

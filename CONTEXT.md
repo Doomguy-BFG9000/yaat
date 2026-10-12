@@ -629,6 +629,9 @@ One push-target set per stand per airplane design group (ADG I-VI), planned with
 **Design-group envelope**:
 A synthetic footprint (`ADG-I` to `ADG-VI`) for one airplane design group: the greatest length, wingspan (capped at the group's ceiling), wheelbase and main gear width over the group's fixed-wing FAA records, each taken separately (`DesignGroupEnvelopes`).
 
+**Evergreen test**:
+A recording test that pins behaviour which must keep holding on today's airport (a regression test for a sim, pathfinder or parser fix). It runs on today's layout (`TestData/<id>.geojson`) through `RecordingGroundData.Evergreen(why)` and is maintained as the layout changes; when a parser change renumbers nodes, its fixture's recorded `#id` TAXI commands and snapshot routes are remapped to today's ids.
+
 **Golden (menu golden)**:
 A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden, and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
 
@@ -655,6 +658,9 @@ The speech sandbox's self-test (`--atc-ouroboros`): it synthesises controller tr
 
 **SttOnly rule**:
 A phraseology rule the speech mapper matches but `PhraseologyVerbalizer` never speaks: it covers how speech recognition writes a phrase (a misheard or split word), not how a pilot says it.
+
+**Version-pinned test**:
+A recording test that pins behaviour which only makes sense on the airport as recorded (a restored mid-taxi route, recorded node ids). It runs on the archive's bundled layout through `RecordingGroundData.VersionPinned(archivePath, why)`, and its fixture's ids are never remapped.
 
 **Gate**:
 `tools/gate.ps1` (a copy of the canonical `~/.claude/tools/gate/gate.ps1`, called as `pwsh tools/gate.ps1 -Log <log> -TimeoutSeconds <seconds> -Slot heavy|light -- <command...>` from PowerShell or Bash): runs one build or test command with its whole output in a log under `.tmp/`, the tail on screen and the command's own exit status, and kills it (exit 124) when it stalls, passes its ceiling on the load-adjusted clock, or reaches the backstop.

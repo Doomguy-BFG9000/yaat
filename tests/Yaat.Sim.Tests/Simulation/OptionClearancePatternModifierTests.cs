@@ -577,7 +577,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
             .EnableCategory("CrosswindPhase", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("option clearances taking a pattern modifier"));
     }
 
     /// <summary>

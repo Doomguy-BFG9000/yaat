@@ -29,7 +29,7 @@ public class MultiCfixPresetReplayTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("chained CFIX presets stacking"));
     }
 
     [Fact]

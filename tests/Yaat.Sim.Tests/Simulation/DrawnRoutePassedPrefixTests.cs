@@ -62,7 +62,7 @@ public class DrawnRoutePassedPrefixTests(ITestOutputHelper output)
             .EnableCategory("TaxiPathfinder", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("a drawn route whose leading nodes were already passed, on today's OAK ids"));
     }
 
     private TaxiRoute? ResolveDrawnRoute()

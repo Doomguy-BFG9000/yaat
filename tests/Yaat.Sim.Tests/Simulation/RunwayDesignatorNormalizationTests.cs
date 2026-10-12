@@ -41,7 +41,10 @@ public sealed class RunwayDesignatorNormalizationTests(ITestOutputHelper output)
             return;
         }
 
-        AirportGroundLayout layout = archive.ReadLayout("mia");
+        var groundData = RecordingGroundData.VersionPinned("TestData/c000c2b0afc8.zip", "the 8R and 08R runway routes from recorded MIA node 304");
+        Assert.True(groundData.Bundles("mia"), "the recording bundles no MIA layout");
+        AirportGroundLayout? layout = groundData.GetLayout("mia");
+        Assert.NotNull(layout);
         AircraftCategory category = AircraftCategorization.Categorize("E75L");
         GroundNode startNode = layout.Nodes[304];
 

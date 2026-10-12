@@ -116,22 +116,17 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
             return null;
         }
 
-        AirportGroundLayout layout = archive.ReadLayout("mia");
+        var groundData = RecordingGroundData.VersionPinned(
+            RecordingPath,
+            "the replayed THY41J P/S taxi and its 12 hold-short on the recorded MIA graph"
+        );
+        Assert.True(groundData.Bundles("mia"), "the recording bundles no MIA layout");
+        AirportGroundLayout? layout = groundData.GetLayout("mia");
+        Assert.NotNull(layout);
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Debug).InitializeSimLog();
 
-        var engine = new SimulationEngine(new SingleLayoutGroundData(layout));
+        var engine = new SimulationEngine(groundData);
         engine.Replay(archive.ToBaseSessionRecording(), 0);
         return (engine, layout, archive);
-    }
-
-    private sealed class SingleLayoutGroundData(AirportGroundLayout layout) : IAirportGroundData
-    {
-        public AirportGroundLayout? GetLayout(string airportId)
-        {
-            string shortId = airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
-            return string.Equals(shortId, layout.AirportId, StringComparison.OrdinalIgnoreCase) ? layout : null;
-        }
-
-        public string? GetSourceGeoJson(string airportId) => null;
     }
 }

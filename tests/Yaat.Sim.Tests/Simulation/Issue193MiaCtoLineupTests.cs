@@ -35,7 +35,7 @@ public class Issue193MiaCtoLineupTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("CTO lining up from the parallel-taxiway 8R hold-short");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);

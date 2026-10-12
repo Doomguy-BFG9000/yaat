@@ -56,7 +56,7 @@ public class N342TFollowStraightInDownwindTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("FOLLOW not cutting in ahead of a straight-in jet");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("DownwindPhase", LogLevel.Debug)

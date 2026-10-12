@@ -1001,7 +1001,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
             return;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("a spot reached along its lane");
         if (groundData.GetLayout("SFO") is null)
         {
             return;

@@ -43,7 +43,7 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("an en-route HS taxiway not becoming a waypoint");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         return new SimulationEngine(groundData);
     }

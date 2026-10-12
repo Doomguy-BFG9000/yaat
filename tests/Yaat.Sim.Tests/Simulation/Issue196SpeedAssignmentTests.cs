@@ -35,7 +35,7 @@ public class Issue196SpeedAssignmentTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("SPD accepted for a departure inside 5 nm");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);

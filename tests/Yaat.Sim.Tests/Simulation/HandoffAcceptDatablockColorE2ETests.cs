@@ -35,7 +35,7 @@ public class HandoffAcceptDatablockColorE2ETests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("the white-FDB stage after a manual ACCEPT");
         ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 

@@ -46,7 +46,7 @@ public class ExpediteAltitudeAssignmentTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("FlightCommandHandler", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("EXP <alt> assigning the altitude"));
     }
 
     [Fact]

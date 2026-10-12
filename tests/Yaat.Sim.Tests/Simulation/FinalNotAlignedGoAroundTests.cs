@@ -39,7 +39,7 @@ public class FinalNotAlignedGoAroundTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("the lateral-alignment go-around on final");
         SimLogBuilder.CreateForTest(output).EnableCategory("FinalApproachPhase", LogLevel.Debug).InitializeSimLog();
 
         return new SimulationEngine(groundData);

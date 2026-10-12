@@ -54,7 +54,7 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("PatternCommandHandler", LogLevel.Debug).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("EF from a base leg"));
     }
 
     // -------------------------------------------------------------------------

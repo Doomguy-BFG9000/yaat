@@ -37,7 +37,7 @@ public class IssueFpeColdCallBeaconTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("a cold-call flight plan getting a beacon code");
         SimLogBuilder.CreateForTest(output).EnableCategory("SimulationEngine", LogLevel.Debug).InitializeSimLog();
 
         return new SimulationEngine(groundData);

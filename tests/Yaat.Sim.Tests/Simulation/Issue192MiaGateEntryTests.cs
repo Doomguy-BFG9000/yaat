@@ -26,7 +26,7 @@ public class Issue192MiaGateEntryTests(ITestOutputHelper output)
             .EnableCategory("TaxiPathfinder", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("TAXIAUTO to D32 through today's gate-group connector, not taxiway N"));
     }
 
     [Fact]

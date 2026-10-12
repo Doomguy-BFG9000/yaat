@@ -26,6 +26,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
 {
+    private const string GroundDataWhy = "pushback beside a parked neighbour not stalling";
+
     private const string RecordingPath = "TestData/issue222-oak-pushback-parked-neighbor-recording.zip";
 
     private const string Pusher = "SWA1182";
@@ -108,7 +110,7 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen(GroundDataWhy);
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundConflictDetector", LogLevel.Debug).InitializeSimLog();
         return new SimulationEngine(groundData);
     }
@@ -122,7 +124,7 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
     public void PushTe_FromGate25_PastParkedNeighbourAtGate26_CompletesWithoutBeingHeld()
     {
         TestVnasData.EnsureInitialized();
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen(GroundDataWhy);
         if ((TestVnasData.NavigationDb is null) || (groundData.GetLayout("OAK") is not { } layout))
         {
             return;

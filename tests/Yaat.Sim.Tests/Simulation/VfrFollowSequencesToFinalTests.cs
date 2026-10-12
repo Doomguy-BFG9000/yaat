@@ -49,7 +49,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("FOLLOW of a straight-in IFR lead");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("VfrFollowPhase", LogLevel.Debug)

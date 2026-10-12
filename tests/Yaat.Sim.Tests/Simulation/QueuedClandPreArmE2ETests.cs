@@ -44,7 +44,7 @@ public class QueuedClandPreArmE2ETests(ITestOutputHelper output)
         ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("CLAND pre-armed behind a queued pattern entry"));
     }
 
     [Fact]

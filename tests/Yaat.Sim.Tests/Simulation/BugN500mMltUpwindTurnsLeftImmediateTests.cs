@@ -54,7 +54,7 @@ public class BugN500mMltUpwindTurnsLeftImmediateTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("MLT on the upwind after a go-around");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("PatternCommandHandler", LogLevel.Debug)

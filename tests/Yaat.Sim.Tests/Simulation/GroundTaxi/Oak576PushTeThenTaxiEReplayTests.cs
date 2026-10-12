@@ -31,7 +31,7 @@ public class Oak576PushTeThenTaxiEReplayTests(ITestOutputHelper output)
     {
         SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         TestVnasData.EnsureInitialized();
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("TAXI $E starting clear of the occupied stand 23");
         if ((recording is null) || (TestVnasData.NavigationDb is null) || (groundData.GetLayout("OAK") is not { } layout))
         {
             return;

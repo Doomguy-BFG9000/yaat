@@ -51,7 +51,7 @@ public class FollowDownwindLeadHeldTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("FOLLOW behind a held downwind lead");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("DownwindPhase", LogLevel.Debug)

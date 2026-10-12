@@ -44,7 +44,7 @@ public class Swa4587RfasRejectsInsideGateTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("RFAS inside the final gate keeping the approach");
         SimLogBuilder.CreateForTest(output).EnableCategory("CommandDispatcher", LogLevel.Debug).InitializeSimLog();
 
         return new SimulationEngine(groundData);

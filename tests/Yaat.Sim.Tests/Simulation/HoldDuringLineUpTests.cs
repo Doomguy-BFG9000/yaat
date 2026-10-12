@@ -47,7 +47,7 @@ public class HoldDuringLineUpTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("HOLD stopping an aircraft during line-up");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("LineUpPhase", LogLevel.Debug)

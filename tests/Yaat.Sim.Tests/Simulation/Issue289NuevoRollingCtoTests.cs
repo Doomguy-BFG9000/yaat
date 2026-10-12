@@ -32,7 +32,7 @@ public class Issue289NuevoRollingCtoTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("the NUEVO8 heading legs after a rolling CTO");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         return new SimulationEngine(groundData);
     }

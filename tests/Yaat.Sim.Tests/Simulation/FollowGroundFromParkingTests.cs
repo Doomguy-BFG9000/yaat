@@ -33,7 +33,7 @@ public class FollowGroundFromParkingTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("FOLLOWG accepted by a parked aircraft");
         if (groundData.GetLayout("OAK") is null)
         {
             return null;

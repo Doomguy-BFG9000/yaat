@@ -48,7 +48,7 @@ public class Issue412WrongRunwayPatternTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("the pattern entry keeping its runway");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("DownwindPhase", LogLevel.Debug)

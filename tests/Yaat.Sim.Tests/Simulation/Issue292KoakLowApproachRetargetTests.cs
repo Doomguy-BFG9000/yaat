@@ -46,7 +46,7 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
             .EnableCategory("LowApproachPhase", Microsoft.Extensions.Logging.LogLevel.Debug)
             .EnableCategory("FinalApproachPhase", Microsoft.Extensions.Logging.LogLevel.Debug)
             .InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("a low approach retargeted to a diverging runway"));
     }
 
     /// <summary>

@@ -46,7 +46,7 @@ public class ClandfGoAroundReversalE2ETests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("CLANDF accepted during a go-around");
         SimLogBuilder.CreateForTest(output).EnableCategory("PatternCommandHandler", LogLevel.Debug).InitializeSimLog();
 
         return new SimulationEngine(groundData);

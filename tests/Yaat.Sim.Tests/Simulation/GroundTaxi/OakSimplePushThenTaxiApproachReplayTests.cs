@@ -30,7 +30,7 @@ public class OakSimplePushThenTaxiApproachReplayTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("the taxi after a plain push starting from the aircraft's rest pose");
         if (groundData.GetLayout("OAK") is null)
         {
             return null;

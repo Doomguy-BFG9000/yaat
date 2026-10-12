@@ -37,7 +37,7 @@ public class IssueSawDeparturesReservedSquawkTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("spawned departures avoiding reserved squawks");
         SimLogBuilder.CreateForTest(output).EnableCategory("ScenarioLoader", LogLevel.Debug).InitializeSimLog();
 
         return new SimulationEngine(groundData);

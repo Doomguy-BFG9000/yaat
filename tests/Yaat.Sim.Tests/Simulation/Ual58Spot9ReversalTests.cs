@@ -151,7 +151,7 @@ public class Ual58Spot9ReversalTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("UAL58's taxi from spot 9 without a loop");
         AirportGroundLayout? layout = groundData.GetLayout("SFO");
         if (layout is null)
         {

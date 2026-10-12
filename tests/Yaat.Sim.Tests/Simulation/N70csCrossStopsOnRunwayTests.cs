@@ -38,7 +38,7 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("CROSS clearing past the far 28R bar");
         if (groundData.GetLayout("OAK") is null)
         {
             return null;

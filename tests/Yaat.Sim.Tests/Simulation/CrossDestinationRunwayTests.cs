@@ -206,8 +206,11 @@ public sealed class CrossDestinationRunwayTests(ITestOutputHelper output)
             return null;
         }
 
-        AirportGroundLayout layout = archive.ReadLayout("oak");
-        SimulationEngine engine = BuildEngine(layout);
+        var groundData = RecordingGroundData.VersionPinned(RecordingPath, "the restored N436MS hold at recorded 28R destination hold-short node 188");
+        Assert.True(groundData.Bundles("oak"), "the recording bundles no OAK layout");
+        AirportGroundLayout? layout = groundData.GetLayout("oak");
+        Assert.NotNull(layout);
+        SimulationEngine engine = BuildEngine(groundData);
         SessionRecording recording = archive.ToBaseSessionRecording();
         engine.Replay(recording, 0);
         engine.RestoreFromSnapshot(snapshot.State);
@@ -223,7 +226,7 @@ public sealed class CrossDestinationRunwayTests(ITestOutputHelper output)
         return (engine, layout, archive);
     }
 
-    private SimulationEngine BuildEngine(AirportGroundLayout layout)
+    private SimulationEngine BuildEngine(RecordingGroundData groundData)
     {
         SimLogBuilder
             .CreateForTest(output)
@@ -232,7 +235,7 @@ public sealed class CrossDestinationRunwayTests(ITestOutputHelper output)
             .EnableCategory("CrossingRunwayPhase", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(new SingleLayoutGroundData(layout));
+        return new SimulationEngine(groundData);
     }
 
     private (bool LeftInitialHold, bool SawCrossing, bool EndedHoldingInPosition) TickAndObserve(
@@ -260,16 +263,5 @@ public sealed class CrossDestinationRunwayTests(ITestOutputHelper output)
         }
 
         return (leftInitialHold, sawCrossing, endedHoldingInPosition);
-    }
-
-    private sealed class SingleLayoutGroundData(AirportGroundLayout layout) : IAirportGroundData
-    {
-        public AirportGroundLayout? GetLayout(string airportId)
-        {
-            string shortId = airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
-            return string.Equals(shortId, layout.AirportId, StringComparison.OrdinalIgnoreCase) ? layout : null;
-        }
-
-        public string? GetSourceGeoJson(string airportId) => null;
     }
 }

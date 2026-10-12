@@ -59,7 +59,7 @@ public class FollowStraightInJetBaseTurnTests(ITestOutputHelper output)
             .EnableCategory("AirborneFollowHelper", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("the base turn behind a fast straight-in lead"));
     }
 
     [Fact]

@@ -41,7 +41,7 @@ public class VfrDestinationOnlyCtoReplayTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("CTO for a destination-only VFR plan"));
     }
 
     [Fact]

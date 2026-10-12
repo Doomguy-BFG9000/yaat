@@ -45,7 +45,7 @@ public class Relr270DctWrongTurnTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("the DCT after RELR 270 turning the short way");
         SimLogBuilder.CreateForTest(output).EnableCategory("FlightPhysics", LogLevel.Debug).InitializeSimLog();
 
         return new SimulationEngine(groundData);

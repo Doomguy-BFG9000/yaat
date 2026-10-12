@@ -144,7 +144,7 @@ public class SfoSpotViaTaxiTests(ITestOutputHelper output)
             return;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("a spot before a gate being a waypoint");
         if (groundData.GetLayout("SFO") is null)
         {
             return;

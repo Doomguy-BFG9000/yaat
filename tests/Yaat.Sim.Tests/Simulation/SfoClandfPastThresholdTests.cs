@@ -34,6 +34,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class SfoClandfPastThresholdTests(ITestOutputHelper output)
 {
+    private const string GroundDataWhy = "CLANDF past the threshold";
+
     private const string RecordingPath = "TestData/sfo-gc-28-01-recording.yaat-bug-report-bundle.zip";
     private const string Callsign = "SKW5416";
     private const string Follower = "TAI562";
@@ -145,7 +147,7 @@ public class SfoClandfPastThresholdTests(ITestOutputHelper output)
                 .InitializeSimLog();
 
             SessionRecording recording = archive.ToBaseSessionRecording();
-            var engine = new SimulationEngine(new TestAirportGroundData());
+            var engine = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy));
             engine.Replay(recording, 0);
 
             TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAt);
@@ -325,7 +327,7 @@ public class SfoClandfPastThresholdTests(ITestOutputHelper output)
             .EnableCategory("LandingPhase", LogLevel.Information)
             .InitializeSimLog();
 
-        var engine = new SimulationEngine(new TestAirportGroundData());
+        var engine = new SimulationEngine(RecordingGroundData.Evergreen(GroundDataWhy));
         (RunwayInfo runway, AirportGroundLayout layout, LatLon threshold) = Sfo28L();
         LatLon start = GeoMath.ProjectPoint(threshold, offsetNm >= 0 ? runway.TrueHeading : runway.TrueHeading.ToReciprocal(), Math.Abs(offsetNm));
         var aircraft = new AircraftState

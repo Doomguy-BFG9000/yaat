@@ -68,7 +68,7 @@ public class SfoCtoIntersectionDepartureE2ETests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("the SFO E intersection departure lining up promptly");
         if (groundData.GetLayout("SFO") is null)
         {
             output.WriteLine("SKIP: SFO ground layout not available");

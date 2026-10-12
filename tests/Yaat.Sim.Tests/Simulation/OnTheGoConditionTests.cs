@@ -568,7 +568,7 @@ public class OnTheGoConditionTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("PatternCommandHandler", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("OTG holding its command until the climb-out"));
     }
 
     /// <summary>

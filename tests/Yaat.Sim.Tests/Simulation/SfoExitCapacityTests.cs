@@ -37,7 +37,7 @@ public class SfoExitCapacityTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).EnableCategory("ExitCapacity", LogLevel.Debug).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData())
+        return new SimulationEngine(RecordingGroundData.Evergreen("the T exit capacity between the 28R and 28L bars"))
         {
             Scenario = new SimScenarioState
             {

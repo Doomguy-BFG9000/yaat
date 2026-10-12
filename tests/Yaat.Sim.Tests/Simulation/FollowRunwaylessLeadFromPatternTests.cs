@@ -45,7 +45,7 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
             .EnableCategory("VfrFollowPhase", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("FOLLOW of a lead with no current runway"));
     }
 
     private static RunwayInfo Oak(string designator) =>

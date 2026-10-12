@@ -48,7 +48,7 @@ public class FlightPlanCommandReplayKeepsPhaseTests(ITestOutputHelper output)
         using (archive)
         {
             SimLogBuilder.CreateForTest(output).InitializeSimLog();
-            var engine = new SimulationEngine(new TestAirportGroundData());
+            var engine = new SimulationEngine(RecordingGroundData.Evergreen("a replayed flight-plan amendment keeping the hover phase"));
             SessionRecording recording = archive.ToBaseSessionRecording();
             engine.Replay(recording, 0);
 

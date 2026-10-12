@@ -48,7 +48,7 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("TAXI ... HS $spot holding at the spot");
         if (groundData.GetLayout("SFO") is null)
         {
             return null;

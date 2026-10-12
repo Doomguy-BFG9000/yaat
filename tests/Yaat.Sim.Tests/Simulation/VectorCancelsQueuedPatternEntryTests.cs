@@ -44,7 +44,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("CommandDispatcher", LogLevel.Debug).InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("a vector cancelling a queued pattern entry"));
     }
 
     /// <summary>

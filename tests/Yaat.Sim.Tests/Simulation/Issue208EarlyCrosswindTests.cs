@@ -44,7 +44,7 @@ public class Issue208EarlyCrosswindTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("TC accepted on the upwind");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("PatternCommandHandler", LogLevel.Debug)

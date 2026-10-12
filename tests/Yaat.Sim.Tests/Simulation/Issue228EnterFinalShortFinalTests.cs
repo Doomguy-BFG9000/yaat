@@ -51,7 +51,7 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("EF on short final");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("PatternCommandHandler", LogLevel.Debug)

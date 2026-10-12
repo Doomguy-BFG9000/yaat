@@ -60,7 +60,16 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        if (!File.Exists(RecordingPath))
+        {
+            return null;
+        }
+
+        var groundData = RecordingGroundData.VersionPinned(
+            RecordingPath,
+            "the restored SWA1182 route through recorded nodes 948-949-1 merging behind SWA863"
+        );
+        Assert.True(groundData.Bundles("oak"), "the recording bundles no OAK layout");
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundConflictDetector", LogLevel.Debug).InitializeSimLog();
         return new SimulationEngine(groundData);
     }

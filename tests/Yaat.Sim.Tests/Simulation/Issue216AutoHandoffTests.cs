@@ -36,7 +36,7 @@ public class Issue216AutoHandoffTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("AT <fix> HO between autocontrollers");
         ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.InitializeForTest(loggerFactory);
 

@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
@@ -118,49 +117,28 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
         }
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new RecordingGroundData(data.Layouts));
+        return new SimulationEngine(data.GroundData);
     }
 
     private static Issue190Recording? LoadIssueRecording()
     {
         SessionRecording? recording = RecordingLoader.Load(RecordingPath);
-        if (recording is null || !File.Exists(RecordingPath))
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (recording is null || archive is null)
         {
             return null;
         }
 
-        using ZipArchive outerZip = ZipFile.OpenRead(RecordingPath);
-        if (outerZip.GetEntry("manifest.json") is not null)
-        {
-            using var directArchive = RecordingArchive.Open(RecordingPath);
-            return LoadIssueRecording(recording, directArchive);
-        }
-
-        ZipArchiveEntry? nestedRecording = outerZip.GetEntry("recording.yaat-recording.zip");
-        if (nestedRecording is null)
-        {
-            return null;
-        }
-
-        using Stream entryStream = nestedRecording.Open();
-        using var archiveStream = new MemoryStream();
-        entryStream.CopyTo(archiveStream);
-        archiveStream.Position = 0;
-
-        using var archive = RecordingArchive.Open(archiveStream);
-        return LoadIssueRecording(recording, archive);
-    }
-
-    private static Issue190Recording? LoadIssueRecording(SessionRecording recording, RecordingArchive archive)
-    {
-        Dictionary<string, AirportGroundLayout> layouts = archive.ReadAllLayouts();
-        if (!layouts.TryGetValue("mia", out AirportGroundLayout? miaLayout))
+        var groundData = RecordingGroundData.VersionPinned(RecordingPath, "8R destination hold-shorts from recorded MIA node 304");
+        Assert.True(groundData.Bundles("mia"), "the recording bundles no MIA layout");
+        AirportGroundLayout? miaLayout = groundData.GetLayout("mia");
+        if (miaLayout is null)
         {
             return null;
         }
 
         TimedSnapshot? beforeTaxiAuto = archive.ReadSnapshotAt(BeforeTaxiAutoCommand);
-        return new Issue190Recording(recording, layouts, miaLayout, beforeTaxiAuto);
+        return new Issue190Recording(recording, groundData, miaLayout, beforeTaxiAuto);
     }
 
     private static void AssertRouteStopsAtDestinationHoldShortBeforeRunwaySurface(AircraftState aircraft, AirportGroundLayout layout, string runwayId)
@@ -243,21 +221,8 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
 
     private sealed record Issue190Recording(
         SessionRecording Recording,
-        IReadOnlyDictionary<string, AirportGroundLayout> Layouts,
+        RecordingGroundData GroundData,
         AirportGroundLayout MiaLayout,
         TimedSnapshot? BeforeTaxiAutoSnapshot
     );
-
-    private sealed class RecordingGroundData(IReadOnlyDictionary<string, AirportGroundLayout> layouts) : IAirportGroundData
-    {
-        private readonly TestAirportGroundData _fallback = new();
-
-        public AirportGroundLayout? GetLayout(string airportId)
-        {
-            string shortId = airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
-            return layouts.TryGetValue(shortId, out AirportGroundLayout? layout) ? layout : _fallback.GetLayout(airportId);
-        }
-
-        public string? GetSourceGeoJson(string airportId) => _fallback.GetSourceGeoJson(airportId);
-    }
 }

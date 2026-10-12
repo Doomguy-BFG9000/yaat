@@ -53,7 +53,7 @@ public class ParallelRunwayMltFromDownwindTests(ITestOutputHelper output)
             .EnableCategory("MidfieldCrossingPhase", LogLevel.Debug)
             .InitializeSimLog();
 
-        return new SimulationEngine(new TestAirportGroundData());
+        return new SimulationEngine(RecordingGroundData.Evergreen("a parallel-runway pattern switch from the downwind"));
     }
 
     [Fact]

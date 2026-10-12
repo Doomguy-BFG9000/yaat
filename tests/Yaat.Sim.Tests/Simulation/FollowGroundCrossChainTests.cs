@@ -41,7 +41,7 @@ public class FollowGroundCrossChainTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("FOLLOWG X; CROSS <rwy> firing at the hold-short");
         if (groundData.GetLayout("OAK") is null)
         {
             return null;

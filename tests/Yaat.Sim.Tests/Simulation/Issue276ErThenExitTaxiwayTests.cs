@@ -36,7 +36,7 @@ public class Issue276ErThenExitTaxiwayTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("ER ; EXIT D keeping the right side");
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);

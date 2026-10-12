@@ -54,7 +54,7 @@ public class Issue206FollowOvertakeTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("FOLLOW sequencing behind slower traffic");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("AirborneFollowHelper", LogLevel.Debug)

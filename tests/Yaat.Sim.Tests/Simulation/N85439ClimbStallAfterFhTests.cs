@@ -42,7 +42,7 @@ public class N85439ClimbStallAfterFhTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("FH during takeoff keeping the assigned climb");
         SimLogBuilder
             .CreateForTest(output)
             .EnableCategory("TakeoffPhase", LogLevel.Debug)

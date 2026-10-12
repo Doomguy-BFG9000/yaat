@@ -177,7 +177,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
             return;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = RecordingGroundData.Evergreen("a standalone HS on the live segment");
         if (groundData.GetLayout("SFO") is null)
         {
             return;
@@ -242,7 +242,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     /// <returns>The engine, SKW5416, and the B/T junction node.</returns>
     private static (SimulationEngine Engine, AircraftState Aircraft, GroundNode Junction) ReplayToWindow(
         SessionRecording recording,
-        TestAirportGroundData groundData
+        RecordingGroundData groundData
     )
     {
         var engine = new SimulationEngine(groundData);
@@ -274,7 +274,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     /// <param name="recording">The session recording.</param>
     /// <param name="groundData">Ground data the engine resolves SFO from.</param>
     /// <returns>The offset in seconds, or 0.</returns>
-    private int SecondsUntilDetectorCap(SessionRecording recording, TestAirportGroundData groundData)
+    private int SecondsUntilDetectorCap(SessionRecording recording, RecordingGroundData groundData)
     {
         (SimulationEngine engine, AircraftState aircraft, GroundNode junction) = ReplayToWindow(recording, groundData);
         for (int second = 1; second <= WindowSeconds; second++)

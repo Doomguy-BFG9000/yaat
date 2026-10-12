@@ -39,7 +39,10 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
             return;
         }
 
-        AirportGroundLayout layout = archive.ReadLayout("oak");
+        var groundData = RecordingGroundData.VersionPinned(RecordingPath, "the JSX1 route across 28R and 28L to 30 on the recorded OAK graph");
+        Assert.True(groundData.Bundles("oak"), "the recording bundles no OAK layout");
+        AirportGroundLayout? layout = groundData.GetLayout("oak");
+        Assert.NotNull(layout);
         AircraftCategory category = AircraftCategorization.Categorize("E45X");
 
         GroundNode? jsx1 = layout.FindParkingByName("JSX1");
