@@ -1555,13 +1555,13 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// Opens the host's warp popup at <paramref name="frd"/>, seeded with the aircraft's heading (a zero or negative one
-    /// clamped to 360), altitude and indicated airspeed, and sends <c>WARP {frd} {heading} {altitude} {speed}</c> for the
-    /// values the popup submits.
+    /// Opens the host's warp popup at <paramref name="frd"/>, seeded with the aircraft's magnetic heading (a zero or
+    /// negative one clamped to 360), altitude and indicated airspeed, and sends <c>WARP {frd} {heading} {altitude} {speed}</c>
+    /// for the values the popup submits.
     /// </summary>
     private static void ShowWarp(IMenuAircraft? aircraft, string frd, MenuContext context, IMenuHost host)
     {
-        int heading = aircraft is not null ? (int)Math.Round(aircraft.HeadingDegrees) : 0;
+        int heading = aircraft is not null ? (int)Math.Round(aircraft.MagneticHeadingDegrees) : 0;
         if (heading <= 0)
         {
             heading = 360;
@@ -1984,12 +1984,12 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The heading the heading pickers highlight: the aircraft's true heading rounded to the nearest five, so it lands
-    /// on a listed value, with north (and no aircraft) as 360.
+    /// The heading the heading pickers highlight: the aircraft's magnetic heading rounded to the nearest five, so it
+    /// lands on a listed value, with north (and no aircraft) as 360.
     /// </summary>
     private static int HeadingSeed(IMenuAircraft? aircraft)
     {
-        int heading = aircraft is not null ? (int)(Math.Round(aircraft.HeadingDegrees / HeadingStep) * HeadingStep) : 360;
+        int heading = aircraft is not null ? (int)(Math.Round(aircraft.MagneticHeadingDegrees / HeadingStep) * HeadingStep) : 360;
         return heading <= 0 ? 360 : heading;
     }
 
@@ -2623,7 +2623,8 @@ public static class MenuCatalog
 
     /// <summary>
     /// The runway a visual approach defaults to: the assigned runway, else the runway of the active approach, else
-    /// that of the expected one, looked up among the destination's approaches; null when none applies.
+    /// that of the expected one, each id resolved from shorthand (R28L for R28LY) and looked up among the destination's
+    /// approaches; null when none applies.
     /// </summary>
     internal static string? SmartVisualRunway(IMenuAircraft? aircraft)
     {
@@ -2638,18 +2639,28 @@ public static class MenuCatalog
         }
 
         IReadOnlyList<CifpApproachProcedure> approaches = DestinationApproaches(aircraft);
-        return ApproachRunway(approaches, aircraft.ActiveApproachId) ?? ApproachRunway(approaches, aircraft.ExpectedApproach);
+        return ApproachRunway(aircraft.Destination, approaches, aircraft.ActiveApproachId)
+            ?? ApproachRunway(aircraft.Destination, approaches, aircraft.ExpectedApproach);
     }
 
-    /// <summary>The runway of the approach named <paramref name="approachId"/> among <paramref name="approaches"/>; null when none.</summary>
-    private static string? ApproachRunway(IReadOnlyList<CifpApproachProcedure> approaches, string? approachId)
+    /// <summary>
+    /// The runway of the approach <paramref name="approachId"/> names at <paramref name="destination"/>, resolved from
+    /// shorthand, among <paramref name="approaches"/>; null when it names none.
+    /// </summary>
+    private static string? ApproachRunway(string destination, IReadOnlyList<CifpApproachProcedure> approaches, string? approachId)
     {
-        if (string.IsNullOrEmpty(approachId))
+        if ((approaches.Count == 0) || string.IsNullOrEmpty(approachId))
         {
             return null;
         }
 
-        string? runway = approaches.FirstOrDefault(a => string.Equals(a.ApproachId, approachId, StringComparison.OrdinalIgnoreCase))?.Runway;
+        string? resolvedId = NavigationDatabase.Instance.ResolveApproachId(destination, approachId);
+        if (resolvedId is null)
+        {
+            return null;
+        }
+
+        string? runway = approaches.FirstOrDefault(a => string.Equals(a.ApproachId, resolvedId, StringComparison.OrdinalIgnoreCase))?.Runway;
         return string.IsNullOrEmpty(runway) ? null : runway;
     }
 

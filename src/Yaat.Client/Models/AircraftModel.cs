@@ -127,7 +127,10 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     private TrueHeading _heading;
 
     /// <summary>Live heading in magnetic, 3-digit zero-padded for display (matches the assigned-heading frame).</summary>
-    public string HeadingDisplay => Heading.ToMagnetic(MagneticDeclination.GetDeclination(Position)).ToDisplayString();
+    public string HeadingDisplay => CurrentMagneticHeading.ToDisplayString();
+
+    /// <summary>The live heading made magnetic at the aircraft's position.</summary>
+    private MagneticHeading CurrentMagneticHeading => Heading.ToMagnetic(MagneticDeclination.GetDeclination(Position));
 
     /// <summary>
     /// The tug's pose while the aircraft is under tow: the true heading from the nose gear out along the
@@ -1139,6 +1142,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
 
     /// <inheritdoc />
     public double HeadingDegrees => Heading.Degrees;
+
+    /// <inheritdoc />
+    public double MagneticHeadingDegrees => CurrentMagneticHeading.Degrees;
 
     /// <inheritdoc />
     public double AltitudeFeet => Altitude;

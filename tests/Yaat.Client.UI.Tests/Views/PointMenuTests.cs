@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
@@ -74,7 +75,8 @@ public class PointMenuTests
         );
 
         StripButton(menu, MenuIds.PointWarpHere).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Assert.Equal([(Callsign, Frd, 120, 33000, 280)], host.WarpPopups);
+        int warpHeading = int.Parse(ac.HeadingDisplay, CultureInfo.InvariantCulture);
+        Assert.Equal([(Callsign, Frd, warpHeading, 33000, 280)], host.WarpPopups);
         Func<string, int, int, int, Task>? submit = host.WarpSubmit;
         Assert.NotNull(submit);
         await submit(Frd, 90, 12000, 250);

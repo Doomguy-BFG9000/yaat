@@ -345,7 +345,8 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 - **Cancel takeoff clearance** shows only once the aircraft is cleared for takeoff (taxiing with the clearance included) and only until it reaches V1.
 - **Cleared approach** hides once the aircraft is cleared for an approach; after a go-around or missed approach it comes back once you assign an altitude.
 - **Cleared to land** hides on final once the aircraft is cleared to land.
-- **Cleared visual** shows only after an IFR aircraft reports the field or the preceding traffic in sight.
+- **Cleared visual** shows only after an IFR aircraft reports the field or the preceding traffic in sight. It defaults to the assigned runway, else the runway of the active or expected approach, even when that approach is written in shorthand (an expected `R28L` at KOAK gives runway 28L and sends `CVA 28L`).
+- **Heading pickers and Warp start from the datablock heading.** Fly heading, Turn left and Turn right highlight the aircraft's magnetic heading (rounded to 5°), and the Warp popup is pre-filled with it.
 - **Assign speed** and **Reduce to final approach speed** hide inside the final approach fix.
 - **Give way to…** needs a taxi route; **Climb via SID** and **Descend via STAR** need an assigned or filed procedure.
 - **Enter left / right downwind, Enter left / right base and Make straight-in** open a runway list when the aircraft has no assigned runway (and the "(other)" item beside an assigned one opens it too). Each row is the runway with an arrow turned to point the way an aircraft lands on it, then the command it sends (`ELD 28R`). Runways in use for arrivals come first, then a separator and the rest; in each group the runways the aircraft's type can land on come before the short ones.

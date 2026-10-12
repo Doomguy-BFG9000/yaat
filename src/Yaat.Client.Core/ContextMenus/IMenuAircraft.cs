@@ -107,8 +107,14 @@ public interface IMenuAircraft
     /// <summary>A landing clearance pre-issued against a queued pattern entry, empty when none.</summary>
     string PendingLandingClearance { get; }
 
-    /// <summary>The current true heading in degrees, which the warp popup seeds its heading field with.</summary>
+    /// <summary>The current true heading in degrees, which relative traffic bearings are measured against.</summary>
     double HeadingDegrees { get; }
+
+    /// <summary>
+    /// The current heading in magnetic degrees, as the datablock shows it, which the heading pickers and the warp popup
+    /// seed with.
+    /// </summary>
+    double MagneticHeadingDegrees { get; }
 
     /// <summary>The current altitude in feet, which the warp popup seeds its altitude field with.</summary>
     double AltitudeFeet { get; }

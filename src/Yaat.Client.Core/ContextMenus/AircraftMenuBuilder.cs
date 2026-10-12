@@ -204,7 +204,7 @@ public static class AircraftMenuBuilder
     private static void AddFlyHeadingTurn(ItemCollection items, IMenuAircraft aircraft, MenuPoint point)
     {
         var heading = new MagneticHeading(MenuCatalog.PointFlyHeading(aircraft, point));
-        MagneticHeading current = new TrueHeading(aircraft.HeadingDegrees).ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position));
+        MagneticHeading current = new(aircraft.MagneticHeadingDegrees);
         double turn = current.SignedAngleTo(heading);
         if (Math.Abs(turn) < 1.0)
         {

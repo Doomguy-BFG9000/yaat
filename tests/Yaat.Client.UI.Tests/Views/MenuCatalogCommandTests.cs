@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -408,6 +409,49 @@ public class MenuCatalogCommandTests
         Assert.Equal(72, popup.Items.Count);
         Assert.Equal([(Callsign, "FH 270", Initials)], host.Sent);
     }
+
+    [AvaloniaTheory]
+    [InlineData(MenuIds.HeadingFly)]
+    [InlineData(MenuIds.HeadingTurnLeft)]
+    [InlineData(MenuIds.HeadingTurnRight)]
+    public void HeadingPickers_SeedWithTheMagneticHeadingRoundedToFive_NotTheTrueOne(string id)
+    {
+        AircraftModel aircraft = OverKoakOnTrueHeading100();
+        double magnetic = aircraft.Heading.ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position)).Degrees;
+        int seed = (int)(Math.Round(magnetic / 5) * 5);
+        Assert.NotEqual(100, seed);
+        var host = new RecordingMenuHost("270");
+
+        MenuItem? item = MenuCatalog.Get(id).Build(aircraft, Context(), host);
+        Assert.NotNull(item);
+        Click((MenuItem)item);
+
+        Assert.Equal<object?>(seed, Assert.Single(host.ListPopups).Selected);
+    }
+
+    [AvaloniaFact]
+    public void Warp_SeedsPopupWithTheMagneticHeading_NotTheTrueOne()
+    {
+        AircraftModel aircraft = OverKoakOnTrueHeading100();
+        int heading = int.Parse(aircraft.HeadingDisplay, CultureInfo.InvariantCulture);
+        Assert.NotEqual(100, heading);
+        var host = new RecordingMenuHost("");
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.SimControlWarp).Build(aircraft, Context(), host);
+        Assert.NotNull(item);
+        Click((MenuItem)item);
+
+        Assert.Equal(heading, Assert.Single(host.WarpPopups).Heading);
+    }
+
+    /// <summary>An aircraft over KOAK on true heading 100, which the local declination puts more than five degrees off magnetic.</summary>
+    private static AircraftModel OverKoakOnTrueHeading100() =>
+        new()
+        {
+            Callsign = Callsign,
+            Position = new LatLon(37.7213, -122.2208),
+            Heading = new TrueHeading(100),
+        };
 
     [AvaloniaFact]
     public void HeadingGroup_HeaderPrefersNavigatingTo_ThenTheAssignedMagneticHeading()
@@ -1209,6 +1253,23 @@ public class MenuCatalogCommandTests
         Click(AssertPicker(other, "Cleared visual approach (other)…", MenuPickerDescriptor.List, runways));
 
         Assert.Equal([(Callsign, "CVA 28R", Initials)], host.Sent);
+    }
+
+    /// <summary>A scenario's expected approach in shorthand (R28L for KOAK's R28LY) still gives the visual approach its runway.</summary>
+    [AvaloniaFact]
+    public void ClearedVisual_ExpectedApproachInShorthand_DefaultsToItsRunway()
+    {
+        TestVnasData.EnsureInitialized();
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, ExpectedApproach = "R28L" };
+
+        Assert.Equal("28L", MenuCatalog.SmartVisualRunway(aircraft));
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
+        Assert.NotNull(item);
+        Assert.Equal("Cleared visual approach 28L", item.Header as string);
+        Click(item);
+
+        Assert.Equal([(Callsign, "CVA 28L", Initials)], host.Sent);
     }
 
     [AvaloniaFact]
@@ -3008,6 +3069,9 @@ public class MenuCatalogCommandTests
         public string PendingLandingClearance => "";
 
         public double HeadingDegrees { get; init; }
+
+        /// <summary>The fake has no declination: its magnetic heading is its <see cref="HeadingDegrees"/>.</summary>
+        public double MagneticHeadingDegrees => HeadingDegrees;
 
         public double AltitudeFeet { get; init; }
 
