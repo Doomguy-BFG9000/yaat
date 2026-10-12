@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flyout live refill</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  /* Layout: intro, a shared transport (play, restart, timeline), then four lanes fed the same scripted traffic. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag: #7a4fbf; --rec: #1f7f71; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag: #c4a3ff; --rec: #5fd0bf; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag: #c4a3ff; --rec: #5fd0bf; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 80ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  code { font: 12px var(--f-mono); color: var(--accent); }
+
+  /* Shared transport. */
+  .transport { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 18px 0 20px;
+               display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .btn { font: 500 13px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+         padding: 5px 12px; cursor: pointer; min-width: 84px; }
+  .btn:hover { border-color: var(--accent); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+  .gclock { font: 500 13px var(--f-mono); color: var(--ink); min-width: 70px; font-variant-numeric: tabular-nums; }
+  .tl { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 3px; flex: 1 1 320px; min-width: 0; }
+  .tl button { font: 11px var(--f-mono); color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 3px; padding: 3px 0;
+               cursor: pointer; position: relative; min-width: 0; }
+  .tl button.ev::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--warn); }
+  .tl button[aria-current="true"] { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+  .tl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .events { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .events span b { font: 500 11.5px var(--f-mono); color: var(--warn); margin-right: 4px; font-weight: 500; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 370px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 11px var(--f-mono); letter-spacing: .06em; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; color: var(--tag); }
+  .lane-h h3 { font: 600 16px/1.25 var(--f-display); margin: 0; flex: 1 1 auto; min-width: 0; }
+  .lane-h h3 .rec { color: var(--rec); }
+  .clock { font: 500 12px var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ptr-state { font: 500 11px var(--f-mono); color: var(--muted); }
+  .ptr-state.out { color: var(--warn); }
+  .now { font-size: 12px; color: var(--muted); min-height: 36px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .now b { color: var(--ink); font-weight: 600; }
+  .now code { font: 12px var(--f-mono); color: var(--accent); }
+  .now .w { color: var(--warn); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 80ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 10px 10px 52px; position: relative; color-scheme: dark; overflow: hidden; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); width: 100%; max-width: 480px; position: relative; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; cursor: default; }
+  .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi.sec { min-height: 26px; padding-top: 6px; padding-bottom: 2px; font-size: 12px; font-weight: 600; color: #cfd4da; grid-template-columns: 1fr; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .gly { flex: 0 0 auto; display: block; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; }
+  .nm .n { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; font-weight: 600; max-width: 100%; min-width: 0; }
+  .nm .cs { flex: 0 0 auto; }
+  .note { font-size: 12px; opacity: .75; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .det-s { font-size: 11px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .dist { padding-left: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
+  .cmd { padding-left: 12px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; flex: 1; min-width: 0; }
+  .tbox::placeholder { color: #8f969e; }
+  .boxrow { display: flex; align-items: center; padding: 6px 11px 4px; }
+  .hint { font-size: 11.5px; color: #a4adb8; padding: 2px 11px 6px; }
+
+  /* The live list: rows sit in slots, so a re-sort or a refill animates each row to its new slot. */
+  .live { position: relative; transition: height .35s ease; }
+  .live > .mi { position: absolute; left: 0; right: 0; top: 0; height: 44px; transition: transform .35s ease, opacity .35s ease, background-color .15s; }
+  .live.noanim, .live.noanim > .mi { transition: none; }
+  .live > .mi.enter { opacity: 0; }
+  .live > .mi.fadein { transition: transform .35s ease, opacity .7s ease; }
+  .live > .mi.leaving { opacity: 0; }
+  .mi.gone > * { opacity: .38; }
+  .mi.gone .det-s { color: #ffc062; opacity: .7; }
+  .mi.flash .dist { animation: flash .6s ease; }
+  @keyframes flash { from { color: #8fc1ff; } to { color: #ffffff; } }
+  .static > .mi { height: 44px; }
+
+  /* Mock-only annotations: the pointer and the refused-click note. */
+  .cursor { position: absolute; left: 0; top: 0; width: 18px; height: 24px; pointer-events: none; z-index: 5; transition: transform .6s ease;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+  .callout { position: absolute; z-index: 4; max-width: 230px; font: 11.5px/1.35 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23;
+             border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; box-shadow: 0 6px 16px rgba(0, 0, 0, .5); opacity: 0; transition: opacity .35s; }
+  .callout.on { opacity: 1; }
+  .callout::before { content: ""; position: absolute; right: 22px; top: -6px; width: 10px; height: 10px; background: #1d1f23; border-left: 1px dashed #ffc062;
+                     border-top: 1px dashed #ffc062; transform: rotate(45deg); }
+  .callout b { color: #ffc062; font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .live, .live > .mi, .cursor, .callout { transition: none !important; }
+    .mi.flash .dist { animation: none; }
+  }
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .lane { padding: 10px; }
+    .stage { padding: 8px 8px 48px; }
+    .cmd { font-size: 11px; padding-left: 8px; }
+    .dist { padding-left: 8px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · open choice: live lists while open · mock for the owner's feedback</div>
+  <h1>Follow flyout: live refill while open</h1>
+  <p class="lede"><b>SWA1234</b>, B737, holding on the ground on W. The Follow flyout (design B: filter box, one list, callsign and type, state under it, distance, command) is open while the traffic around it keeps moving. All four lanes are the same flyout fed the <b>same scripted 12 s timeline</b>, with the pointer resting on the second Moving row. Only how the open flyout handles the changes differs.</p>
+  <p class="lede">Watch the row under the pointer, and the line under each flyout: it says what a click would send at that second. The loop reopens the flyout at t = 0. Traffic is illustrative KOAK ground traffic; Parked or holding stays still so the Moving section carries the story.</p>
+
+  <div class="transport" role="group" aria-label="Playback for all lanes">
+    <button type="button" class="btn primary" id="play" aria-pressed="true">Pause</button>
+    <button type="button" class="btn" id="restart">Restart</button>
+    <span class="gclock" id="gclock">t = 0 s</span>
+    <div class="tl" id="tl" aria-label="Jump to a second"></div>
+    <div class="events">
+      <span><b>4 s</b>N52417 now nearer than UAL455 (order by distance would change)</span>
+      <span><b>7 s</b>SKW5521 departs 30, leaves the ground list</span>
+      <span><b>8 s</b>the pointer leaves the flyout (lane D only)</span>
+      <span><b>9 s</b>FDX1290 spawns, pushing back from gate 24</span>
+    </div>
+  </div>
+
+  <div class="lanes" id="lanes"></div>
+
+  <footer class="foot">Row template copied from the chosen Follow B and Give way B flyouts (<code>docs/plans/canvases/quick-command-flyouts/</code>): the follow glyph at stroke 1.9 in the ground colour, callsign with the type dimmed beside it, the state under it, distance, the <code>FOLLOWG</code> command in JetBrains Mono at 70%, on the Fluent dark menu surface. The pointer and the dashed note are mock annotations, not app UI.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const LOOP = 12;
+  const ROW_H = 44;
+  const POINTER_SLOT = 1;
+  const POINTER_LEAVES = 8;
+  const EVENTS = new Set([4, 7, 8, 9]);
+  const FOL = "M4 17l5-5-5-5 M13 17l5-5-5-5";
+
+  /** The scripted ground traffic; distances from SWA1234 in feet, whole seconds only. */
+  const TRAFFIC = [
+    { cs: "UAL455", type: "A320", from: 0, to: 99, d: t => 600 + 120 * t, st: () => "taxiing on W" },
+    { cs: "N52417", type: "C172", from: 0, to: 99, d: t => 1250 - 50 * t, st: () => "taxiing on L" },
+    { cs: "SKW5521", type: "CRJ7", from: 0, to: 7, d: t => [1700, 1700, 1700, 1700, 1720, 1780, 1900][t], st: t => (t < 5 ? "lined up on 30" : "takeoff roll on 30") },
+    { cs: "ASA1102", type: "B739", from: 0, to: 99, d: t => 2200 - 20 * t, st: () => "taxiing on U" },
+    { cs: "FDX1290", type: "B763", from: 9, to: 99, d: t => 900 - 10 * (t - 9), st: () => "pushing back · gate 24" },
+  ];
+  const PARKED = [["DAL1508", "B739", "holding short 30 at W1", 800], ["N8123K", "PA28", "at parking · north ramp", 1900]];
+  const AIMED = "N52417";
+
+  const byCs = Object.fromEntries(TRAFFIC.map(a => [a.cs, a]));
+  const present = (a, t) => t >= a.from && t < a.to;
+  const snap = (a, t) => ({ cs: a.cs, type: a.type, dist: a.d(t), st: a.st(t), gone: false, isNew: a.from > 0 });
+  const world = t => TRAFFIC.filter(a => present(a, t)).map(a => snap(a, t)).sort((x, y) => x.dist - y.dist);
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  /** Frozen order from open, live text, gone rows kept, newcomers appended. Shared by lane B and lane D while the pointer is inside. */
+  function liveTextFrozenOrder(t) {
+    const order = world(0).map(r => r.cs);
+    TRAFFIC.filter(a => a.from > 0 && a.from <= t).sort((x, y) => x.from - y.from).forEach(a => order.push(a.cs));
+    return order.map(cs => {
+      const a = byCs[cs];
+      if (present(a, t)) return snap(a, t);
+      return { cs, type: a.type, dist: null, st: "gone", gone: true, isNew: false };
+    });
+  }
+
+  const LANES = [
+    {
+      id: "a", tag: "A", name: "Frozen at open", rec: false,
+      how: "Rows and their text are built once when the flyout opens and never change while it is open.",
+      worst: "Stale distances, and a row for an aircraft that is gone: SKW5521 stays clickable and the sim refuses it.",
+      rows: () => world(0),
+      inside: () => true,
+    },
+    {
+      id: "b", tag: "B", name: "Live text, frozen order", rec: true,
+      how: "Distances and states update in place each second; row order is fixed while open; a gone row stays greyed and disabled; a newcomer is appended at the bottom.",
+      worst: "After a while the order no longer matches distance: N52417 is nearer than UAL455 but stays below it.",
+      rows: liveTextFrozenOrder,
+      inside: () => true,
+    },
+    {
+      id: "c", tag: "C", name: "Fully live", rec: false,
+      how: "The list is rebuilt every second and re-sorted by distance; rows move to their new slot, vanish and appear.",
+      worst: "The row under the pointer changes: a click aimed at N52417 sends FOLLOWG UAL455, later FDX1290.",
+      rows: t => world(t),
+      inside: () => true,
+    },
+    {
+      id: "d", tag: "D", name: "Live, paused under the pointer", rec: false,
+      how: "Fully live while the pointer is outside the flyout; while it is inside, it behaves like B; on leaving, the list catches up.",
+      worst: "The list jumps when the pointer leaves: at 8 s rows re-sort and the gone row drops out at once.",
+      rows: t => (t < POINTER_LEAVES ? liveTextFrozenOrder(t) : world(t)),
+      inside: t => t < POINTER_LEAVES,
+    },
+  ];
+
+  const glyph = () => `<svg class="gly" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6EE0CE" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${FOL}"/></svg>`;
+  const cursorSvg = `<svg class="cursor" viewBox="0 0 18 24" aria-hidden="true"><path d="M1.5 1.5v18.2l4.6-4.3 3 6.8 3.1-1.4-3-6.7h6.3z" fill="#ffffff" stroke="#000000" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+
+  function rowInner(r) {
+    const name = `<span class="nm"><span class="n"><span class="cs">${esc(r.cs)}</span><span class="note">${esc(r.type)}</span></span><span class="det-s">${esc(r.st)}</span></span>`;
+    return `${glyph()}${name}<span class="dist">${r.dist === null ? "" : ft(r.dist)}</span><span class="cmd">FOLLOWG ${esc(r.cs)}</span>`;
+  }
+  const staticRow = p => `<div class="mi" role="menuitem">${rowInner({ cs: p[0], type: p[1], st: p[2], dist: p[3] })}</div>`;
+
+  function laneHtml(l) {
+    const flyout = `<div class="menu m" role="menu" aria-label="Follow flyout, lane ${l.tag}">
+        <div class="boxrow">${glyph()}<input class="tbox" type="text" placeholder="Filter or type a callsign" aria-label="Filter or type a callsign" tabindex="-1" readonly></div>
+        <div class="hint">Enter sends the top match.</div>
+        <div class="mi sec">Moving</div>
+        <div class="live" data-live></div>
+        <div class="mi sec">Parked or holding</div>
+        <div class="static">${PARKED.map(staticRow).join("")}</div>
+      </div>`;
+    const title = esc(l.name) + (l.rec ? ` <span class="rec">(Recommended)</span>` : "");
+    return `<section class="lane" id="lane-${l.id}">
+      <div class="lane-h"><span class="tag">${l.tag}</span><h3>${title}</h3><span class="clock" data-clock>t = 0 s</span></div>
+      <div class="stage" data-stage>${flyout}${cursorSvg}${l.id === "a" ? `<div class="callout" data-callout role="note"><b>Refused on click:</b> no longer on the ground (SKW5521 departed at 7 s)</div>` : ""}</div>
+      <div class="ptr-state" data-ptr></div>
+      <div class="now" data-now></div>
+      <dl class="cap"><dt>Mechanism</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+
+  const lanesEl = document.getElementById("lanes");
+  lanesEl.innerHTML = LANES.map(laneHtml).join("");
+  LANES.forEach(l => {
+    l.el = document.getElementById("lane-" + l.id);
+    l.live = l.el.querySelector("[data-live]");
+    l.stage = l.el.querySelector("[data-stage]");
+    l.cursor = l.el.querySelector(".cursor");
+    l.callout = l.el.querySelector("[data-callout]");
+    l.rowEls = new Map();
+    l.shown = [];
+  });
+
+  /** Renders one lane at second t; rows keep their element across ticks so a slot change animates. */
+  function renderLane(l, t, instant) {
+    const rows = l.rows(t);
+    l.live.classList.toggle("noanim", instant);
+    const keep = new Set(rows.map(r => r.cs));
+    l.rowEls.forEach((el, cs) => {
+      if (keep.has(cs)) return;
+      l.rowEls.delete(cs);
+      if (instant) { el.remove(); return; }
+      el.classList.add("leaving");
+      setTimeout(() => el.remove(), 400);
+    });
+    const hotSlot = l.inside(t) ? POINTER_SLOT : -1;
+    rows.forEach((r, i) => {
+      let el = l.rowEls.get(r.cs);
+      const fresh = !el;
+      if (fresh) {
+        el = document.createElement("div");
+        el.setAttribute("role", "menuitem");
+        l.rowEls.set(r.cs, el);
+        l.live.appendChild(el);
+      }
+      const prevDist = el.dataset.dist;
+      el.className = "mi" + (r.gone ? " gone" : "") + (i === hotSlot && !r.gone ? " hot" : "");
+      el.setAttribute("aria-disabled", String(r.gone));
+      el.innerHTML = rowInner(r);
+      el.dataset.dist = r.dist === null ? "" : String(r.dist);
+      el.style.transform = `translateY(${i * ROW_H}px)`;
+      if (fresh && !instant) {
+        el.classList.add("enter");
+        if (r.isNew) el.classList.add("fadein");
+        void el.offsetWidth;
+        el.classList.remove("enter");
+      } else if (!fresh && !instant && prevDist !== el.dataset.dist && el.dataset.dist !== "") {
+        el.classList.add("flash");
+      }
+    });
+    l.live.style.height = `${rows.length * ROW_H}px`;
+    l.shown = rows;
+    if (instant) void l.live.offsetWidth;
+    placeCursor(l, t);
+    if (!instant) setTimeout(() => placeCursor(l, t), 380);
+    if (l.callout) placeCallout(l, t);
+    describe(l, t, rows);
+    l.el.querySelector("[data-clock]").textContent = `t = ${t} s`;
+  }
+
+  function placeCursor(l, t) {
+    const stageBox = l.stage.getBoundingClientRect();
+    const liveBox = l.live.getBoundingClientRect();
+    const menuBox = l.stage.querySelector(".menu").getBoundingClientRect();
+    let x, y;
+    if (l.inside(t)) {
+      x = liveBox.left - stageBox.left + liveBox.width * 0.42;
+      y = liveBox.top - stageBox.top + POINTER_SLOT * ROW_H + ROW_H * 0.45;
+    } else {
+      x = menuBox.left - stageBox.left + menuBox.width * 0.62;
+      y = menuBox.bottom - stageBox.top + 12;
+    }
+    l.cursor.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  }
+
+  function placeCallout(l, t) {
+    const slot = l.shown.findIndex(r => r.cs === "SKW5521");
+    const stageBox = l.stage.getBoundingClientRect();
+    const liveBox = l.live.getBoundingClientRect();
+    const top = liveBox.top - stageBox.top + (slot + 1) * ROW_H - 4;
+    l.callout.style.top = `${Math.round(top)}px`;
+    l.callout.style.right = `${Math.round(stageBox.right - liveBox.right + 18)}px`;
+    l.callout.classList.toggle("on", t >= 7);
+  }
+
+  function describe(l, t, rows) {
+    const ptr = l.el.querySelector("[data-ptr]");
+    const now = l.el.querySelector("[data-now]");
+    const inside = l.inside(t);
+    ptr.className = "ptr-state" + (inside ? "" : " out");
+    ptr.textContent = l.id !== "d" ? "pointer on the 2nd Moving row" : (inside ? "pointer inside · list paused (as B)" : "pointer outside · list live, re-sorted");
+    if (!inside) {
+      now.innerHTML = `Pointer outside the flyout: nothing under it. Moving now reads <b>${rows.map(r => r.cs).join(", ")}</b>, nearest first.`;
+      return;
+    }
+    const under = rows[POINTER_SLOT];
+    const actual = byCs[under.cs].d(t);
+    const sends = `a click sends <code>FOLLOWG ${esc(under.cs)}</code>`;
+    if (l.id === "a") {
+      const stale = actual !== under.dist ? ` <span class="w">Row shows ${ft(under.dist)}; N52417 is ${ft(actual)} away now.</span>` : "";
+      now.innerHTML = `Under the pointer: <b>${esc(under.cs)}</b>, ${sends}.${stale}`;
+    } else if (l.id === "c") {
+      const moved = under.cs !== AIMED ? ` <span class="w">Not the aircraft aimed at (${AIMED} is now row ${rows.findIndex(r => r.cs === AIMED) + 1}).</span>` : "";
+      now.innerHTML = `Under the pointer: <b>${esc(under.cs)}</b>, ${sends}.${moved}`;
+    } else {
+      const live = rows.filter(r => !r.gone);
+      const sorted = live.every((r, i) => i === 0 || live[i - 1].dist <= r.dist);
+      const order = sorted ? "" : ` <span class="w">Order no longer by distance.</span>`;
+      now.innerHTML = `Under the pointer: <b>${esc(under.cs)}</b>, ${sends}.${order}`;
+    }
+  }
+
+  /* ---------- Shared clock ---------- */
+  const tl = document.getElementById("tl");
+  tl.innerHTML = Array.from({ length: LOOP }, (_, i) => `<button type="button" data-t="${i}" class="${EVENTS.has(i) ? "ev" : ""}" aria-label="t = ${i} s">${i}</button>`).join("");
+  const playBtn = document.getElementById("play");
+  const gclock = document.getElementById("gclock");
+  let t = 0;
+  let playing = true;
+  let timer = null;
+
+  function renderAll(instant) {
+    LANES.forEach(l => renderLane(l, t, instant));
+    gclock.textContent = `t = ${t} s`;
+    tl.querySelectorAll("button").forEach(b => b.setAttribute("aria-current", String(Number(b.dataset.t) === t)));
+  }
+  function tick() {
+    t = (t + 1) % LOOP;
+    renderAll(t === 0);
+  }
+  function schedule() {
+    clearInterval(timer);
+    timer = playing ? setInterval(tick, 1000) : null;
+  }
+  playBtn.addEventListener("click", () => {
+    playing = !playing;
+    playBtn.textContent = playing ? "Pause" : "Play";
+    playBtn.setAttribute("aria-pressed", String(playing));
+    schedule();
+  });
+  document.getElementById("restart").addEventListener("click", () => { t = 0; renderAll(true); schedule(); });
+  tl.addEventListener("click", e => {
+    const b = e.target.closest("button[data-t]");
+    if (!b) return;
+    const next = Number(b.dataset.t);
+    const instant = next < t;
+    t = next;
+    renderAll(instant);
+    schedule();
+  });
+  window.addEventListener("resize", () => LANES.forEach(l => { placeCursor(l, t); if (l.callout) placeCallout(l, t); }));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => LANES.forEach(l => { placeCursor(l, t); if (l.callout) placeCallout(l, t); }));
+
+  renderAll(true);
+  schedule();
+})();
+</script>
+</body>
+</html>
