@@ -666,6 +666,9 @@ public sealed class QuickCommandLabelLine : MenuItem
     /// <summary>How far, in px, the label has scrolled left; 0 at rest, while it waits, and for a label that fits.</summary>
     public double MarqueeOffset => _marquee.Offset;
 
+    /// <summary>Renders one marquee frame synchronously for deterministic UI tests.</summary>
+    internal void RenderMarqueeFrame() => _marquee.RenderFrame();
+
     /// <summary>The header line of <paramref name="menu"/>, or null when it has none.</summary>
     public static QuickCommandLabelLine? In(ContextMenu menu) => menu.Items.OfType<QuickCommandLabelLine>().FirstOrDefault();
 
@@ -752,8 +755,8 @@ public sealed class QuickCommandLabelLine : MenuItem
 
     /// <summary>
     /// The label's view: sized by an invisible copy of the rest text, the label drawn on one line over it, centred, shifted
-    /// left by the marquee offset and clipped at the line's left and right edges. While it shows on screen, a 60 Hz timer
-    /// on the clock moves it; the timer stops once the laid-out label fits, when the label goes and when the menu closes.
+    /// left by the marquee offset and clipped at the line's left and right edges. While it shows on screen, a 60 Hz
+    /// dispatcher timer moves it; the timer stops once the laid-out label fits, when the label goes and when the menu closes.
     /// </summary>
     private sealed class Marquee : Control
     {
@@ -774,7 +777,7 @@ public sealed class QuickCommandLabelLine : MenuItem
         private long _start;
         private bool _running;
         private bool _attached;
-        private ITimer? _frames;
+        private readonly DispatcherTimer _frames;
 
         public Marquee(string rest, MenuItem line)
         {
@@ -799,6 +802,8 @@ public sealed class QuickCommandLabelLine : MenuItem
             VisualChildren.Add(_text);
             LogicalChildren.Add(_sizer);
             LogicalChildren.Add(_text);
+            _frames = new DispatcherTimer(DispatcherPriority.Render) { Interval = FramePeriod };
+            _frames.Tick += OnFrame;
         }
 
         public TimeProvider Clock { get; set; } = TimeProvider.System;
@@ -856,27 +861,22 @@ public sealed class QuickCommandLabelLine : MenuItem
         }
 
         /// <summary>
-        /// Starts the frame timer on <see cref="Clock"/> while a label shows on screen and none runs: each tick moves the
-        /// label on the UI thread.
+        /// Starts the UI-owned frame timer while a label shows on screen and no timer runs.
         /// </summary>
         private void StartFrames()
         {
-            if (_running && _attached && (_frames is null))
+            if (_running && _attached && (!_frames.IsEnabled))
             {
-                _frames = Clock.CreateTimer(_ => Dispatcher.UIThread.Post(OnFrame), null, TimeSpan.Zero, FramePeriod);
+                _frames.Start();
             }
         }
 
-        private void StopFrames()
-        {
-            _frames?.Dispose();
-            _frames = null;
-        }
+        private void StopFrames() => _frames.Stop();
 
         /// <summary>Moves the label to where the clock says it is; once laid out, a label that fits stops the frames.</summary>
-        private void OnFrame()
+        private void OnFrame(object? sender, EventArgs e)
         {
-            if (!_running)
+            if ((!_running) || (!_attached))
             {
                 return;
             }
@@ -889,6 +889,8 @@ public sealed class QuickCommandLabelLine : MenuItem
 
             SetOffset(MarqueeOffsetAt(Clock.GetElapsedTime(_start), overflow));
         }
+
+        public void RenderFrame() => OnFrame(null, EventArgs.Empty);
 
         private void SetOffset(double offset)
         {

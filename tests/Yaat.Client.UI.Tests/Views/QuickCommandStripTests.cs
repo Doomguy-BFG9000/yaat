@@ -743,10 +743,38 @@ public class QuickCommandStripTests
         Assert.Equal(0, line.MarqueeOffset);
     }
 
-    /// <summary>Lays the menu out and runs the frames the clock's timers posted, so the marquee reads the clock.</summary>
+    /// <summary>
+    /// An overflowing label uses only a UI-owned frame source, and a frame requested after detach cannot move the label.
+    /// </summary>
+    [AvaloniaFact]
+    public void OverflowingLabel_UsesOnlyUiOwnedFramesAndStopsAfterDetach()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel ac = Fixture("final-ifr");
+        ac.FiledAircraftType = "B738";
+        ContextMenu menu = OpenLaidOut(Build(ac, Host()));
+        QuickCommandLabelLine line = Line(menu);
+        var clock = new ManualClock();
+        line.MarqueeClock = clock;
+        Button fas = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.SpeedFinalApproach);
+
+        RaisePointer(fas, InputElement.PointerEnteredEvent);
+        RenderFrame(menu);
+        menu.Close();
+        Dispatcher.UIThread.RunJobs();
+
+        clock.Advance(TimeSpan.FromMilliseconds(1300));
+        line.RenderMarqueeFrame();
+
+        Assert.Equal(0, clock.TimersCreated);
+        Assert.Equal(0, line.MarqueeOffset);
+    }
+
+    /// <summary>Lays the menu out and renders one deterministic marquee frame against the test clock.</summary>
     private static void RenderFrame(ContextMenu menu)
     {
         menu.UpdateLayout();
+        Line(menu).RenderMarqueeFrame();
         Dispatcher.UIThread.RunJobs();
     }
 
@@ -756,12 +784,15 @@ public class QuickCommandStripTests
         private readonly List<ManualTimer> _timers = [];
         private long _ticks;
 
+        public int TimersCreated { get; private set; }
+
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
         public override long GetTimestamp() => _ticks;
 
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {
+            TimersCreated++;
             var timer = new ManualTimer(() => callback(state), _timers);
             _timers.Add(timer);
             return timer;
