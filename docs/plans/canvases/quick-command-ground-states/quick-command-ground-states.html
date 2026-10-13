@@ -1,0 +1,693 @@
+<meta charset="utf-8">
+<title>Ground Flyout Edge States</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  /* Layout: an answer sheet, then one section per open choice; each section is two or three lanes (A, B, C) of rendered flyout states with a caption, one lane marked recommended. */
+  :root {
+    --bg: #eceff2; --panel: #ffffff; --ink: #15181c; --muted: #58616c; --line: #d3d8de;
+    --accent: #2c5fa6; --tag-a: #1f7f71; --tag-b: #7a4fbf; --tag-c: #a8326b; --warn: #a3520a;
+    --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+      --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013; --panel: #171a1f; --ink: #e5e8ec; --muted: #9aa3ae; --line: #2b3038;
+    --accent: #8fc1ff; --tag-a: #5fd0bf; --tag-b: #c4a3ff; --tag-c: #ff8fc0; --warn: #ffb259;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+  .wrap { max-width: 1720px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  .eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  h1 { font: 600 30px/1.15 var(--f-display); margin: 0 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { max-width: 80ch; color: var(--muted); margin: 0 0 6px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  code { font: 12px var(--f-mono); color: var(--accent); }
+
+  /* Answer sheet. */
+  .sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 18px 0 24px;
+           display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+  .sheet .lbl { font: 500 11px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .sheet .ans { font: 500 16px var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+  .sheet .rec { font: 13px var(--f-mono); color: var(--muted); }
+  .sheet nav { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
+  .sheet nav a { font: 500 12px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: 4px; padding: 3px 9px; }
+  .sheet nav a:hover, .sheet nav a:focus-visible { border-color: var(--accent); outline: none; }
+  .btn { font: 500 13px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* Sections. */
+  .art { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 28px; scroll-margin-top: 12px; }
+  .art-meta { margin-bottom: 14px; }
+  .art-meta h2 { font: 600 22px/1.2 var(--f-display); margin: 0 0 6px; text-wrap: balance; }
+  .art-meta h2 .num { color: var(--muted); margin-right: 6px; }
+  .art-meta p { margin: 0 0 6px; max-width: 86ch; color: var(--muted); }
+  .art-meta p b { color: var(--ink); font-weight: 600; }
+  .switch { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-top: 6px; }
+  .switch button { font: 500 12px var(--f-body); color: var(--ink); background: var(--panel); border: 0; padding: 5px 10px; cursor: pointer; }
+  .switch button + button { border-left: 1px solid var(--line); }
+  .switch button[aria-pressed="true"] { background: var(--accent); color: var(--panel); }
+  .switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .switch-lbl { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 8px; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 16px; align-items: start; }
+  .lane { min-width: 0; display: flex; flex-direction: column; gap: 8px; border: 1px solid transparent; border-radius: 8px; padding: 8px; margin: -8px; }
+  .lane.picked { border-color: var(--accent); }
+  .lane-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 12px var(--f-mono); letter-spacing: .06em; border: 1px solid currentColor; border-radius: 3px; padding: 0 6px; }
+  .tag.a { color: var(--tag-a); } .tag.b { color: var(--tag-b); } .tag.c { color: var(--tag-c); }
+  .lane-h h3 { font: 600 15px/1.25 var(--f-display); margin: 0; flex: 1 1 auto; min-width: 0; }
+  .recpill { font: 600 10.5px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--panel); background: var(--accent); border-radius: 3px; padding: 1px 6px; }
+  .pick { font: 500 11.5px var(--f-mono); color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 1px 8px; cursor: pointer; }
+  .pick[aria-pressed="true"] { color: var(--panel); background: var(--ink); border-color: var(--ink); }
+  .pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .sent { font-size: 12px; color: var(--muted); min-height: 18px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .sent b { color: var(--ink); font-weight: 600; }
+  .sent code { font: 12px var(--f-mono); color: var(--accent); }
+  .sent .w { color: var(--warn); }
+  .cap { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+  .cap dt { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+  .cap dd { margin: 0; }
+  .cap dd.worst { color: var(--warn); }
+  .why { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--line); max-width: 96ch; font-size: 13.5px; }
+  .why b { font-weight: 600; }
+  .steps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .steps button { font: 500 12px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; text-align: left; }
+  .steps button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+  .steps button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .stepnote { font-size: 13px; color: var(--muted); margin-top: 6px; max-width: 86ch; }
+  footer.foot { color: var(--muted); font-size: 12px; margin-top: 18px; max-width: 86ch; }
+
+  /* The app's own surfaces: YAAT runs Avalonia Fluent in dark only, so these stay dark in either page theme. */
+  .stage { background: #0b0d10; border: 1px solid #22262c; border-radius: 8px; padding: 12px; overflow-x: auto; color-scheme: dark; position: relative; }
+  .pair { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+  .pair > .menu.w { flex: 1 1 300px; min-width: 0; }
+  .m { font: 14px/1.3 Inter, "Segoe UI", system-ui, sans-serif; color: #ffffff; }
+  .menu { background: #2c2c2c; border: 1px solid #474747; border-radius: 8px; padding: 4px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+          width: max-content; min-width: 190px; max-width: 480px; position: relative; }
+  .menu.w { width: 100%; max-width: 480px; }
+  .mi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; min-height: 32px; padding: 5px 11px; border-radius: 4px; cursor: default; }
+  .mi[data-send], .mi[data-tog] { cursor: pointer; }
+  .mi[data-send]:hover, .mi[data-tog]:hover, .mi.hot { background: rgba(255, 255, 255, .085); }
+  .mi[data-send]:focus-visible { outline: 2px solid #8fc1ff; outline-offset: -2px; }
+  .mi.kfocus { outline: 2px solid #8fc1ff; outline-offset: -2px; background: rgba(255, 255, 255, .085); }
+  .mi.dis { opacity: .4; }
+  .mi.plain { grid-template-columns: minmax(0, 1fr) auto; }
+  .mi.sec { min-height: 26px; padding-top: 6px; padding-bottom: 2px; font-size: 12px; font-weight: 600; color: #cfd4da; grid-template-columns: 1fr; }
+  .mi.title { grid-template-columns: 1fr auto; min-height: 24px; padding-top: 4px; padding-bottom: 2px; font-size: 11px; letter-spacing: .02em; color: #a4adb8; }
+  .mi.title .r { font: 11px "JetBrains Mono", Consolas, monospace; color: #8c95a0; }
+  .msep { height: 1px; background: #3d3d3d; margin: 4px 2px; }
+  .chev { color: #b9bfc6; padding-left: 10px; font-size: 15px; }
+  .lbl { min-width: 0; }
+  .lbl .rsn { font-size: 12px; opacity: .85; }
+  .bdg { border: 1px solid var(--b); color: var(--b); border-radius: 3px; padding: 0 3px; font-size: 11px; line-height: 15px; margin-right: 8px; }
+  .nm { min-width: 0; display: flex; align-items: baseline; flex-wrap: nowrap; overflow: hidden; }
+  .nm .n { white-space: nowrap; }
+  .nm.col { flex-direction: column; align-items: flex-start; }
+  .sb { font-weight: 600; }
+  .det-i { font-size: 12px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .det-s { font-size: 11px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .note { font-size: 12px; opacity: .8; white-space: nowrap; }
+  .dist { padding-left: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
+  .dist.chg { color: #8fc1ff; }
+  .cmd { padding-left: 16px; font: 12px "JetBrains Mono", Consolas, monospace; opacity: .7; text-align: right; white-space: nowrap; }
+  .gly { flex: 0 0 auto; display: block; }
+  .grow > .gly { margin-right: 8px; }
+  .grow.dim > :not(.nm), .grow.dim .nm > .n { opacity: .5; }
+  .grow.dim .cmd { opacity: .35; }
+  .grow.tr { height: 44px; }
+  .mi.gone > * { opacity: .38; }
+  .mi.gone .det-s { color: #ffc062; opacity: .7; }
+  .under { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .tbox { font: 13px Inter, "Segoe UI", sans-serif; color: #fff; background: rgba(255, 255, 255, .06); border: 1px solid #5a5a5a; border-bottom-color: #9a9a9a;
+          border-radius: 4px; padding: 4px 8px; height: 28px; }
+  .tbox::placeholder { color: #8f969e; }
+  .tbox:focus { outline: none; border-bottom: 2px solid #8fc1ff; background: #1f1f1f; }
+  .boxrow { display: flex; align-items: center; gap: 10px; padding: 6px 11px 4px; }
+  .boxrow .tbox { flex: 1; min-width: 0; }
+  .boxrow .gly { margin-right: 0; }
+  .hint { font-size: 11.5px; color: #a4adb8; padding: 2px 11px 6px; }
+  .hint code { font: 11.5px "JetBrains Mono", Consolas, monospace; color: #8fc1ff; }
+  .empty { font-size: 12.5px; color: #a4adb8; padding: 8px 11px 10px; }
+  .empty.blank { height: 96px; padding: 0; }
+  .scroll { overflow-y: auto; scrollbar-color: #555 transparent; }
+  .scroll .mi.sec { position: sticky; top: 0; background: #2c2c2c; z-index: 1; }
+  .mark { width: 14px; text-align: center; font-size: 10px; margin-right: 6px; }
+  .mark.mv { color: #6ee0ce; } .mark.pk { color: #8c95a0; }
+
+  /* The aircraft menu stub: title, state line, the strip. */
+  .mtitle { font-weight: 700; padding: 6px 11px 0; }
+  .mstate { font-size: 11px; opacity: .8; padding: 2px 11px 6px; }
+  .mstate.named { opacity: 1; color: #ffc062; }
+  .strip { display: grid; grid-template-columns: repeat(5, 40px); gap: 6px; padding: 6px 11px; }
+  .cell { width: 40px; height: 40px; border-radius: 4px; background: #1f2226; display: grid; place-items: center; position: relative; }
+  .cell.latched { background: #24406a; }
+  .cell.off { opacity: .32; }
+  .cell.pointed { box-shadow: 0 0 0 1px #8c95a0 inset; }
+  .cell.moved { outline: 1px dashed #ffc062; outline-offset: 2px; }
+  .cell .notch { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 6px solid transparent; border-bottom: 6px solid #9aa3ad; }
+  .mi.faint { opacity: .55; }
+
+  /* Hold-short ladder. */
+  .ladder { position: relative; padding: 2px 0; }
+  .ladder::before { content: ""; position: absolute; left: 22px; top: 18px; bottom: 18px; width: 2px; background: #3f6f68; }
+  .stop { grid-template-columns: 24px minmax(0, 1fr) auto auto; position: relative; }
+  .stop .bar { width: 22px; height: 10px; display: block; position: relative; z-index: 1; }
+  .stop.end { opacity: .5; }
+  .ladder .empty { padding-left: 46px; position: relative; }
+
+  /* Mock-only annotations (not app UI): dashed amber notes. */
+  .anno { font: 11.5px/1.35 Inter, "Segoe UI", sans-serif; color: #ffffff; background: #1d1f23; border: 1px dashed #ffc062; border-radius: 4px; padding: 5px 8px; max-width: 260px; }
+  .anno b { color: #ffc062; font-weight: 600; }
+
+  /* Scope inset. */
+  .scope { flex: 0 0 250px; max-width: 100%; background: #050607; border: 1px solid #2a2f36; border-radius: 6px; padding: 6px; }
+  .scope svg { display: block; width: 100%; height: auto; }
+  .scope .sc-cap { font: 11px/1.35 Inter, sans-serif; color: #a4adb8; padding: 4px 2px 0; }
+
+  /* Short-screen frame, drawn at true size and scaled to the lane. */
+  .screen-fit { position: relative; overflow: hidden; border-radius: 6px; }
+  .screen { position: absolute; left: 0; top: 0; width: 700px; height: 800px; transform-origin: 0 0; background: #07090b; overflow: hidden; }
+  .screen .bgmap { position: absolute; inset: 0; }
+  .screen .taskbar { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: #1c1f24; border-top: 1px solid #30353c;
+                     font: 12px Inter, sans-serif; color: #8c95a0; display: flex; align-items: center; padding-left: 12px; }
+  .screen .topfade { position: absolute; left: 0; right: 0; top: 0; height: 36px; background: linear-gradient(#07090b, rgba(7, 9, 11, 0)); font: 12px Inter, sans-serif;
+                     color: #6b7480; padding: 6px 12px; z-index: 6; }
+  .screen .stubm { position: absolute; left: 40px; top: 344px; }
+  .screen .fly { position: absolute; width: 380px; z-index: 3; }
+  .screen .ghost { position: absolute; border: 2px dashed #ffc062; border-radius: 8px; z-index: 2; opacity: .7; pointer-events: none; }
+  .screen .ghost span { position: absolute; right: 8px; bottom: 6px; font: 12px Inter, sans-serif; color: #ffc062; }
+  .screen .cursor { position: absolute; width: 18px; height: 24px; z-index: 7; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .art { padding: 12px; }
+    .stage { padding: 8px; }
+    .cmd { font-size: 11px; padding-left: 8px; }
+    .dist { padding-left: 8px; font-size: 12px; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">YAAT-569 · ground family · open choices · mock for the owner's feedback</div>
+  <h1>Ground flyouts: edge states</h1>
+  <p class="lede">The designs for <b>Hold short of</b> (route ladder), <b>Follow</b> (filter box over one scrolling list) and <b>Give way to</b> (one list nearest first, “Show n more” in place), and the live refill that feeds them, are settled. These five choices are what the designs leave open. Each section shows two or three options as rendered flyout states, with how each behaves and its worst case. One lane per section is marked recommended, with the reason under the lanes.</p>
+  <p class="lede">Answer as <b>1B, 2A, …</b>. The Pick buttons fill in the answer sheet below so it can be copied. Traffic, routes and distances are illustrative KOAK ground traffic; taxiway geometry is not checked against the layout.</p>
+
+  <div class="sheet" role="group" aria-label="Answer sheet">
+    <span class="lbl">Your picks</span>
+    <span class="ans" id="ans">1– · 2– · 3– · 4– · 5–</span>
+    <button type="button" class="btn" id="copy">Copy</button>
+    <span class="rec" id="recline"></span>
+    <nav id="index" aria-label="Sections"></nav>
+  </div>
+
+  <div id="arts"></div>
+
+  <footer class="foot">Row templates and colours copied from the chosen designs (<code>docs/plans/canvases/quick-command-flyouts/</code>, <code>quick-command-live-refill/</code>): Inter text, commands in JetBrains Mono at 70%, outlined RW/TW badges, 22 px glyphs at stroke 1.9 in the ground colour, the Fluent dark menu surface, strip cells 40 px with the corner notch, runway bars as amber double lines and taxiway bars as teal dashed ones. Dashed amber boxes, the pointer and the dashed outline of where a flyout would open are mock annotations, not app UI. In the scope insets the blue ring and line stand for the existing aircraft highlight and route preview; their real look is whatever <code>HighlightAircraft</code> and <code>SetRoutePreview</code> draw today.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const G = "#6EE0CE";
+  const GL = {
+    HP: "M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6",
+    RES: "M7 4l13 8-13 8z",
+    HS: "M3 7h18 M3 10h18 M3 14h3 M9 14h3 M15 14h3 M3 17h3 M9 17h3 M15 17h3",
+    CROSS: "M3 8h18 M3 16h18 M12 3v18 M9 18l3 3 3-3",
+    FOL: "M4 17l5-5-5-5 M13 17l5-5-5-5",
+    GW: "M3 5h18L12 20z",
+    BRK: "M3 12h6 M15 12h6 M10 6l4 12",
+    DRAW: "M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3",
+  };
+  const LABEL = { HP: "Hold position", RES: "Resume taxi", HS: "Hold short of", CROSS: "Cross", FOL: "Follow", GW: "Give way to", BRK: "Ignore ground conflicts", DRAW: "Draw taxi route" };
+  const OPENS = new Set(["HS", "FOL", "GW"]);
+  const BADGE = { TW: "#4FB8A8", RW: "#E8A33D" };
+  const UNFILLED = "···";
+  const RECOMMENDED = { 1: "B", 2: "B", 3: "B", 4: "B", 5: "A" };
+
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const ft = n => `~${n.toLocaleString("en-US")} ft`;
+  const gl = (id, size = 22) => `<svg class="gly" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${G}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${GL[id]}"/></svg>`;
+  const menu = (inner, cls = "", label = "") => `<div class="menu m ${cls}" role="menu"${label ? ` aria-label="${esc(label)}"` : ""}>${inner}</div>`;
+  const sep = () => `<div class="msep" role="separator"></div>`;
+  const sec = t => `<div class="mi sec">${esc(t)}</div>`;
+  const title = (t, r = "") => `<div class="mi title"><span>${esc(t)}</span><span class="r">${esc(r)}</span></div>`;
+  const sendAttr = cmd => `data-send="${esc(cmd)}" tabindex="0"`;
+  const plain = (label, o = {}) => `<div class="mi plain${o.dis ? " dis" : ""}${o.faint ? " faint" : ""}" role="menuitem"${o.dis ? ` aria-disabled="true"` : ""}><span class="lbl">${label}</span>${o.sub ? `<span class="chev">›</span>` : "<span></span>"}</div>`;
+
+  /** A designed glyph row: glyph or lead, label (HTML), note, optional block under the name, distance, command. */
+  function grow(o) {
+    const act = o.cmd && !o.nosend ? sendAttr(o.cmd) : (o.tog ? `data-tog="1" tabindex="0"` : "");
+    const name = `<span class="nm${o.under ? " col" : ""}"><span class="n${o.sb ? " sb" : ""}">${o.label}${o.note ? `<span class="note">&nbsp;· ${esc(o.note)}</span>` : ""}</span>${o.under || ""}</span>`;
+    const cls = ["mi", "grow", o.dim && "dim", o.cls].filter(Boolean).join(" ");
+    return `<div class="${cls}" role="menuitem"${o.gone ? ` aria-disabled="true"` : ""} ${act}${o.id ? ` id="${o.id}"` : ""}>${o.g ? gl(o.g) : (o.lead || "<span></span>")}${name}<span class="dist${o.chg ? " chg" : ""}">${esc(o.dist || "")}</span><span class="cmd">${esc(o.shown !== undefined ? o.shown : (o.cmd || ""))}</span><span></span></div>`;
+  }
+
+  /** The aircraft menu stub: title, state line, strip, and the rows under it. */
+  function stubMenu(s) {
+    const cells = s.strip.map(id => {
+      const cls = ["cell", id === s.active && "latched", s.off && s.off.includes(id) && "off", id === s.pointed && "pointed", id === s.moved && "moved"].filter(Boolean).join(" ");
+      const notch = OPENS.has(id) && !(s.off && s.off.includes(id)) ? `<i class="notch"></i>` : "";
+      return `<span class="${cls}" title="${esc(LABEL[id])}" role="img" aria-label="${esc(LABEL[id])}">${gl(id, 32)}${notch}</span>`;
+    }).join("");
+    const rows = ["Track", "Data Block", "All Commands"].map(r => plain(r, { sub: true, faint: true })).join("");
+    return menu(`<div class="mtitle">${esc(s.title)}</div><div class="mstate${s.named ? " named" : ""}">${esc(s.state)}</div>${sep()}${plain("Command…", { faint: true })}${sep()}<div class="strip">${cells}</div>${sep()}${rows}`, `stubm ${s.cls || ""}`, "Aircraft menu");
+  }
+
+  const barMark = b => b === "RW"
+    ? `<svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><rect width="22" height="10" fill="#2c2c2c"/><path d="M1 3H21 M1 7H21" stroke="#E8A33D" stroke-width="1.8"/></svg>`
+    : (b === "SPOT"
+      ? `<svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><rect width="22" height="10" fill="#2c2c2c"/><circle cx="11" cy="5" r="3.6" fill="none" stroke="#4FB8A8" stroke-width="1.6"/></svg>`
+      : `<svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><rect width="22" height="10" fill="#2c2c2c"/><path d="M1 3H21" stroke="#4FB8A8" stroke-width="1.8"/><path d="M1 7H21" stroke="#4FB8A8" stroke-width="1.8" stroke-dasharray="3 3"/></svg>`);
+  const meRow = (cs, where) => `<div class="mi stop me"><svg class="bar" viewBox="0 0 22 10" aria-hidden="true"><circle cx="11" cy="5" r="4.5" fill="${G}"/></svg><span class="nm"><span class="n sb">${esc(cs)}</span><span class="note">&nbsp;· now, ${esc(where)}</span></span><span></span><span></span></div>`;
+  const stopRow = (x, cls = "") => `<div class="mi stop ${cls}" role="menuitem" ${sendAttr("HS " + x.name)}>${barMark(x.b)}<span class="nm"><span class="bdg" style="--b:${BADGE[x.b]}">${x.b}</span><span class="n sb">${esc(x.name)}</span><span class="det-i">&nbsp;· ${esc(x.where)}</span></span><span class="dist">${ft(x.d)}</span><span class="cmd">HS ${esc(x.name)}</span></div>`;
+  const endRow = e => `<div class="mi stop end" aria-disabled="true">${barMark(e.mark)}<span class="nm"><span class="n">${esc(e.name)}</span><span class="note">&nbsp;· ${esc(e.note)}</span></span><span class="dist">${ft(e.d)}</span><span></span></div>`;
+
+  /** A row whose command follows a typed box: empty, it shows the unfilled marker, fades and sends nothing. */
+  function boxRow(o) {
+    const box = `<input class="tbox" type="text" id="${o.id}" placeholder="${esc(o.ph)}" data-tpl="${esc(o.tpl)}" aria-label="${esc(o.aria)}" maxlength="6" style="width:110px" autocomplete="off" spellcheck="false">`;
+    return `<div class="mi grow dim" role="menuitem" data-send="" data-tplrow="${o.id}">${gl(o.g)}<span class="nm col"><span class="n">${esc(o.label)}</span><span class="under">${box}</span></span><span class="dist"></span><span class="cmd">${esc(o.tpl.replace("{}", UNFILLED))}</span><span></span></div>`;
+  }
+
+  function lane(sectionNo, l) {
+    const rec = RECOMMENDED[sectionNo] === l.tag;
+    return `<section class="lane" data-lane data-sec="${sectionNo}" data-tag="${l.tag}">
+      <div class="lane-h"><span class="tag ${l.tag.toLowerCase()}">${sectionNo}${l.tag}</span><h3>${esc(l.name)}</h3>${rec ? `<span class="recpill">Recommended</span>` : ""}<button type="button" class="pick" data-pick="${sectionNo}:${l.tag}" aria-pressed="false">Pick ${sectionNo}${l.tag}</button></div>
+      <div class="stage">${l.body}</div>
+      <div class="sent" data-sent>${l.now || "Click a row to see what it sends."}</div>
+      <dl class="cap"><dt>How it behaves</dt><dd>${l.how}</dd><dt>Worst case</dt><dd class="worst">${l.worst}</dd></dl>
+    </section>`;
+  }
+
+  /* ---------- 1. Hold short of with nothing to ladder ---------- */
+  const TAXI_STRIP = ["HP", "HS", "CROSS", "FOL", "GW", "BRK"];
+  const S1 = {
+    noroute: { label: "No taxi route", state: "Taxiing · 15 kt · no route", on: "taxiing on D", right: "no taxi route", empty: "No taxi route, so there are no bars to list.", end: null, reason: "no taxi route" },
+    nostops: { label: "No bars before the runway", state: "Taxiing · 15 kt · via W · RWY 30", on: "taxiing on W", right: "route W", empty: "No bars before RWY 30.",
+      end: { mark: "RW", name: "RWY 30", note: "route ends here, already held", d: 2300 }, reason: "no bars before RWY 30" },
+    spot: { label: "Route ends at a spot", state: "Taxiing · 12 kt · via W V · spot 5", on: "taxiing on W", right: "route W V", empty: "No bars on the way to spot 5.",
+      end: { mark: "SPOT", name: "Spot 5", note: "route ends here", d: 1400 }, reason: "no bars on the way to spot 5" },
+  };
+  function s1Lanes(k) {
+    const c = S1[k];
+    const ladderInner = meRow("N52417", c.on) + `<div class="empty">${esc(c.empty)}</div>` + (c.end ? endRow(c.end) : "");
+    const flyB = menu(title("Hold short of", c.right) + `<div class="${c.end ? "ladder" : ""}">${ladderInner}</div>` + sep()
+      + boxRow({ id: "s1-box-" + k, g: "HS", label: "Hold short of", ph: "twy or rwy", tpl: "HS {}", aria: "Hold short of a taxiway or runway" }), "w", "Hold short of flyout");
+    const allCmds = menu(title("All Commands › Ground", "") + plain("Hold position") + plain(`Hold short of… <span class="rsn">· ${esc(c.reason)}</span>`, { dis: true }) + plain("Cross…", { sub: true }) + plain("Follow…", { sub: true }) + plain("Give way to…", { sub: true }), "w", "All Commands, ground block");
+    return [
+      { tag: "A", name: "Hide the command",
+        body: `<div class="pair">${stubMenu({ title: "N52417 · C172", state: c.state, strip: TAXI_STRIP.filter(x => x !== "HS"), moved: "CROSS" })}<div class="anno"><b>No Hold short of button.</b> CROSS slides into its slot and every icon after it moves left one place. All Commands drops the row too.</div></div>`,
+        how: "Today's behaviour: the builder returns nothing, so the strip and All Commands leave the entry out until the route has a bar to list.",
+        worst: "The strip shifts under a practised hand: a click where Hold short of usually sits opens Cross instead, and on the next aircraft with a route the button is back." },
+      { tag: "B", name: "Flyout with an empty line and a typed box",
+        body: `<div class="pair">${stubMenu({ title: "N52417 · C172", state: c.state, strip: TAXI_STRIP, active: "HS" })}${flyB}</div>`,
+        how: `The button stays and opens the ladder's frame: the aircraft's own row, one line saying why there are no stops${c.end ? ", the route's end dimmed" : ""}, then a “Hold short of” box sending <code>HS {typed}</code>. Empty, the box row shows <code>HS ···</code>, fades and sends nothing. A route that ends at a spot closes the ladder with “Spot 5 · route ends here”, also when it does have bars.`,
+        worst: "A typed name that is not a bar on the aircraft's way goes out and comes back refused after the menu has closed (which names the sim accepts here is not checked). The design review chose the ladder over rows ending in a typed box; this brings the box back for the empty case only." },
+      { tag: "C", name: "Disabled, with the reason",
+        body: `<div class="pair">${stubMenu({ title: "N52417 · C172", state: "Hold short of · " + c.reason, named: true, strip: TAXI_STRIP, off: ["HS"], pointed: "HS" })}${allCmds}</div>`,
+        how: "The strip button stays in its slot, faded, and opens nothing; pointing at it names it in the state line with the reason (the YAAT-545 state line). In All Commands the row is disabled with the reason beside it.",
+        worst: "A slot that does nothing on every aircraft taxiing without bars, and an instructor who wants a hold short anyway types <code>HS</code> in the command box." },
+    ];
+  }
+
+  /* ---------- 2. Follow / Give way to with nothing to list ---------- */
+  const folBox = (val, hint) => `<div class="boxrow">${gl("FOL")}<input class="tbox" type="text" value="${esc(val)}" placeholder="Filter or type a callsign" aria-label="Filter or type a callsign" readonly tabindex="-1"></div><div class="hint">${hint}</div>`;
+  function typedRow(val) {
+    return val
+      ? grow({ g: "FOL", label: "Follow as typed", note: "not in the list", cmd: "FOLLOWG " + val })
+      : grow({ g: "FOL", label: "Follow as typed", note: "type a callsign above", shown: "FOLLOWG " + UNFILLED, dim: true });
+  }
+  function s2Lanes(k) {
+    const none = k === "none";
+    const typed = none ? "" : "SWA9";
+    const hintA = none ? "Type a callsign; Enter sends <code>FOLLOWG</code> with it as typed." : `No aircraft matches; Enter sends <code>FOLLOWG ${typed}</code> as typed.`;
+    const emptyLine = none ? "No other aircraft on the ground." : `No aircraft matches “${typed}”.`;
+    const gwFly = menu(`<div class="empty">No other aircraft on the ground.</div>`, "w", "Give way to flyout");
+    const gwNote = `<div class="anno"><b>Give way to</b> has no filter box, so this case is Follow only.</div>`;
+    const folA = menu(folBox(typed, hintA) + `<div class="empty">${esc(emptyLine)}</div>`, "w", "Follow flyout");
+    const folB = menu(folBox(typed, hintA) + `<div class="empty">${esc(emptyLine)}</div>` + sep() + typedRow(typed), "w", "Follow flyout");
+    const folC = menu(folBox(typed, `No aircraft matches; Enter sends <code>FOLLOWG ${typed}</code> as typed.`) + `<div class="empty blank"></div>`, "w", "Follow flyout");
+    const stubC = stubMenu({ title: "SWA1234 · B737", state: "Follow · no other aircraft on the ground", named: true, strip: ["RES", "DRAW", "FOL", "GW"], off: ["FOL", "GW"], pointed: "FOL" });
+    return [
+      { tag: "A", name: "Empty line; Enter only",
+        body: `<div class="pair">${folA}${none ? gwFly : gwNote}</div>`,
+        how: "The flyout opens as usual. With no traffic, one muted line replaces the list in both flyouts; Follow's box still takes a callsign. When the filter matches nothing, both section titles hide, one line says so, and the hint line names what Enter sends.",
+        worst: "The only way to send the typed callsign is Enter: a pointer user who typed it sees no row to click, and the hint line is the one easy-to-miss cue that Enter does anything." },
+      { tag: "B", name: "Empty line plus a send-as-typed row",
+        body: `<div class="pair">${folB}${none ? gwFly : gwNote}</div>`,
+        how: "As A, plus a last row in Follow, “Follow as typed”, that shows the exact command Enter sends and sends it on a click. With an empty box it reads <code>FOLLOWG ···</code>, fades and sends nothing, like the other typed-box rows. Give way to is the same as A.",
+        worst: "The row sends a callsign that is not on the ground (a typo, or an aircraft that has not spawned yet); the sim refuses it after the menu has closed." },
+      { tag: "C", name: "Inert when empty, silent filter",
+        body: none ? `<div class="pair">${stubC}<div class="anno"><b>Neither flyout opens.</b> Follow and Give way to are faded; pointing names the reason in the state line. If the list empties while a flyout is open, it shows A's empty line.</div></div>` : `<div class="pair">${folC}${gwNote}</div>`,
+        how: "With no traffic when the menu opens, the Follow and Give way to buttons stay in place, faded, and open nothing. A filter that matches nothing hides every row and title and adds no line; the hint line alone says what Enter sends.",
+        worst: "Follow cannot be aimed at an aircraft about to spawn; and the filtered flyout's blank body reads as a rendering failure, not as “nothing matches”." },
+    ];
+  }
+
+  /* ---------- 3. Short screen ---------- */
+  const SCR = { W: 700, H: 800, USABLE: 760, ROW: 44, SEC: 26, FULL_ROWS: 8, MIN_ROWS: 4 };
+  const MOVING = [
+    ["UAL455", "A320", "taxiing on W", 600], ["N52417", "C172", "taxiing on L", 1250], ["SKW5521", "CRJ7", "pushing back · gate 24", 1700],
+    ["ASA1102", "B739", "taxiing on U", 2200], ["FDX1290", "B763", "taxiing on V", 3900], ["AAL2231", "A321", "taxiing on B", 5400], ["SWA3317", "B38M", "taxiing on P · live feed", 6100],
+  ];
+  const PARKED = [
+    ["DAL1508", "B739", "holding short 30 at W1", 800], ["N8123K", "PA28", "at parking · north ramp", 1900], ["SWA2210", "B737", "at parking · gate 21", 2050],
+    ["JBU1135", "A320", "at parking · gate 25", 2400], ["ASA640", "B738", "at parking · gate 27", 3300], ["SWA1977", "B737", "holding in position on W", 4100],
+  ];
+  const tRow = (r, verb, g, extra = {}) => grow({ g, label: `${esc(r[0])} <span class="note" style="opacity:.75">${esc(r[1])}</span>`, sb: true, under: `<span class="det-s">${esc(r[2])}</span>`, dist: ft(r[3]), cmd: `${verb} ${r[0]}`, cls: "tr", ...extra });
+  const followFly = () => menu(folBox("", "Enter sends the top match.") + `<div class="scroll">${sec("Moving")}${MOVING.map(r => tRow(r, "FOLLOWG", "FOL")).join("")}${sec("Parked or holding")}${PARKED.map(r => tRow(r, "FOLLOWG", "FOL")).join("")}</div>`, "w fly", "Follow flyout");
+  const cursorSvg = `<svg class="cursor" viewBox="0 0 18 24" aria-hidden="true"><path d="M1.5 1.5v18.2l4.6-4.3 3 6.8 3.1-1.4-3-6.7h6.3z" fill="#ffffff" stroke="#000000" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  const bgMap = `<svg class="bgmap" viewBox="0 0 700 800" aria-hidden="true"><g fill="none" stroke="#1a2026" stroke-width="10" stroke-linecap="round"><path d="M-10 120H710"/><path d="M-10 230H710"/></g><g fill="none" stroke="#14191e" stroke-width="5"><path d="M120 0V800"/><path d="M560 0V800"/><path d="M0 600H700"/></g><g fill="#5d6873"><circle cx="560" cy="180" r="4"/><circle cx="610" cy="520" r="4"/><circle cx="120" cy="80" r="4"/></g></svg>`;
+  const screen = mode => `<div class="screen-fit" data-screen="${mode}"><div class="screen">${bgMap}<div class="topfade">Screen continues above (1366 × 768 laptop)</div>${stubMenu({ title: "SWA1234 · B737", state: "Holding on ground · W", strip: ["RES", "DRAW", "FOL", "GW"], active: "FOL" })}<div class="ghost"><span>where it would open</span></div>${followFly()}${cursorSvg}<div class="taskbar">Taskbar · screen bottom</div></div></div>`;
+  const n = key => `<span data-n="${key}">…</span>`;
+  function s3Lanes() {
+    return [
+      { tag: "A", name: "Flip above the anchor", body: screen("a"),
+        how: `When the flyout does not fit below, it opens upward: its bottom edge level with the strip button, all eight rows kept. The menu's left-or-right flip at the screen's side edge (FlipX) is unchanged in every lane.`,
+        worst: `The filter box lands ${n("a-box")} px above the pointer and the nearest aircraft sit at the top, the far end from the button; on a menu opened mid-screen it can run off the top as well and still has to slide.` },
+      { tag: "B", name: "Shrink the list, then scroll", body: screen("b"),
+        how: `The flyout opens level with the strip as usual and the list shows only the rows that fit above the screen edge, never fewer than four; the rest scroll as the list already does. With room for under four rows it slides as C. The ladder does not scroll, so it always slides as C.`,
+        worst: `Here only ${n("b-rows")} rows show: the Parked or holding title starts below the fold and the fifth-nearest aircraft needs a scroll. A short list hides more of the live refill's movement.` },
+      { tag: "C", name: "Keep the size, slide inward", body: screen("c"),
+        how: `The flyout keeps all eight rows and slides up until its bottom meets the screen edge. This is what the strip's flyout already does today (FlipX | SlideY), so it costs nothing to build.`,
+        worst: `It rides up ${n("c-slide")} px: the pointer moving straight right from the button lands on ${n("c-row")}, not on the box, and (with choice 4 A or B) highlights that aircraft on the scope on the way in.` },
+    ];
+  }
+
+  /* ---------- 4. Preview while a row has focus or hover ---------- */
+  const HS_STOPS = [{ b: "RW", name: "28R", where: "on D", d: 400 }, { b: "TW", name: "C", where: "crossing on D", d: 900 }, { b: "RW", name: "28L", where: "on B", d: 1850 }];
+  const S4 = {
+    hs: { label: "Hold short of", target: "28L" },
+    fol: { label: "Follow", target: "UAL455" },
+    gw: { label: "Give way to", target: "N52417" },
+  };
+  function s4Flyout(k) {
+    if (k === "hs") {
+      return menu(title("Hold short of", "route D B") + `<div class="ladder">${meRow("N52417", "taxiing on D")}${HS_STOPS.map(x => stopRow(x, x.name === "28L" ? "kfocus" : "")).join("")}${endRow({ mark: "RW", name: "RWY 30", note: "route ends here, already held", d: 3600 })}</div>`, "w", "Hold short of flyout");
+    }
+    if (k === "fol") {
+      const mv = [["N52417", "C172", "taxiing on C", 450], ["UAL455", "A320", "taxiing on B", 700], ["DAL1508", "B739", "taxiing on W", 1900]];
+      return menu(folBox("", "Enter sends the top match.") + `<div class="scroll">${sec("Moving")}${mv.map(r => tRow(r, "FOLLOWG", "FOL", r[0] === "UAL455" ? { cls: "tr kfocus" } : {})).join("")}${sec("Parked or holding")}${tRow(["N8123K", "PA28", "at parking · north ramp", 2200], "FOLLOWG", "FOL")}</div>`, "w", "Follow flyout");
+    }
+    const all = [["N52417", "C172", true, "taxiing on C", 450], ["UAL455", "A320", true, "taxiing on B", 700], ["DAL1508", "B739", true, "taxiing on W", 1900], ["N8123K", "PA28", false, "at parking · north ramp", 2200]];
+    return menu(title("Nearest first", "▶ moving  ■ parked") + all.map(r => grow({ lead: `<span class="mark ${r[2] ? "mv" : "pk"}">${r[2] ? "▶" : "■"}</span>`, label: `${esc(r[0])} <span class="note" style="opacity:.75">${esc(r[1])}</span>`, sb: true, under: `<span class="det-s">${esc(r[3])}</span>`, dist: ft(r[4]), cmd: `GW ${r[0]}`, cls: r[0] === "N52417" ? "tr kfocus" : "tr" })).join(""), "w", "Give way to flyout");
+  }
+  /** Ground schematic: 28R, 28L, 30 east-west; D south from the ramp, then B east and south to 30. */
+  function scope(k, mode) {
+    const lbl = (x, y, t, fill = "#8c95a0", anchor = "start") => `<text x="${x}" y="${y}" font-family="JetBrains Mono, monospace" font-size="8" fill="${fill}" text-anchor="${anchor}">${t}</text>`;
+    const rwy = (y, name) => `<rect x="8" y="${y - 4}" width="234" height="8" fill="#2b3036"/>${lbl(10, y - 6, name, "#6b7480")}`;
+    const ac = (x, y, cs, own) => `<circle cx="${x}" cy="${y}" r="${own ? 4 : 3.2}" fill="${own ? G : "#d9dde2"}"/>${lbl(x + 6, y - 4, cs, own ? G : "#a4adb8")}`;
+    const ring = (x, y) => `<circle cx="${x}" cy="${y}" r="8.5" fill="none" stroke="#8fc1ff" stroke-width="1.6"/><circle cx="${x}" cy="${y}" r="12" fill="none" stroke="#8fc1ff" stroke-width=".8" opacity=".5"/>`;
+    const hsBar = (x, y, rw) => rw ? `<path d="M${x - 6} ${y - 1.5}h12 M${x - 6} ${y + 1.5}h12" stroke="#E8A33D" stroke-width="1.3"/>` : `<path d="M${x - 6} ${y - 1.5}h12" stroke="#4FB8A8" stroke-width="1.3"/><path d="M${x - 6} ${y + 1.5}h12" stroke="#4FB8A8" stroke-width="1.3" stroke-dasharray="2 2"/>`;
+    let g = `<rect width="250" height="165" fill="#050607"/>` + rwy(34, "28R") + rwy(96, "28L") + rwy(150, "30");
+    g += `<g fill="none" stroke="#3a414a" stroke-width="3"><path d="M60 6V70H150V146"/><path d="M14 52H230"/><path d="M150 126H240"/></g>`;
+    g += lbl(64, 64, "D") + lbl(100, 66, "B") + lbl(216, 48, "C") + lbl(226, 122, "W");
+    let cap = "";
+    if (k === "hs") {
+      g += hsBar(60, 27, true) + hsBar(60, 46, false) + hsBar(150, 89, true) + hsBar(150, 143, true);
+      g += ac(60, 12, "N52417", true);
+      if (mode === "a") { g += `<rect x="139" y="82" width="22" height="14" rx="3" fill="none" stroke="#8fc1ff" stroke-width="1.6"/>`; cap = "Focus on 28L: its bar is marked; no route drawn."; }
+      if (mode === "b") { g += `<path d="M60 16V70H150V89" fill="none" stroke="#8fc1ff" stroke-width="2.4" stroke-linejoin="round" opacity=".9"/><rect x="139" y="82" width="22" height="14" rx="3" fill="none" stroke="#8fc1ff" stroke-width="1.6"/>`; cap = "Focus on 28L: the route to its bar is drawn, as hover does today."; }
+      if (mode === "c") cap = "Focus on 28L: nothing changes on the scope.";
+    } else {
+      g += ac(60, 14, "SWA1234", true) + ac(30, 52, "N52417") + ac(110, 70, "UAL455") + ac(200, 126, "DAL1508") + ac(226, 14, "N8123K");
+      if (k === "fol") {
+        if (mode !== "c") g += ring(110, 70);
+        if (mode === "b") g += `<path d="M114 70H150V146" fill="none" stroke="#8fc1ff" stroke-width="2.2" stroke-dasharray="5 3" stroke-linejoin="round"/>${lbl(154, 112, "UAL455's route", "#8fc1ff")}`;
+        cap = mode === "a" ? "Focus on UAL455: the aircraft is ringed." : mode === "b" ? "Focus on UAL455: ringed, and its remaining route, the path SWA1234 would trail, drawn." : "Focus on UAL455: nothing changes on the scope.";
+      } else {
+        if (mode !== "c") g += ring(30, 52);
+        if (mode === "b") g += `<path d="M34 52H230" fill="none" stroke="#8fc1ff" stroke-width="2.2" stroke-dasharray="5 3"/><circle cx="60" cy="52" r="4" fill="none" stroke="#ffc062" stroke-width="1.6"/>${lbl(66, 44, "meets your route", "#ffc062")}`;
+        cap = mode === "a" ? "Focus on N52417: the aircraft is ringed." : mode === "b" ? "Focus on N52417: ringed, its route drawn, and the point where it crosses SWA1234's route marked." : "Focus on N52417: nothing changes on the scope.";
+      }
+    }
+    return `<div class="scope"><svg viewBox="0 0 250 165" role="img" aria-label="Ground scope inset, ${esc(cap)}">${g}</svg><div class="sc-cap">${esc(cap)}</div></div>`;
+  }
+  function s4Lanes(k) {
+    const body = mode => `<div class="pair">${s4Flyout(k)}${scope(k, mode)}</div>`;
+    const t = S4[k].target;
+    return [
+      { tag: "A", name: "Highlight the target only", body: body("a"),
+        how: `Hover or keyboard focus on a row marks its target on the scope: the aircraft for Follow and Give way to, the bar itself for a ladder stop. Nothing else is drawn; leaving the row or closing the flyout clears it.`,
+        worst: "The ladder is not to scale, so a marked bar is the only clue to where the stop is; the route to it, which a hold-short row previews on hover today, is no longer drawn." },
+      { tag: "B", name: "Highlight and preview the path", body: body("b"),
+        how: `As A, and also the path: a ladder stop draws the route from the aircraft to that bar (today's hover preview, now on focus too); a Follow row draws the target's remaining route; a Give way row draws its route and marks where it meets this aircraft's. Closing the flyout clears it.`,
+        worst: `Every arrow-key step repaints a route on the scope, so scanning eight rows flickers eight paths across the field; and a preview must be cleared on close, which today's hold-short preview is not on pointer exit.` },
+      { tag: "C", name: "No scope feedback", body: body("c"),
+        how: "The flyout alone carries the information: no highlight, no preview, on hover or on focus. Today's hover highlight (Follow, Give way) and hover route preview (Hold short) go away.",
+        worst: `With two aircraft of one airline on the list, the instructor has to find ${esc(t)} on the scope by reading data blocks; on the ladder, a stop's place on the field is known only from its name and distance.` },
+    ];
+  }
+
+  /* ---------- 5. Show n more under live refill ---------- */
+  const GW0 = [
+    ["UAL455", "A320", true, "taxiing on W", 600], ["DAL1508", "B739", false, "holding short 30 at W1", 800], ["N52417", "C172", true, "taxiing on L", 1250],
+    ["SKW5521", "CRJ7", true, "pushing back · gate 24", 1700], ["N8123K", "PA28", false, "at parking · north ramp", 1900], ["SWA2210", "B737", false, "at parking · gate 21", 2050],
+    ["ASA1102", "B739", true, "taxiing on U", 2200], ["JBU1135", "A320", false, "at parking · gate 25", 2400], ["ASA640", "B738", false, "at parking · gate 27", 3300],
+    ["AAL2231", "A321", true, "taxiing on B", 5400],
+  ];
+  const MOVED = { UAL455: 1300, N52417: 900, ASA1102: 2000, AAL2231: 5000 };
+  const NEWCOMER = ["QXE2310", "DH8D", true, "pushing back · gate 9", 950];
+  function gwRowsAt(step) {
+    if (step === 1) return GW0.map(r => ({ r, gone: false, chg: false }));
+    const later = GW0.filter(r => r[0] !== "SKW5521").map(r => [r[0], r[1], r[2], r[3], MOVED[r[0]] || r[4]]);
+    if (step === 2) {
+      const frozen = GW0.map(r => (r[0] === "SKW5521" ? { r: [r[0], r[1], r[2], "gone", null], gone: true } : { r: [r[0], r[1], r[2], r[3], MOVED[r[0]] || r[4]], gone: false, chg: !!MOVED[r[0]] }));
+      return [...frozen, { r: NEWCOMER, gone: false, chg: false }];
+    }
+    return [...later, NEWCOMER].sort((a, b) => a[4] - b[4]).map(r => ({ r, gone: false, chg: false }));
+  }
+  const S5_STEPS = [
+    { label: "1 · Expanded, pointer inside", note: "The instructor opened Give way to and clicked “Show 2 more”; all ten rows show. Both options are the same here." },
+    { label: "2 · Traffic changes, pointer inside", note: "Four seconds on: SKW5521 departed, QXE2310 pushed back 950 ft away, distances moved. The pointer is inside, so by the settled live-refill rule the order is frozen, SKW5521's row reads gone and QXE2310 is appended. Both options are the same here." },
+    { label: "3 · Pointer leaves", note: "The pointer goes to the scope. The list catches up at once and keeps refilling each second: re-sorted, the gone row dropped. Here the options part." },
+    { label: "4 · Pointer comes back for ASA640", note: "The instructor returns for ASA640, which was the ninth row before they glanced away." },
+  ];
+  function gwFlyout(step, tag) {
+    const rows = gwRowsAt(step);
+    const expanded = step <= 2 || tag === "A";
+    const shown = expanded ? rows : rows.slice(0, 8);
+    const rest = rows.slice(8);
+    const hotCs = step === 2 ? "N52417" : (step === 4 && tag === "A" ? "ASA640" : null);
+    const body = shown.map(x => grow({ lead: `<span class="mark ${x.r[2] ? "mv" : "pk"}" aria-label="${x.r[2] ? "moving" : "parked or holding"}">${x.r[2] ? "▶" : "■"}</span>`,
+      label: `${esc(x.r[0])} <span class="note" style="opacity:.75">${esc(x.r[1])}</span>`, sb: true, under: `<span class="det-s">${esc(x.r[3])}</span>`,
+      dist: x.r[4] === null ? "" : ft(x.r[4]), chg: x.chg, cmd: `GW ${x.r[0]}`, nosend: x.gone, shown: `GW ${x.r[0]}`, gone: x.gone,
+      cls: ["tr", x.gone && "gone", x.r[0] === hotCs && "hot"].filter(Boolean).join(" ") })).join("");
+    const togHot = step === 1 || (step === 4 && tag === "B");
+    const tog = expanded
+      ? grow({ lead: "<span style='width:20px'></span>", label: "Show fewer", tog: true, shown: "▴", cls: togHot ? "hot" : "" })
+      : grow({ lead: "<span style='width:20px'></span>", label: `Show ${rest.length} more`, note: `up to ${ft(Math.max(...rest.map(x => x.r[4])))}`, tog: true, shown: "▾", cls: togHot ? "hot" : "" });
+    return menu(title("Nearest first", "▶ moving  ■ parked") + body + tog, "w", "Give way to flyout");
+  }
+  function s5Now(step, tag) {
+    if (step === 1) return "Pointer on the toggle row it just clicked.";
+    if (step === 2) return "Pointer on N52417 (third row); a click sends <code>GW N52417</code>. QXE2310 sits last although it is the third nearest.";
+    if (step === 3) return tag === "A" ? "Pointer outside. Still expanded: ten rows in distance order, QXE2310 now third." : `Pointer outside. <span class="w">Collapsed back to eight on the refill</span>: ASA640 and AAL2231 are behind “Show 2 more”.`;
+    return tag === "A" ? "ASA640 is the ninth row, where it was; a click sends <code>GW ASA640</code>." : `<span class="w">ASA640 is hidden.</span> The pointer lands on “Show 2 more” and needs a second click before the row it came for appears.`;
+  }
+  function s5Lanes(step) {
+    return [
+      { tag: "A", name: "Stays expanded; newcomers append below", body: gwFlyout(step, "A"), now: s5Now(step, "A"),
+        how: "Once the instructor expands the list it stays expanded until they collapse it or the flyout closes. Inside the pointer, newcomers are appended below the last row; outside, each refill re-sorts the whole expanded list.",
+        worst: "On a busy ramp the expanded list keeps growing with every pushback, about 44 px a row: past twelve aircraft it runs into the screen-edge rule of choice 3, and with B there it starts to scroll." },
+      { tag: "B", name: "Collapses to eight on each refill outside", body: gwFlyout(step, "B"), now: s5Now(step, "B"),
+        how: "Inside the pointer the expanded list behaves as A. The first refill after the pointer leaves collapses it back to the eight nearest and recounts “Show n more”.",
+        worst: "A one-second glance at the scope undoes the expand: the aircraft the instructor came back for is hidden again, every time the pointer leaves, and the flyout's height jumps on each pointer exit." },
+    ];
+  }
+
+  /* ---------- Sections ---------- */
+  const SECTIONS = [
+    { no: 1, id: "s1", title: "Hold short of with nothing to ladder", switchLbl: "Case", cases: Object.entries(S1).map(([k, c]) => [k, c.label]), lanes: s1Lanes,
+      intro: ["<b>N52417</b>, C172, taxiing. The ladder needs bars on the route; three routes give it none: no taxi route at all, a route whose only bar is the destination runway's (already held there), and a route to a spot that crosses no bar. Today the entry is hidden in all three. Switch the case to see each option in each."],
+      why: "<b>Recommended: 1B.</b> It keeps every strip button in its slot, says in one line why there is no ladder, and still lets the instructor hold the aircraft short of a named bar without leaving the menu. A moves the icons under the hand; C keeps the slot but sends the instructor to the command box anyway." },
+    { no: 2, id: "s2", title: "Follow and Give way to with nothing to list", switchLbl: "Case", cases: [["none", "No ground traffic"], ["nomatch", "Follow's filter matches nothing"]], lanes: s2Lanes,
+      intro: ["<b>SWA1234</b>, B737, on the ground. Two empty states: no other aircraft on the ground (or none left after a refill), and Follow's filter matching nothing (“SWA9” typed). The settled rule stands in every option: Enter sends the top match, or <code>FOLLOWG {typed}</code> when nothing matches. The open part is the wording and whether a clickable send-as-typed row appears."],
+      why: "<b>Recommended: 2B.</b> The send-as-typed row shows exactly what Enter will send and makes it clickable, with the same anatomy as the other typed-box rows (<code>HS ···</code>, <code>ER ···</code>). The empty line wording is the same as A: “No other aircraft on the ground.” and “No aircraft matches “SWA9”.”" },
+    { no: 3, id: "s3", title: "Short screen and the eight-row list", lanes: s3Lanes,
+      intro: ["<b>SWA1234</b>'s menu opened low on a 1366 × 768 laptop screen; the Follow flyout (filter box, about eight 44 px rows, 380 px wide under the 480 px cap) does not fit below its strip. Each lane is drawn at true size and scaled to fit; the dashed outline is where the flyout would open with room."],
+      why: "<b>Recommended: 3B</b>, falling back to C below four rows and for the ladder. The filter box and the nearest aircraft stay level with the button where the pointer already is; a shorter list costs only scrolling, which the list does anyway. A puts the box farthest from the pointer, and C puts a random row under it." },
+    { no: 4, id: "s4", title: "Scope feedback while a row has focus or hover", switchLbl: "Flyout", cases: Object.entries(S4).map(([k, c]) => [k, c.label]), lanes: s4Lanes,
+      intro: ["Today a hold-short row previews its route on hover and a Follow or Give way row highlights its aircraft. The new flyouts add keyboard focus (the outlined row: Down from the box or the first row). The open part is what the scope shows for the focused or hovered row. Switch the flyout to compare."],
+      why: "<b>Recommended: 4B</b>, on hover and on focus alike, cleared when the flyout closes. The ladder is not to scale, so the scope is the only place a stop's position shows, and today's hover preview already draws it; a Follow or Give way target's route is what the instructor is judging. A loses today's route preview; C loses both." },
+    { no: 5, id: "s5", title: "“Show n more” while the list changes", steps: true, lanes: s5Lanes,
+      intro: ["<b>SWA1234</b>, B737, taxiing via W U L. Give way to lists the first eight aircraft nearest first, then “Show 2 more” in place. Live refill re-sorts the list each second while the pointer is outside and freezes its order while it is inside. Step through the same four seconds in both options. While collapsed, both options add a newcomer to the hidden rest and the count goes up (“Show 3 more”)."],
+      why: "<b>Recommended: 5A.</b> Expanding is a choice the instructor made; B undoes it within a second of the pointer leaving, which in a busy session is every glance at the scope. A's worst case, a long list on a busy ramp, is handled by choice 3." },
+  ];
+
+  function art(s) {
+    const sw = s.cases ? `<div><span class="switch-lbl">${esc(s.switchLbl)}</span><div class="switch" role="group" aria-label="${esc(s.switchLbl)}">${s.cases.map(([k, l], i) => `<button type="button" data-case="${k}" aria-pressed="${i === 0}">${esc(l)}</button>`).join("")}</div></div>` : "";
+    const steps = s.steps ? `<div class="steps" role="group" aria-label="Step">${S5_STEPS.map((x, i) => `<button type="button" data-step="${i + 1}" aria-pressed="${i === 0}">${esc(x.label)}</button>`).join("")}</div><div class="stepnote" data-stepnote>${esc(S5_STEPS[0].note)}</div>` : "";
+    const first = s.cases ? s.cases[0][0] : (s.steps ? 1 : undefined);
+    return `<section class="art" id="${s.id}">
+      <div class="art-meta"><div class="eyebrow">Choice ${s.no}</div><h2><span class="num">${s.no}</span>${esc(s.title)}</h2>${s.intro.map(p => `<p>${p}</p>`).join("")}${sw}${steps}</div>
+      <div class="lanes" data-lanes>${s.lanes(first).map(l => lane(s.no, l)).join("")}</div>
+      <p class="why">${s.why}</p>
+    </section>`;
+  }
+  document.getElementById("arts").innerHTML = SECTIONS.map(art).join("");
+  document.getElementById("index").innerHTML = SECTIONS.map(s => `<a href="#${s.id}">${s.no} · ${esc(s.title)}</a>`).join("");
+  document.getElementById("recline").textContent = "Recommended: " + Object.entries(RECOMMENDED).map(([k, v]) => k + v).join(", ");
+
+  /* ---------- Short-screen layout ---------- */
+  function offset(el, root) {
+    let x = 0, y = 0;
+    while (el && el !== root) { x += el.offsetLeft; y += el.offsetTop; el = el.offsetParent; }
+    return { x, y };
+  }
+  function placeScreen(fit) {
+    const inner = fit.firstElementChild;
+    const s = Math.min(1, fit.clientWidth / SCR.W);
+    inner.style.transform = `scale(${s})`;
+    fit.style.height = `${Math.round(SCR.H * s)}px`;
+    const mode = fit.dataset.screen;
+    const stub = inner.querySelector(".stubm");
+    const cell = inner.querySelector(".cell.latched");
+    const fly = inner.querySelector(".fly");
+    const ghost = inner.querySelector(".ghost");
+    const list = fly.querySelector(".scroll");
+    const full = SCR.FULL_ROWS * SCR.ROW + SCR.SEC;
+    list.style.maxHeight = `${full}px`;
+    list.scrollTop = 0;
+    const c = offset(cell, inner);
+    const cellTop = c.y, cellBot = c.y + cell.offsetHeight;
+    const left = stub.offsetLeft + stub.offsetWidth - 4;
+    const F = fly.offsetHeight;
+    fly.style.left = ghost.style.left = `${left}px`;
+    ghost.style.top = `${cellTop}px`;
+    ghost.style.width = `${fly.offsetWidth}px`;
+    ghost.style.height = `${F}px`;
+    const lanes = fit.closest("[data-lane]");
+    const set = (k, v) => { const el = lanes.querySelector(`[data-n="${k}"]`); if (el) el.textContent = v; };
+    let top;
+    if (mode === "a") {
+      top = cellBot - F;
+      set("a-box", String(Math.max(0, Math.round(cellTop - top))));
+    } else if (mode === "b") {
+      const chrome = F - full;
+      const rows = Math.max(SCR.MIN_ROWS, Math.min(SCR.FULL_ROWS, Math.floor((SCR.USABLE - cellTop - chrome - SCR.SEC) / SCR.ROW)));
+      list.style.maxHeight = `${rows * SCR.ROW + SCR.SEC}px`;
+      top = Math.min(cellTop, SCR.USABLE - fly.offsetHeight);
+      set("b-rows", String(rows));
+    } else {
+      top = Math.min(cellTop, SCR.USABLE - F);
+      set("c-slide", String(Math.round(cellTop - top)));
+      const probe = cellTop + cell.offsetHeight / 2;
+      const hit = [...fly.querySelectorAll(".mi.grow, .boxrow, .hint, .mi.sec")].find(el => { const o = offset(el, fly); return top + o.y <= probe && probe < top + o.y + el.offsetHeight; });
+      const name = hit && hit.matches(".mi.grow") ? hit.querySelector(".nm .n").childNodes[0].textContent.trim() : null;
+      const idx = hit ? [...fly.querySelectorAll(".mi.grow")].indexOf(hit) + 1 : 0;
+      set("c-row", name ? `the row for ${name} (row ${idx})` : "a section title");
+    }
+    fly.style.top = `${Math.round(top)}px`;
+    const cur = inner.querySelector(".cursor");
+    cur.style.left = `${c.x + cell.offsetWidth - 6}px`;
+    cur.style.top = `${cellTop + cell.offsetHeight / 2 - 4}px`;
+  }
+  const placeAll = () => document.querySelectorAll("[data-screen]").forEach(placeScreen);
+  placeAll();
+  window.addEventListener("resize", placeAll);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeAll);
+
+  /* ---------- Picks ---------- */
+  const STORE = "ground-flyout-edge-picks";
+  let picks = {};
+  try { picks = JSON.parse(localStorage.getItem(STORE) || "{}") || {}; } catch (err) { console.warn("Picks not restored:", err); picks = {}; }
+  const ansText = () => [1, 2, 3, 4, 5].map(k => k + (picks[k] || "–")).join(" · ");
+  function showPicks() {
+    document.getElementById("ans").textContent = ansText();
+    document.querySelectorAll("[data-lane]").forEach(l => {
+      const on = picks[l.dataset.sec] === l.dataset.tag;
+      l.classList.toggle("picked", on);
+      const b = l.querySelector(".pick");
+      b.setAttribute("aria-pressed", String(on));
+    });
+  }
+  showPicks();
+  document.getElementById("copy").addEventListener("click", e => {
+    const text = [1, 2, 3, 4, 5].filter(k => picks[k]).map(k => k + picks[k]).join(", ") || ansText();
+    const btn = e.currentTarget;
+    const done = () => { btn.textContent = "Copied"; setTimeout(() => { btn.textContent = "Copy"; }, 1400); };
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents(document.getElementById("ans")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); btn.textContent = "Selected, press Ctrl+C"; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  });
+
+  /* ---------- Interaction ---------- */
+  const say = (from, html) => { const l = from.closest("[data-lane]"); if (l) l.querySelector("[data-sent]").innerHTML = html; };
+  function rerender(artEl, arg) {
+    const s = SECTIONS.find(x => x.id === artEl.id);
+    artEl.querySelector("[data-lanes]").innerHTML = s.lanes(arg).map(l => lane(s.no, l)).join("");
+    showPicks();
+    artEl.querySelectorAll("[data-screen]").forEach(placeScreen);
+  }
+  document.addEventListener("click", e => {
+    if (e.target.closest("input")) return;
+    const pick = e.target.closest("[data-pick]");
+    if (pick) {
+      const [k, v] = pick.dataset.pick.split(":");
+      picks[k] = picks[k] === v ? undefined : v;
+      try { localStorage.setItem(STORE, JSON.stringify(picks)); } catch (err) { console.warn("Picks not saved:", err); }
+      showPicks();
+      return;
+    }
+    const cs = e.target.closest("[data-case]");
+    if (cs) {
+      const artEl = cs.closest(".art");
+      artEl.querySelectorAll("[data-case]").forEach(b => b.setAttribute("aria-pressed", String(b === cs)));
+      rerender(artEl, cs.dataset.case);
+      return;
+    }
+    const st = e.target.closest("[data-step]");
+    if (st) {
+      const artEl = st.closest(".art");
+      const step = Number(st.dataset.step);
+      artEl.querySelectorAll("[data-step]").forEach(b => b.setAttribute("aria-pressed", String(b === st)));
+      artEl.querySelector("[data-stepnote]").textContent = S5_STEPS[step - 1].note;
+      rerender(artEl, step);
+      return;
+    }
+    const tog = e.target.closest("[data-tog]");
+    if (tog) { say(tog, "Expands or collapses in place; sends nothing. Use the steps above to see the options differ."); return; }
+    const send = e.target.closest("[data-send]");
+    if (send) {
+      const cmd = send.getAttribute("data-send");
+      say(send, cmd ? `Sends <code>${esc(cmd)}</code> and closes the flyout and the menu.` : "Sends nothing while the box is empty or unreadable; the flyout stays open.");
+    }
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target;
+    if (t.matches("input")) {
+      if (e.key !== "Enter") return;
+      const row = t.closest("[data-tplrow]");
+      if (row) row.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      return;
+    }
+    if (t.matches("[data-send], [data-tog]")) { e.preventDefault(); t.dispatchEvent(new MouseEvent("click", { bubbles: true })); }
+  });
+  document.addEventListener("input", e => {
+    const t = e.target;
+    if (!t.hasAttribute("data-tpl")) return;
+    const row = t.closest("[data-tplrow]");
+    const v = t.value.trim().toUpperCase();
+    const ok = /^[A-Z0-9]{1,5}$/.test(v);
+    const cmd = ok ? t.getAttribute("data-tpl").replace("{}", v) : "";
+    row.setAttribute("data-send", cmd);
+    row.classList.toggle("dim", !ok);
+    row.querySelector(".cmd").textContent = ok ? cmd : t.getAttribute("data-tpl").replace("{}", UNFILLED);
+  });
+})();
+</script>
