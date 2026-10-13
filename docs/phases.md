@@ -341,7 +341,11 @@ Skip any of these and old recordings will throw `InvalidOperationException` on r
 
   **A phase whose maneuver lives in live objects the DTO does not carry must therefore rebuild them on its first tick after a restore**: `CrossingRunwayPhase` (`_initialized = false`) and `LineUpPhase` (`_needsRestoreRebuild`).
 
-  `LineUpPhase`'s rebuild is one predicate that never reaches `Fault`: within a main-gear turn radius of the centreline and within `LineUpGeometry.AlignedMaxTurnDeg` of runway heading → complete; within the radius but still turning → the already-aligned rollout, so the nose swings on while rolling; otherwise re-plan from the restored pose with the same `PlanFromCurrentPose` `OnStart` runs.
+  `LineUpPhase`'s snapshot carries the maneuver (state, the pose it was planned from, the arc playback or the graph-taxi navigator and route segment), and the first tick plans it again from that pose and resumes it where it stood, in every state (Rollout and Stop included) and also while held: a held restore runs its steering tick from the first tick, as the original did.
+
+  A saved maneuver whose re-planned kind no longer fits is dropped with a warning. Only then, or for a snapshot without the maneuver, is the rebuild pose-based, and it never reaches `Fault`: within a main-gear turn radius of the centreline and within `LineUpGeometry.AlignedMaxTurnDeg` of runway heading → complete; within the radius but still turning → the already-aligned rollout, so the nose swings on while rolling; otherwise re-plan from the restored pose with the same `PlanFromCurrentPose` `OnStart` runs. A held restore without a saved maneuver waits for the release.
+
+  `ClearRunwayPhase` restores its navigator the same way (`ClearRunwayPhaseDto.Navigator`) and keeps it when the layout is absent.
 
   The restored `RollingMode` decides roll vs hold, and `TryUpgradeToRolling` accepts a `CTO` that lands in the one-tick window before the rebuild.
 

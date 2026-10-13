@@ -19,6 +19,7 @@
 - In replay, stepping by quarter seconds spawns delayed aircraft and fires timed presets in the same second as stepping by whole seconds.
 - In replay, a recorded live-traffic aircraft appears once, with no extra PDC or printed strip the live session never had.
 - ERAM coverage-loss coasts keep their 24 s through rewinds and aircraft removal, and a low handoff still shown as a normal track is auto-accepted.
+- A rewind or replay during a line-up or clear-the-runway turn continues on the original path instead of restarting the turn.
 
 ## v0.16.2-beta [2026/10/11]
 

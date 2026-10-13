@@ -12,8 +12,9 @@ namespace Yaat.Sim.Phases.Ground;
 /// length past the runway's far hold-short bars — the same tail-clearance point a runway crossing with no
 /// trailing hold-short stops at (the append that <c>CrossingRunwayPhase</c> suppresses when a binding taxiway
 /// hold-short is in the way) — then completes into <see cref="HoldingInPositionPhase"/>, just clear of the
-/// runway. The runway hold-short node and the approach (runway-side) node are kept so the navigator can be
-/// rebuilt after a snapshot restore; the navigator itself is transient, like <see cref="CrossingRunwayPhase"/>.
+/// runway. The runway hold-short node and the approach (runway-side) node are kept so the route can be rebuilt
+/// after a snapshot restore, and the snapshot carries the navigator, which resumes the primitive it was playing
+/// (an entry-alignment turn part-way round), like <see cref="CrossingRunwayPhase"/>.
 /// </summary>
 public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Phase
 {
@@ -25,6 +26,9 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
     private TaxiRoute? _route;
     private GroundNavigator? _navigator;
     private bool _initialized;
+
+    /// <summary>The navigator a restored phase came back with, held until the first OnTick rebuilds the route on it.</summary>
+    private GroundNavigatorDto? _restoredNavigator;
 
     public override string Name => "Clearing Runway";
 
@@ -97,6 +101,9 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
                 _runwayNodeId,
                 _approachNodeId
             );
+
+            // A restored navigator has no route to resume on; drop it so a later snapshot does not carry it on.
+            _restoredNavigator = null;
             return;
         }
 
@@ -109,7 +116,11 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
         TaxiRouteSegment segment = VirtualNode.CreateSegment(runwayNode, target, ctx.Aircraft.Ground.CurrentTaxiway ?? "");
         _route = new TaxiRoute { Segments = [segment], HoldShortPoints = [] };
 
-        _navigator = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        // A restored phase takes the navigator from the snapshot, so the set-up below resumes the primitive it was
+        // playing at the progress it had reached (GroundNavigator.TryResumeRestoredPlayback).
+        _navigator = _restoredNavigator is { } savedNavigator ? GroundNavigator.FromSnapshot(savedNavigator) : new GroundNavigator();
+        _navigator.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
+        _restoredNavigator = null;
         _navigator.SetupSegment(_route, ctx, _ => true);
         _initialized = true;
 
@@ -138,6 +149,8 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
             Requirements = SnapshotRequirements(),
             RunwayNodeId = _runwayNodeId,
             ApproachNodeId = _approachNodeId,
+            // A restored phase not yet ticked still holds the navigator it came back with.
+            Navigator = _navigator?.ToSnapshot() ?? _restoredNavigator,
         };
 
     public static ClearRunwayPhase FromSnapshot(ClearRunwayPhaseDto dto)
@@ -146,6 +159,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
         {
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
+            _restoredNavigator = dto.Navigator,
         };
         phase.RestoreRequirements(dto.Requirements);
         return phase;

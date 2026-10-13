@@ -742,7 +742,7 @@ When the navigator appears "stuck", check `Ground.SpeedLimit` and the `[Classify
 
 `FromSnapshot` holds the saved playback instead of installing it: the owning phase's next segment set-up resumes it when that segment's end node matches the saved target node, and drops it otherwise (as does the first navigator tick). `ToSnapshot` writes the held playback while nothing is set up yet, so a snapshot taken between a restore and the first tick stays lossless.
 
-Every navigator user resumes this way: `TaxiingPhase.FromSnapshot` forces `_initialized = false` so the next `OnTick`'s set-up resumes it, and `CrossingRunwayPhase` and `RunwayExitPhase` restore their saved navigator (not a fresh one) before their first set-up.
+Every navigator user resumes this way: `TaxiingPhase.FromSnapshot` forces `_initialized = false` so the next `OnTick`'s set-up resumes it, and `CrossingRunwayPhase`, `RunwayExitPhase` and `ClearRunwayPhase` restore their saved navigator (not a fresh one) before their first set-up, and a graph-taxi `LineUpPhase` plans its route again from the saved start pose and sets the saved navigator up on the saved segment.
 
 A restore mid-turn therefore continues the same arc at the same progress, matching the uninterrupted run. A snapshot without `Playback` (written before the field) restores as before: the rebuilt Bézier's first tick projects the live position onto the curve (`ClosestT`) and continues from there (Invariant I8). A free-space first leg re-anchors its line on the live position too, since `TaxiRoute.FromSnapshot` rebuilds the virtual node at its *original* coordinates.
 

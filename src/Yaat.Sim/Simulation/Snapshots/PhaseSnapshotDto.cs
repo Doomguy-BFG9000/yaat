@@ -400,13 +400,22 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
 
 /// <summary>
 /// Snapshot for <see cref="Yaat.Sim.Phases.Ground.ClearRunwayPhase"/> (issue #172 W5). Carries the runway
-/// hold-short node and the approach (runway-side) node; the navigator is not carried, and the first OnTick after
-/// restore builds a fresh one from those nodes and the aircraft's pose.
+/// hold-short node and the approach (runway-side) node, from which the first OnTick after restore rebuilds the
+/// clearance route, and the navigator that was driving it.
 /// </summary>
 public sealed class ClearRunwayPhaseDto : PhaseDto
 {
     public required int RunwayNodeId { get; init; }
     public required int ApproachNodeId { get; init; }
+
+    /// <summary>
+    /// Navigator state for the clearance segment, including the primitive it was playing and its progress
+    /// (<see cref="GroundNavigatorDto.Playback"/>). The first OnTick after restore rebuilds the segment and sets it up on
+    /// this navigator, which resumes the saved primitive where it stood. Null for a phase that had not built its route,
+    /// and in older snapshots: the restore then builds a fresh navigator. Not written while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GroundNavigatorDto? Navigator { get; init; }
 }
 
 public sealed class AirTaxiPhaseDto : PhaseDto
@@ -1295,6 +1304,66 @@ public sealed class LineUpPhaseDto : PhaseDto
     /// <see cref="LineUpPhase.FromSnapshot"/> so a held aircraft stays held on replay.
     /// </summary>
     public bool HoldPosition { get; init; }
+
+    /// <summary>
+    /// The state machine's position (<see cref="LineUpPhase.State"/>) when the maneuver was under way. With the plan's
+    /// start pose (<see cref="PlanStartLat"/>, <see cref="PlanStartLon"/>, <see cref="PlanStartHeadingDeg"/>) it lets the
+    /// first OnTick after restore plan the same maneuver again and resume it where it stood. Null before the phase planned
+    /// a maneuver, once it faulted, while it finishes on a rollout resumed after an older restore, and in snapshots written
+    /// before the field existed: the restore then re-plans from the aircraft's pose. Not written while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ManeuverState { get; init; }
+
+    /// <summary>Latitude of the pose the maneuver was planned from. See <see cref="ManeuverState"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? PlanStartLat { get; init; }
+
+    /// <summary>Longitude of the pose the maneuver was planned from. See <see cref="ManeuverState"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? PlanStartLon { get; init; }
+
+    /// <summary>True heading (degrees) of the pose the maneuver was planned from. See <see cref="ManeuverState"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? PlanStartHeadingDeg { get; init; }
+
+    /// <summary>
+    /// The arc playback part-way round the aligned arc or a pivot slow turn; null in every other state. Not written while
+    /// null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LineUpArcPlaybackDto? Arc { get; init; }
+
+    /// <summary>The forward-speed cap of the arc in <see cref="Arc"/> (kts); null with it. Not written while null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ArcTargetSpeedKts { get; init; }
+
+    /// <summary>
+    /// The graph-taxi navigator, including the primitive it was playing and its progress
+    /// (<see cref="GroundNavigatorDto.Playback"/>); null outside <see cref="LineUpPhase.State.GraphTaxi"/>. The restore plans
+    /// the graph route again from the start pose and sets <see cref="RouteSegmentIndex"/> up on this navigator, which
+    /// resumes the saved primitive. Not written while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GroundNavigatorDto? Navigator { get; init; }
+
+    /// <summary>The graph route segment the navigator was on; null with <see cref="Navigator"/>. Not written while null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RouteSegmentIndex { get; init; }
+}
+
+/// <summary>
+/// <see cref="Yaat.Sim.Phases.Tower.LineUpArcPlayback"/>: the circle a line-up arc or pivot slow turn is flown on and how far
+/// round it the aircraft has got.
+/// </summary>
+public sealed class LineUpArcPlaybackDto
+{
+    public required double CenterLat { get; init; }
+    public required double CenterLon { get; init; }
+    public required double RadiusFt { get; init; }
+    public required double CurrentBearingFromCenterDeg { get; init; }
+    public required double RemainingSweepDeg { get; init; }
+    public required bool RightTurn { get; init; }
 }
 
 public sealed class LinedUpAndWaitingPhaseDto : PhaseDto

@@ -18,9 +18,12 @@ namespace Yaat.Sim.Tests.Simulation;
 /// the aircraft visually "taxiing" instead of taking off.
 ///
 /// <para>
-/// The fix classifies this geometry as a pivot case (waste-straight &gt;
-/// 20% of remaining runway) and drives the aircraft through a
-/// perpendicular-to-centerline pivot instead.
+/// The original fix classified this geometry as a pivot case (waste-straight &gt;
+/// 20% of remaining runway). The pose now lines up along the taxiway graph
+/// instead (<see cref="LineUpPhase.State.GraphTaxi"/>: A1 onto 01R through the
+/// junction fillet arc, issue #239); the synthetic pivot is only the fallback
+/// for a pose with no graph route onto the runway. The test still pins what
+/// the issue was about: the line-up completes in time, on the centerline.
 /// </para>
 ///
 /// <para>

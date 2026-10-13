@@ -516,12 +516,13 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A restore taken with the aircraft already aligned on the runway has no line-up left to fly: the phase
-    /// completes on its first tick and hands off, rather than re-planning (or faulting) around a pose whose
-    /// maneuver already ran.
+    /// A restore without the saved maneuver (an older snapshot's shape), taken with the aircraft already aligned on
+    /// the runway, has no line-up left to fly: the rebuild from the pose completes the phase on its first tick and
+    /// hands off, rather than re-planning (or faulting) around a pose whose maneuver already ran. A snapshot that
+    /// carries the maneuver resumes its rollout instead (<see cref="Simulation.LineUpRestoreRoundTripTests"/>).
     /// </summary>
     [Fact]
-    public void RestoredAlreadyAlignedOnRunway_CompletesOnTheFirstTick()
+    public void RestoredWithoutTheSavedManeuver_AlreadyAlignedOnRunway_CompletesOnTheFirstTick()
     {
         const double rwyHeadingDeg = 280.0;
         const double threshLat = 37.0;
@@ -568,8 +569,18 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
         phase.Status = PhaseStatus.Active;
         Assert.True(phase.RollingMode, "fixture check: a TakeoffPhase next in the list means rolling mode");
 
-        LineUpPhaseDto dto = Assert.IsType<LineUpPhaseDto>(phase.ToSnapshot());
-        var restored = LineUpPhase.FromSnapshot(dto);
+        LineUpPhaseDto captured = Assert.IsType<LineUpPhaseDto>(phase.ToSnapshot());
+        Assert.NotNull(captured.ManeuverState);
+        var withoutManeuver = new LineUpPhaseDto
+        {
+            Status = captured.Status,
+            ElapsedSeconds = captured.ElapsedSeconds,
+            Requirements = captured.Requirements,
+            RunwayHeadingDeg = captured.RunwayHeadingDeg,
+            RollingMode = captured.RollingMode,
+            HoldPosition = captured.HoldPosition,
+        };
+        var restored = LineUpPhase.FromSnapshot(withoutManeuver);
 
         Assert.True(restored.RollingMode, "RollingMode must survive the snapshot round trip");
         Assert.True(

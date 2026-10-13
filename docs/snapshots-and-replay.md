@@ -183,6 +183,8 @@ A mismatch drops the playback with a warning and builds the segment afresh from 
 
 A crossing also carries its slice segment and the pose that segment was set up at (`CrossingRunwayPhaseDto.CrossingRouteSegmentIndex`, `SegmentSetup*`), and a runway exit whose route cannot be rebuilt drops the navigator it was restored with.
 
+`LineUpPhaseDto` carries the maneuver under way, all nullable and written only when non-null (additive, no schema bump): `ManeuverState`, the plan's start pose (`PlanStartLat`, `PlanStartLon`, `PlanStartHeadingDeg`), and the arc playback (`Arc`, `ArcTargetSpeedKts`) or the graph-taxi navigator with its `RouteSegmentIndex`. The restore plans again from the start pose and resumes the playback (`LineUpRestoreRoundTripTests`); `ClearRunwayPhaseDto.Navigator` does the same for the clearance segment (`ClearRunwayRestoreTests`). A snapshot without them rebuilds from the aircraft's pose.
+
 A follow restores its navigator (`FollowingPhaseDto.Navigator`) only when its follow route or clearing route resolved, and the playback resumes at that route's first `SetupSegment` after the restore (`FollowGroundOnGraphTests`). Snapshots written before the playback existed rebuild the primitive from the aircraft's pose, and such a reconstruction can trail the original on the same path.
 
 ## Phase polymorphism

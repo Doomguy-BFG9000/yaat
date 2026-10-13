@@ -195,13 +195,39 @@ public sealed class LineUpPhase : Phase
 
     /// <summary>
     /// Set by <see cref="FromSnapshot"/> on an instance that came back mid-maneuver, cleared by the first
-    /// <see cref="OnTick"/> once <see cref="RebuildAfterRestore"/> has re-planned. The snapshot carries the
-    /// phase's mode and progress but not the maneuver itself — the plan, the graph route, the navigator and the
-    /// arc playback are live objects — and <see cref="PhaseRunner"/> only calls <see cref="OnStart"/> on a
-    /// Pending phase, so a restored Active phase has to rebuild itself on its own first tick, the way
+    /// <see cref="OnTick"/> once <see cref="RebuildAfterRestore"/> has rebuilt it. The plan, the graph route and the
+    /// navigator are live objects, and <see cref="PhaseRunner"/> only calls <see cref="OnStart"/> on a Pending phase,
+    /// so a restored Active phase has to rebuild itself on its own first tick, the way
     /// <see cref="CrossingRunwayPhase"/> rebuilds its route slice from the restored taxi route.
     /// </summary>
     private bool _needsRestoreRebuild;
+
+    /// <summary>
+    /// The pose the current maneuver was planned from (<see cref="TryPlanFromCurrentPose"/>). Planning is a function of
+    /// this pose, the runway, the category and the layout, so a restore plans the same maneuver again from it. Null
+    /// before a plan and for the rollout <see cref="ResumeOnAlignedRollout"/> builds, which is not planned from a pose.
+    /// </summary>
+    private (LatLon Position, TrueHeading Heading)? _planStartPose;
+
+    /// <summary>
+    /// The maneuver a restored instance came back with, held until <see cref="RebuildAfterRestore"/> resumes it on the first
+    /// tick (held or not), and written back by a snapshot taken before then.
+    /// </summary>
+    private SavedManeuver? _restoredManeuver;
+
+    /// <summary>
+    /// What a snapshot carries of the maneuver under way: the state, the pose it was planned from, and the arc playback
+    /// (arc states) or the graph-taxi navigator and route segment (<see cref="State.GraphTaxi"/>).
+    /// </summary>
+    private sealed record SavedManeuver(
+        State State,
+        LatLon StartPosition,
+        TrueHeading StartHeading,
+        LineUpArcPlaybackDto? Arc,
+        double? ArcTargetSpeedKts,
+        GroundNavigatorDto? Navigator,
+        int? RouteSegmentIndex
+    );
 
     public override string Name => "LiningUp";
     public override bool ManagesSpeed => true;
@@ -270,6 +296,7 @@ public sealed class LineUpPhase : Phase
     {
         declineReason = "";
         _runwayHeadingDeg = rwy.TrueHeading.Degrees;
+        _planStartPose = (ctx.Aircraft.Position, ctx.Aircraft.TrueHeading);
 
         // Preferred path: follow the real taxiway to the runway edge and curve onto
         // the centerline via the baked junction fillet arc (issue #239). Falls
@@ -360,12 +387,34 @@ public sealed class LineUpPhase : Phase
             return false;
         }
 
-        _lineUpRoute = plan.Route;
-        _lineUpRoute.CurrentSegmentIndex = 0;
-
         double maxSpeed = ctx.Aircraft.Ground.IsExpeditingLineup ? plan.MaxSpeedKts * CategoryPerformance.TaxiExpediteMultiplier : plan.MaxSpeedKts;
+        StartGraphRoute(ctx, plan, segmentIndex: 0, new GroundNavigator(), maxSpeed);
+        ctx.Targets.TargetSpeed = maxSpeed;
 
-        _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed };
+        Log.LogDebug(
+            "[LineUp] {Callsign}: graph-taxi lineup onto {Rwy} — {Segs} segments, centerline node {Node}, maxSpeed={Speed:F1}kt (rolling={Rolling})",
+            ctx.Aircraft.Callsign,
+            rwy.Designator,
+            plan.Route.Segments.Count,
+            plan.CenterlineNode.Id,
+            maxSpeed,
+            RollingMode
+        );
+        return true;
+    }
+
+    /// <summary>
+    /// Fly <paramref name="plan"/>'s graph route with <paramref name="navigator"/>, from route segment
+    /// <paramref name="segmentIndex"/>, in <see cref="State.GraphTaxi"/>, capped at <paramref name="maxSpeedKts"/>. A
+    /// navigator restored from a snapshot resumes the primitive it was playing when its segment is set up here.
+    /// </summary>
+    private void StartGraphRoute(PhaseContext ctx, LineUpArcFollowPlan plan, int segmentIndex, GroundNavigator navigator, double maxSpeedKts)
+    {
+        _lineUpRoute = plan.Route;
+        _lineUpRoute.CurrentSegmentIndex = segmentIndex;
+
+        _navigator = navigator;
+        _navigator.MaxSpeedKts = maxSpeedKts;
         _graphFlowSpeedKts = plan.FlowSpeedKts;
 
         // Rolling takeoff (CTO in hand): keep a speed floor so the aircraft flows
@@ -384,18 +433,6 @@ public sealed class LineUpPhase : Phase
         _navigator.SetupSegment(_lineUpRoute, ctx, _ => true);
 
         CurrentState = State.GraphTaxi;
-        ctx.Targets.TargetSpeed = maxSpeed;
-
-        Log.LogDebug(
-            "[LineUp] {Callsign}: graph-taxi lineup onto {Rwy} — {Segs} segments, centerline node {Node}, maxSpeed={Speed:F1}kt (rolling={Rolling})",
-            ctx.Aircraft.Callsign,
-            rwy.Designator,
-            _lineUpRoute.Segments.Count,
-            plan.CenterlineNode.Id,
-            maxSpeed,
-            RollingMode
-        );
-        return true;
     }
 
     private bool TickGraphTaxi(PhaseContext ctx)
@@ -473,21 +510,10 @@ public sealed class LineUpPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        // Restored mid-maneuver: rebuild before the state machine runs. Deliberately skipped while held, so a
-        // restored held aircraft re-plans from where it is released rather than from where it stopped — and
-        // until it does there is no maneuver to steer, so holding is all this tick has to do.
-        if (_needsRestoreRebuild)
+        // Restored mid-maneuver: rebuild before the state machine runs.
+        if (_needsRestoreRebuild && TryRebuildEndsTick(ctx, out bool rebuiltComplete))
         {
-            if (HoldPosition)
-            {
-                ctx.Targets.TargetSpeed = 0;
-                return false;
-            }
-
-            if (RebuildAfterRestore(ctx))
-            {
-                return true;
-            }
+            return rebuiltComplete;
         }
 
         bool complete = TickCurrentState(ctx);
@@ -506,6 +532,44 @@ public sealed class LineUpPhase : Phase
         }
 
         return complete;
+    }
+
+    /// <summary>
+    /// The first tick of a restored instance: rebuild the maneuver, and return true when that ends the tick, with
+    /// <paramref name="complete"/> as the tick's result; false lets the state machine run on the rebuilt maneuver.
+    ///
+    /// <para>
+    /// A saved maneuver is resumed even while the phase is held: the original kept running its steering tick while it
+    /// braked (closed-form playback writes the pose from a progress scalar, see <see cref="OnTick"/>), so the restored
+    /// instance has to as well, or physics rolls it straight while held and the release resumes the saved progress from
+    /// behind the aircraft. Without a saved maneuver the rebuild plans from the aircraft's pose, which is still moving
+    /// while it brakes, so it waits for the release and holding is all the tick does. A rebuild that would complete the
+    /// phase while held waits for the release the same way: a held line-up never completes.
+    /// </para>
+    /// </summary>
+    private bool TryRebuildEndsTick(PhaseContext ctx, out bool complete)
+    {
+        complete = false;
+        if (HoldPosition && (_restoredManeuver is null))
+        {
+            ctx.Targets.TargetSpeed = 0;
+            return true;
+        }
+
+        if (!RebuildAfterRestore(ctx))
+        {
+            return false;
+        }
+
+        if (HoldPosition)
+        {
+            _needsRestoreRebuild = true;
+            ctx.Targets.TargetSpeed = 0;
+            return true;
+        }
+
+        complete = true;
+        return true;
     }
 
     /// <summary>
@@ -962,10 +1026,21 @@ public sealed class LineUpPhase : Phase
     internal void ClearRollingSpeedFloor() => _navigator?.MinSpeedKts = 0;
 
     /// <summary>
-    /// First tick after a snapshot restore: resume the maneuver from the aircraft's current pose, keeping the
-    /// <see cref="RollingMode"/> the snapshot carried (a mid-phase CTO upgrade or a CTOC revert may have moved it
-    /// away from what the phase list alone implies). Three poses, and none of them may fault — a fault parks the
-    /// aircraft on the runway indefinitely, which is what a restored line-up used to do:
+    /// First tick after a snapshot restore, keeping the <see cref="RollingMode"/> the snapshot carried (a mid-phase CTO
+    /// upgrade or a CTOC revert may have moved it away from what the phase list alone implies).
+    ///
+    /// <para>
+    /// A snapshot that carries the maneuver (<see cref="SavedManeuver"/>) has it planned again from the pose it was
+    /// planned from and resumed in the state, arc playback or navigator playback it stood in
+    /// (<see cref="TryResumeSavedManeuver"/>), so the restored line-up flies on exactly as the original, the rollout and
+    /// the stop included. A saved maneuver that cannot be planned again is dropped with a warning.
+    /// </para>
+    ///
+    /// <para>
+    /// Without one (an older snapshot, or a dropped maneuver) the line-up is rebuilt from the aircraft's current pose.
+    /// Three poses, and none of them may fault — a fault parks the aircraft on the runway indefinitely, which is what a
+    /// restored line-up used to do:
+    /// </para>
     ///
     /// <list type="bullet">
     ///   <item>inside a main-gear turn radius of the centerline and aligned within
@@ -985,8 +1060,15 @@ public sealed class LineUpPhase : Phase
     {
         _needsRestoreRebuild = false;
         ctx.Aircraft.IsOnGround = true;
+        SavedManeuver? saved = _restoredManeuver;
+        _restoredManeuver = null;
 
         if (!TryResolveRunway(ctx, out RunwayInfo? rwy))
+        {
+            return false;
+        }
+
+        if (TryResumeAfterRestore(ctx, rwy, saved))
         {
             return false;
         }
@@ -1022,6 +1104,127 @@ public sealed class LineUpPhase : Phase
 
         return false;
     }
+
+    /// <summary>
+    /// Resume the maneuver a restored snapshot carried, in whatever state it stood, the rollout and the stop included.
+    /// Returns false when there is none, and false with a warning when the saved maneuver cannot be planned again.
+    /// </summary>
+    private bool TryResumeAfterRestore(PhaseContext ctx, RunwayInfo rwy, SavedManeuver? saved)
+    {
+        if (saved is null)
+        {
+            return false;
+        }
+
+        if (TryResumeSavedManeuver(ctx, rwy, saved, out string dropReason))
+        {
+            return true;
+        }
+
+        Log.LogWarning(
+            "[LineUp] {Callsign}: saved {State} maneuver dropped after a restore ({Reason}); rebuilding from the aircraft's pose",
+            ctx.Aircraft.Callsign,
+            saved.State,
+            dropReason
+        );
+        return false;
+    }
+
+    /// <summary>
+    /// Plan <paramref name="saved"/>'s maneuver again from the pose it was planned from and put the state machine back where
+    /// it stood: the graph route with the saved navigator on the saved segment (whose set-up resumes the primitive it was
+    /// playing), or the synthetic plan in the saved state with the saved arc playback. Returns false with
+    /// <paramref name="dropReason"/> when the plan no longer comes out as the one the snapshot was taken on.
+    /// </summary>
+    private bool TryResumeSavedManeuver(PhaseContext ctx, RunwayInfo rwy, SavedManeuver saved, out string dropReason)
+    {
+        _runwayHeadingDeg = rwy.TrueHeading.Degrees;
+        bool resumed =
+            saved.State == State.GraphTaxi
+                ? TryResumeGraphTaxi(ctx, rwy, saved, out dropReason)
+                : TryResumeSyntheticPlan(ctx, rwy, saved, out dropReason);
+        if (!resumed)
+        {
+            return false;
+        }
+
+        _planStartPose = (saved.StartPosition, saved.StartHeading);
+        Log.LogDebug(
+            "[LineUp] {Callsign}: restored maneuver resumed in {State} (planned from {Position} hdg {Heading:F1})",
+            ctx.Aircraft.Callsign,
+            CurrentState,
+            saved.StartPosition,
+            saved.StartHeading.Degrees
+        );
+        return true;
+    }
+
+    private bool TryResumeGraphTaxi(PhaseContext ctx, RunwayInfo rwy, SavedManeuver saved, out string dropReason)
+    {
+        LineUpArcFollowPlan? plan = ctx.GroundLayout is { } layout
+            ? LineUpGraphRoute.TryPlan(layout, saved.StartPosition, saved.StartHeading, rwy, ctx.Category)
+            : null;
+        if (plan is null)
+        {
+            dropReason = "no graph route from the start pose";
+            return false;
+        }
+
+        if (
+            (saved.Navigator is not { } navigator)
+            || (saved.RouteSegmentIndex is not { } segmentIndex)
+            || (segmentIndex < 0)
+            || (segmentIndex >= plan.Route.Segments.Count)
+        )
+        {
+            dropReason = $"no navigator for segment {saved.RouteSegmentIndex} of a {plan.Route.Segments.Count}-segment route";
+            return false;
+        }
+
+        // The saved cap, not one recomputed from the expedite flag: an immediate CTO or a CTOC moves that flag mid-phase
+        // and leaves the running navigator's cap alone.
+        dropReason = "";
+        StartGraphRoute(ctx, plan, segmentIndex, GroundNavigator.FromSnapshot(navigator), navigator.MaxSpeedKts);
+        return true;
+    }
+
+    private bool TryResumeSyntheticPlan(PhaseContext ctx, RunwayInfo rwy, SavedManeuver saved, out string dropReason)
+    {
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, saved.StartPosition.Lat, saved.StartPosition.Lon, saved.StartHeading, ctx.Category);
+        if (!PlanFitsState(plan, saved.State))
+        {
+            dropReason = $"the start pose now plans a {plan.Kind} maneuver";
+            return false;
+        }
+
+        bool inArc = saved.State is State.Arc or State.PivotTurn1 or State.PivotTurn2;
+        if (inArc)
+        {
+            if (saved is not { Arc: { } arc, ArcTargetSpeedKts: { } arcSpeedKts })
+            {
+                dropReason = "no arc playback";
+                return false;
+            }
+
+            _arcState = ArcPlaybackFromDto(arc);
+            _arcTargetSpeedKts = arcSpeedKts;
+        }
+
+        dropReason = "";
+        PathPlan = plan;
+        CurrentState = saved.State;
+        return true;
+    }
+
+    /// <summary>Whether <paramref name="plan"/> is a plan the state machine can be in <paramref name="state"/> on.</summary>
+    private static bool PlanFitsState(LineUpPathPlan plan, State state) =>
+        state switch
+        {
+            State.NoseOut or State.Arc => plan.Kind == LineUpPathKind.Aligned,
+            State.PivotTurn1 or State.PivotStraight or State.PivotTurn2 => plan.Kind == LineUpPathKind.Pivot,
+            State.Rollout or State.Stop => plan.Kind != LineUpPathKind.Fault,
+            _ => false,
+        };
 
     /// <summary>
     /// Finish an interrupted line-up on the straight rollout: <see cref="TickRollout"/> steers the runway heading
@@ -1072,6 +1275,7 @@ public sealed class LineUpPhase : Phase
         );
         _runwayHeadingDeg = rwy.TrueHeading.Degrees;
         CurrentState = State.Rollout;
+        _planStartPose = null;
         _faultLogged = false;
         ctx.Targets.TargetTrueHeading = new TrueHeading(PathPlan.RunwayHeadingDeg);
         ctx.Targets.TurnRateOverride = swingRateDegPerSec;
@@ -1104,14 +1308,17 @@ public sealed class LineUpPhase : Phase
 
     // ---- Snapshot ----
     // The snapshot carries the phase's mode and progress (RollingMode, HoldPosition, the runway heading, the
-    // clearance requirements), not the maneuver: the plan, the graph route, the navigator and the arc playback
-    // are live objects with no DTO. A restored Active instance therefore rebuilds itself on its first tick
-    // (RebuildAfterRestore) from the aircraft's current pose — PhaseRunner only calls OnStart on a Pending
-    // phase, so nothing else would ever re-plan it — and completes straight away when the pose says the
-    // line-up is already flown.
+    // clearance requirements) and the maneuver under way as a SavedManeuver: its state, the pose it was planned from,
+    // and the arc playback or the graph-taxi navigator. The plan and the graph route are not carried; planning is a
+    // function of the start pose, so a restored Active instance plans them again from it on its first tick
+    // (RebuildAfterRestore) and resumes where the snapshot stood — PhaseRunner only calls OnStart on a Pending phase,
+    // so nothing else would ever rebuild it. A snapshot without the maneuver rebuilds from the aircraft's current pose.
 
-    public override PhaseDto ToSnapshot() =>
-        new LineUpPhaseDto
+    public override PhaseDto ToSnapshot()
+    {
+        // A restored instance not yet rebuilt still holds the maneuver it came back with.
+        SavedManeuver? maneuver = _needsRestoreRebuild ? _restoredManeuver : CaptureManeuver();
+        return new LineUpPhaseDto
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
@@ -1119,6 +1326,82 @@ public sealed class LineUpPhase : Phase
             RunwayHeadingDeg = PathPlan?.RunwayHeadingDeg ?? _runwayHeadingDeg,
             RollingMode = RollingMode,
             HoldPosition = HoldPosition,
+            ManeuverState = (int?)maneuver?.State,
+            PlanStartLat = maneuver?.StartPosition.Lat,
+            PlanStartLon = maneuver?.StartPosition.Lon,
+            PlanStartHeadingDeg = maneuver?.StartHeading.Degrees,
+            Arc = maneuver?.Arc,
+            ArcTargetSpeedKts = maneuver?.ArcTargetSpeedKts,
+            Navigator = maneuver?.Navigator,
+            RouteSegmentIndex = maneuver?.RouteSegmentIndex,
+        };
+    }
+
+    /// <summary>The maneuver under way, or null when there is none to resume (not yet planned, faulted, or a resumed rollout).</summary>
+    private SavedManeuver? CaptureManeuver()
+    {
+        if ((_planStartPose is not { } startPose) || (CurrentState is State.Setup or State.Faulted))
+        {
+            return null;
+        }
+
+        bool inArc = CurrentState is State.Arc or State.PivotTurn1 or State.PivotTurn2;
+        bool onGraph = CurrentState == State.GraphTaxi;
+        return new SavedManeuver(
+            CurrentState,
+            startPose.Position,
+            startPose.Heading,
+            inArc ? ArcPlaybackToDto(_arcState) : null,
+            inArc ? _arcTargetSpeedKts : null,
+            onGraph ? _navigator?.ToSnapshot() : null,
+            onGraph ? _lineUpRoute?.CurrentSegmentIndex : null
+        );
+    }
+
+    /// <summary>The maneuver <paramref name="dto"/> carries, or null when it carries none (an older snapshot among them).</summary>
+    private static SavedManeuver? SavedManeuverFrom(LineUpPhaseDto dto)
+    {
+        if ((dto.ManeuverState is not { } state) || (dto.PlanStartLat is not { } lat) || (dto.PlanStartLon is not { } lon))
+        {
+            return null;
+        }
+
+        if ((dto.PlanStartHeadingDeg is not { } headingDeg) || !Enum.IsDefined((State)state))
+        {
+            return null;
+        }
+
+        return new SavedManeuver(
+            (State)state,
+            new LatLon(lat, lon),
+            new TrueHeading(headingDeg),
+            dto.Arc,
+            dto.ArcTargetSpeedKts,
+            dto.Navigator,
+            dto.RouteSegmentIndex
+        );
+    }
+
+    private static LineUpArcPlaybackDto ArcPlaybackToDto(LineUpArcPlayback arc) =>
+        new()
+        {
+            CenterLat = arc.CenterLat,
+            CenterLon = arc.CenterLon,
+            RadiusFt = arc.RadiusFt,
+            CurrentBearingFromCenterDeg = arc.CurrentBearingFromCenterDeg,
+            RemainingSweepDeg = arc.RemainingSweepDeg,
+            RightTurn = arc.RightTurn,
+        };
+
+    private static LineUpArcPlayback ArcPlaybackFromDto(LineUpArcPlaybackDto dto) =>
+        new()
+        {
+            CenterLat = dto.CenterLat,
+            CenterLon = dto.CenterLon,
+            RadiusFt = dto.RadiusFt,
+            CurrentBearingFromCenterDeg = dto.CurrentBearingFromCenterDeg,
+            RemainingSweepDeg = dto.RemainingSweepDeg,
+            RightTurn = dto.RightTurn,
         };
 
     public static LineUpPhase FromSnapshot(LineUpPhaseDto dto)
@@ -1134,6 +1417,7 @@ public sealed class LineUpPhase : Phase
             // Only a phase that was already running needs the rebuild; one snapshotted before it started
             // still gets its OnStart from the phase runner.
             _needsRestoreRebuild = (PhaseStatus)dto.Status == PhaseStatus.Active,
+            _restoredManeuver = SavedManeuverFrom(dto),
         };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
