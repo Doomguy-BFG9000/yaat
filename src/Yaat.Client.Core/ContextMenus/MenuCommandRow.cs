@@ -1,5 +1,6 @@
 using System.Text;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
@@ -260,5 +261,60 @@ public sealed class MenuCommandRowTemplate : FuncDataTemplate<MenuCommandRow>
         };
         command.Bind(TextBlock.FontFamilyProperty, command.GetResourceObservable(QuickCommandStrip.MonoFontKey));
         return command;
+    }
+}
+
+/// <summary>
+/// The header of a disabled menu row that says why it offers nothing, drawn by <see cref="MenuDisabledReasonRowTemplate"/>:
+/// the label, then the reason faint beside it. Its text form, which the golden menus and the row's automation name use,
+/// reads <c>Follow… · no other aircraft on the ground</c>.
+/// </summary>
+/// <param name="Label">The entry's label, <c>Follow…</c>.</param>
+/// <param name="Reason">Why the entry offers nothing, <c>no other aircraft on the ground</c>.</param>
+public sealed record MenuDisabledReasonRow(string Label, string Reason)
+{
+    /// <inheritdoc />
+    public override string ToString() => $"{Label} · {Reason}";
+
+    /// <summary>
+    /// Disables <paramref name="item"/> and heads it with <paramref name="label"/> and, faint beside it,
+    /// <paramref name="reason"/>.
+    /// </summary>
+    /// <param name="item">The entry that offers nothing now.</param>
+    /// <param name="label">The entry's label.</param>
+    /// <param name="reason">Why it offers nothing.</param>
+    public static void Apply(MenuItem item, string label, string reason)
+    {
+        var header = new MenuDisabledReasonRow(label, reason);
+        item.IsEnabled = false;
+        item.Header = header;
+        item.HeaderTemplate = MenuDisabledReasonRowTemplate.Instance;
+        AutomationProperties.SetName(item, header.ToString());
+    }
+}
+
+/// <summary>The view of a <see cref="MenuDisabledReasonRow"/>: the label, then <c> · reason</c> at 12 px and fainter.</summary>
+public sealed class MenuDisabledReasonRowTemplate : FuncDataTemplate<MenuDisabledReasonRow>
+{
+    /// <summary>The one template every disabled-with-reason row uses.</summary>
+    public static MenuDisabledReasonRowTemplate Instance { get; } = new();
+
+    private MenuDisabledReasonRowTemplate()
+        : base((row, _) => Build(row)) { }
+
+    private static StackPanel Build(MenuDisabledReasonRow row)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        panel.Children.Add(new TextBlock { Text = row.Label, VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(
+            new TextBlock
+            {
+                Text = $" · {row.Reason}",
+                FontSize = 12,
+                Opacity = 0.85,
+                VerticalAlignment = VerticalAlignment.Center,
+            }
+        );
+        return panel;
     }
 }

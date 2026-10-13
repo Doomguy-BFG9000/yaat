@@ -99,12 +99,23 @@ public class QuickCommandStripTests
     public void SubmenuLeaf_SendsItsCommandAndClosesTheFlyoutAndTheMenu()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
-        RecordingMenuHost host = Host();
+        // Hold short of… is a plain submenu of menu items; Follow…'s rows are buttons in a list, with their own tests.
+        var host = new RecordingMenuHost("")
+        {
+            Session = new("AB", false, VfrCommandsForIfr.None, _ => [new CatalogQuickCommandEntry(MenuIds.GroundHoldShort, null)]),
+        };
+        host.HoldShortChoices.Add(
+            new HoldShortChoice(
+                new HoldShortRowLabel(HoldShortChoice.TaxiwayBadge, "B", "crossing on T", 300),
+                "HS B",
+                new TaxiRoute { Segments = [], HoldShortPoints = [] }
+            )
+        );
         AircraftModel ac = Fixture("taxiing");
         ContextMenu menu = OpenInWindow(Build(ac, host));
-        Button follow = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundFollow);
-        follow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        MenuFlyout flyout = SubmenuFlyout(follow);
+        Button holdShort = QuickCommandStrip.Buttons(Strip(menu)).Single(b => (string)b.Tag! == MenuIds.GroundHoldShort);
+        holdShort.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        MenuFlyout flyout = SubmenuFlyout(holdShort);
         MenuItem leaf = FirstLeaf(flyout.Items);
 
         leaf.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -748,48 +759,6 @@ public class QuickCommandStripTests
     {
         menu.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
-    }
-
-    /// <summary>A clock that moves only when the test advances it; each advance fires every live timer once.</summary>
-    private sealed class ManualClock : TimeProvider
-    {
-        private readonly List<ManualTimer> _timers = [];
-        private long _ticks;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-
-        public override long GetTimestamp() => _ticks;
-
-        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-        {
-            var timer = new ManualTimer(() => callback(state), _timers);
-            _timers.Add(timer);
-            return timer;
-        }
-
-        public void Advance(TimeSpan by)
-        {
-            _ticks += by.Ticks;
-            foreach (ManualTimer timer in _timers.ToList())
-            {
-                timer.Fire();
-            }
-        }
-
-        private sealed class ManualTimer(Action fire, List<ManualTimer> timers) : ITimer
-        {
-            public void Fire() => fire();
-
-            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
-
-            public void Dispose() => timers.Remove(this);
-
-            public ValueTask DisposeAsync()
-            {
-                Dispose();
-                return ValueTask.CompletedTask;
-            }
-        }
     }
 
     /// <summary>The header line under the title the strip writes its label into.</summary>

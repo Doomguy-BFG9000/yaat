@@ -45,7 +45,7 @@ public class GroundSubmenuCharacterizationTests
     // --- At Parking: Follow… and the pushback items -----------------------------------------
 
     [AvaloniaFact]
-    public void GroundMenu_AtParking_FollowListsMovingThenParked_FourEachThenMore()
+    public void GroundMenu_AtParking_FollowListsMovingThenParked_NearestFirst_InOneList()
     {
         LatLon at = PositionOf(PushbackFaceNode);
         AircraftModel target = GroundAircraft("SWA100", "At Parking", at);
@@ -58,17 +58,14 @@ public class GroundSubmenuCharacterizationTests
 
         Built built = BuildMenu(target, prevSelected: null, others);
 
-        ItemCollection follow = Item(CommandTree(built.Menu), "Follow…").Items;
-        List<string> labels = Headers(follow);
-        Assert.Equal(3, labels.Count);
-        Assert.Equal("Moving", labels[0]);
-        Assert.StartsWith("More (2, up to ~2,", labels[1]);
-        Assert.Equal("Parked or holding", labels[2]);
-        Assert.Equal(["SWA001", "SWA002", "SWA003", "SWA004", "PRK1", "PRK2"], RowCallsigns(follow));
-        Assert.Equal(["SWA005", "SWA006"], RowCallsigns(Item(follow, labels[1]).Items));
+        MenuItem follow = Item(CommandTree(built.Menu), "Follow…");
+        Assert.Equal(["Moving", "Parked or holding"], FollowListItems.Titles(follow));
+        Assert.Equal(["SWA001", "SWA002", "SWA003", "SWA004", "SWA005", "SWA006", "PRK1", "PRK2"], FollowListItems.Callsigns(follow));
         Assert.Equal(
-            ["Moving", "SWA001", "SWA002", "SWA003", "SWA004", labels[1], "Parked or holding", "PRK1", "PRK2"],
-            follow.OfType<MenuItem>().Select(item => (item.Header is string header) ? header : CallsignOf(item))
+            ["Moving", "SWA001", "SWA002", "SWA003", "SWA004", "SWA005", "SWA006", "Parked or holding", "PRK1", "PRK2"],
+            FollowListItems
+                .Children(follow)
+                .Select(child => (child is TextBlock title) ? title.Text : ((GroundTrafficFlyoutRow)((Button)child).Content!).Traffic.Callsign)
         );
     }
 
@@ -93,7 +90,7 @@ public class GroundSubmenuCharacterizationTests
                 "Parked or holding",
                 "VTE3202 · E145 · at parking · gate 1 · ~600 ft — FOLLOWG VTE3202",
             ],
-            Item(CommandTree(built.Menu), "Follow…").Items.OfType<MenuItem>().Select(item => item.Header?.ToString())
+            FollowListItems.Entries(Item(CommandTree(built.Menu), "Follow…"))
         );
     }
 
@@ -105,7 +102,7 @@ public class GroundSubmenuCharacterizationTests
         window.Show();
         built.Menu.Open(window);
 
-        RaisePointer(Row(built.Menu, "Follow…", CandidateCallsign), InputElement.PointerEnteredEvent);
+        RaisePointer(FollowListItems.Row(Item(CommandTree(built.Menu), "Follow…"), CandidateCallsign), InputElement.PointerEnteredEvent);
         Assert.Equal([CandidateCallsign], built.Vm.DataBlockState.HighlightedCallsigns);
 
         built.Menu.Close();
@@ -125,7 +122,7 @@ public class GroundSubmenuCharacterizationTests
 
         Built built = BuildMenu(TaxiingOnW3(), prevSelected: null, shadow, Candidate());
 
-        Assert.Equal(["SHD1", CandidateCallsign], RowCallsigns(Item(CommandTree(built.Menu), "Follow…").Items).Order(StringComparer.Ordinal));
+        Assert.Equal(["SHD1", CandidateCallsign], FollowListItems.Callsigns(Item(CommandTree(built.Menu), "Follow…")).Order(StringComparer.Ordinal));
         Assert.Equal([CandidateCallsign], RowCallsigns(Item(CommandTree(built.Menu), "Give way to…").Items));
     }
 
@@ -151,7 +148,7 @@ public class GroundSubmenuCharacterizationTests
     {
         Built built = BuildMenu(ParkedAircraft(), prevSelected: null, Candidate());
 
-        Click(Row(built.Menu, "Follow…", CandidateCallsign));
+        FollowListItems.Click(FollowListItems.Row(Item(CommandTree(built.Menu), "Follow…"), CandidateCallsign));
 
         Assert.Equal([(ParkedCallsign, $"FOLLOWG {CandidateCallsign}", Initials)], built.Sent);
     }
@@ -260,17 +257,24 @@ public class GroundSubmenuCharacterizationTests
 
         Built built = BuildMenu(target, prevSelected: null, self, airborne, Candidate());
 
-        Assert.Equal([CandidateCallsign], RowCallsigns(Item(CommandTree(built.Menu), "Follow…").Items));
+        Assert.Equal([CandidateCallsign], FollowListItems.Callsigns(Item(CommandTree(built.Menu), "Follow…")));
     }
 
     [AvaloniaFact]
-    public void GroundMenu_NoGroundTraffic_NoFollowOrGiveWaySubmenu()
+    public void GroundMenu_NoGroundTraffic_FollowAndGiveWayStayDisabled_WithNoSubmenu()
     {
         Built built = BuildMenu(TaxiingOnW3(), prevSelected: null);
 
-        List<string> headers = Headers(CommandTree(built.Menu));
-        Assert.DoesNotContain("Follow…", headers);
-        Assert.DoesNotContain("Give way to…", headers);
+        foreach (string label in (string[])["Follow…", "Give way to…"])
+        {
+            MenuItem entry = Assert.Single(
+                CommandTree(built.Menu).OfType<MenuItem>(),
+                item => (item.Header as MenuDisabledReasonRow)?.Label == label
+            );
+            Assert.False(entry.IsEnabled, $"{label} is enabled with no other aircraft on the ground");
+            Assert.Equal($"{label} · {GroundTrafficFlyout.NoTrafficReason}", entry.Header!.ToString());
+            Assert.Empty(entry.Items);
+        }
     }
 
     // G crosses 10L/28R mid-runway on its way to 28L (the destination, which is no row) and the room names no active
@@ -522,9 +526,9 @@ public class GroundSubmenuCharacterizationTests
     private static List<MenuItem> PresetRows(ContextMenu menu) =>
         [.. Item(CommandTree(menu), "Preset taxi route").Items.OfType<MenuItem>().Where(m => m.Header is MenuCommandRow)];
 
-    /// <summary>The callsigns of the traffic rows in <paramref name="items"/>, in order, leaving out section labels and More.</summary>
+    /// <summary>The callsigns of the traffic rows in <paramref name="items"/>, in order, leaving out titles, section labels and More.</summary>
     private static List<string> RowCallsigns(ItemCollection items) =>
-        [.. items.OfType<MenuItem>().Where(m => m.Header is not string).Select(CallsignOf)];
+        [.. items.OfType<MenuItem>().Where(m => m.Header is MenuCommandRow or GroundTrafficFlyoutRow).Select(CallsignOf)];
 
     /// <summary>A traffic row's callsign, the first word of its one-line header.</summary>
     private static string CallsignOf(MenuItem row) => row.Header!.ToString()!.Split(' ')[0];
@@ -554,7 +558,7 @@ public class GroundSubmenuCharacterizationTests
     /// skips a typed handler whose args are not that handler's args type, so a real <see cref="PointerEventArgs"/> is
     /// required — the constructor Avalonia marks unstable for exactly this headless-testing use.
     /// </summary>
-    private static void RaisePointer(MenuItem item, RoutedEvent routedEvent) =>
+    private static void RaisePointer(Control item, RoutedEvent routedEvent) =>
         item.RaiseEvent(
             new PointerEventArgs(
                 routedEvent,

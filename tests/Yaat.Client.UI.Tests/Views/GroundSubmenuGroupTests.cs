@@ -51,14 +51,34 @@ public class GroundSubmenuGroupTests
 
     private static ContextMenu BuildTaxiGroups(RecordingMenuHost host) => BuildMenu(host, Taxiing());
 
+    /// <summary>
+    /// With no other aircraft on the ground, All Commands' Follow… and Give way to… are disabled and say why: the label,
+    /// then the reason faint beside it, the same reason the faded strip button names.
+    /// </summary>
     [AvaloniaFact]
-    public void EmptyHostAnswers_BuildNoHoldShortFollowOrGiveWaySubmenu()
+    public void EmptyHostAnswers_BuildNoHoldShortSubmenu_AndDisableFollowAndGiveWayWithTheReasonBesideTheLabel()
     {
         var host = new RecordingMenuHost("");
 
         ContextMenu menu = BuildTaxiGroups(host);
 
         Assert.Empty(HeadersWhere(menu, IsTaxiGroup));
+        List<MenuItem> entries = [.. CommandTree(menu).OfType<MenuItem>().Where(item => item.Header is MenuDisabledReasonRow)];
+        Assert.Equal(["Follow…", "Give way to…"], entries.Select(entry => ((MenuDisabledReasonRow)entry.Header!).Label));
+        foreach (MenuItem entry in entries)
+        {
+            string label = ((MenuDisabledReasonRow)entry.Header!).Label;
+            Assert.False(entry.IsEnabled, $"{label} is enabled with no other aircraft on the ground");
+            Assert.Empty(entry.Items);
+            Assert.Equal($"{label} · no other aircraft on the ground", entry.Header!.ToString());
+            Assert.Equal($"{label} · no other aircraft on the ground", AutomationProperties.GetName(entry));
+
+            Control view = RowView(entry);
+            Assert.Equal(label, TextBlocks(view)[0].Text);
+            TextBlock reason = TextWithContent(view, " · no other aircraft on the ground");
+            Assert.Equal(12, reason.FontSize);
+            Assert.True(reason.Opacity < 1, "the reason is not drawn fainter than the label");
+        }
     }
 
     [AvaloniaFact]
@@ -123,7 +143,7 @@ public class GroundSubmenuGroupTests
     private static List<string> RowTexts(MenuItem row) => [.. TextBlocks(RowView(row)).Select(block => block.Text ?? "")];
 
     [AvaloniaFact]
-    public void MenuCommandRowTemplate_HoldShortAndGroundTraffic_KeepTheirLayouts()
+    public void RowTemplates_HoldShortWhereBesideTheName_TrafficStateUnderTheCallsign_LedByAMarkOrTheFollowGlyph()
     {
         var host = new RecordingMenuHost("");
         host.HoldShortChoices.Add(
@@ -134,6 +154,7 @@ public class GroundSubmenuGroupTests
             )
         );
         host.GroundTraffic.Add(RecordingMenuHost.ParkedRow("SWA200"));
+        host.GroundTraffic.Add(new MenuGroundTrafficRow("SWA300", "B738", 300, "taxiing on W") { IsMoving = true, IsSurfaceShadow = false });
         ItemCollection tree = CommandTree(BuildTaxiGroups(host));
 
         Control holdShortView = RowView(HoldShortRows(Item(tree, "Hold short of…"))[0]);
@@ -152,15 +173,39 @@ public class GroundSubmenuGroupTests
         Assert.Equal(FontWeight.SemiBold, holdShortBar.FontWeight);
         Assert.NotEmpty(holdShortView.GetVisualDescendants().OfType<Border>());
 
-        Control groundView = RowView(FollowRow(Item(tree, "Follow…"), "SWA200"));
+        // A traffic row (here Give way to's, whose rows are menu items) stacks the state under the callsign line at 11 px;
+        // the callsign is semibold with the type beside it, and there is no badge.
+        Control groundView = RowView(TrafficRow(Item(tree, "Give way to…"), "SWA200"));
         TextBlock state = TextWithContent(groundView, "at parking · gate 1");
         Assert.Equal(11, state.FontSize);
         StackPanel groundName = Assert.IsType<StackPanel>(state.Parent);
         Assert.Equal(Orientation.Vertical, groundName.Orientation);
-        TextBlock groundCallsign = Assert.IsType<TextBlock>(groundName.Children[0]);
-        Assert.Equal("SWA200 · B738", groundCallsign.Text);
-        Assert.NotEqual(FontWeight.SemiBold, groundCallsign.FontWeight);
+        StackPanel callsignLine = Assert.IsType<StackPanel>(groundName.Children[0]);
+        Assert.Equal(Orientation.Horizontal, callsignLine.Orientation);
+        TextBlock groundCallsign = Assert.IsType<TextBlock>(callsignLine.Children[0]);
+        Assert.Equal("SWA200", groundCallsign.Text);
+        Assert.Equal(FontWeight.SemiBold, groundCallsign.FontWeight);
+        Assert.Equal("B738", Assert.IsType<TextBlock>(callsignLine.Children[1]).Text);
         Assert.Empty(groundView.GetVisualDescendants().OfType<Border>());
+
+        // Give way to's rows lead with a mark: ■ in grey for a parked aircraft, ▶ in the ground teal for a moving one.
+        TextBlock parkedMark = Assert.IsType<TextBlock>(Assert.IsType<Grid>(groundView).Children[0]);
+        Assert.Equal("■", parkedMark.Text);
+        Assert.Equal(Color.Parse("#8C95A0"), Assert.IsAssignableFrom<ISolidColorBrush>(parkedMark.Foreground).Color);
+        Control movingView = RowView(TrafficRow(Item(tree, "Give way to…"), "SWA300"));
+        TextBlock movingMark = Assert.IsType<TextBlock>(Assert.IsType<Grid>(movingView).Children[0]);
+        Assert.Equal("▶", movingMark.Text);
+        Assert.Equal(
+            QuickCommandStrip.FamilyColor(QuickCommandGlyphFamily.Ground),
+            Assert.IsAssignableFrom<ISolidColorBrush>(movingMark.Foreground).Color
+        );
+
+        // Follow's rows lead with the Follow glyph instead, no mark, and stack the state the same way.
+        Button followRow = FollowListItems.Row(Item(tree, "Follow…"), "SWA200");
+        Grid followView = Assert.IsType<Grid>(followRow.ContentTemplate!.Build(followRow.Content)!);
+        Assert.IsType<Viewbox>(followView.Children[0]);
+        Assert.DoesNotContain(TextBlocks(followView), block => block.Text is "■" or "▶");
+        Assert.Equal(Orientation.Vertical, Assert.IsType<StackPanel>(TextWithContent(followView, "at parking · gate 1").Parent).Orientation);
     }
 
     /// <summary>The view <paramref name="row"/>'s header template builds from its header.</summary>
@@ -211,19 +256,22 @@ public class GroundSubmenuGroupTests
         MenuItem giveWay = Item(CommandTree(menu), "Give way to…");
         Assert.Equal(
             ["Parked or holding", .. traffic.Select(cs => $"{cs} · B738 · at parking · gate 1 · ~600 ft — FOLLOWG {cs}")],
-            follow.Items.OfType<MenuItem>().Select(item => item.Header?.ToString())
+            FollowListItems.Entries(follow)
         );
         Assert.Equal(
-            ["Parked or holding", .. traffic.Select(cs => $"{cs} · B738 · at parking · gate 1 · ~600 ft — GW {cs}")],
+            [
+                $"{GroundTrafficFlyout.GiveWayTitle} · {GroundTrafficFlyout.GiveWayLegend}",
+                .. traffic.Select(cs => $"{cs} · B738 · at parking · gate 1 · ~600 ft — GW {cs}"),
+            ],
             giveWay.Items.OfType<MenuItem>().Select(item => item.Header?.ToString())
         );
 
-        RaisePointerEntered(FollowRow(follow, traffic[0]));
+        RaisePointerEntered(FollowListItems.Row(follow, traffic[0]));
         Assert.Equal(["SWA200"], host.Highlights);
 
         foreach (string other in traffic)
         {
-            Click(follow.Items.OfType<MenuItem>().First(item => item.Header?.ToString()?.StartsWith($"{other} ·", StringComparison.Ordinal) == true));
+            FollowListItems.Click(FollowListItems.Row(follow, other));
         }
 
         foreach (string other in traffic)
@@ -381,14 +429,14 @@ public class GroundSubmenuGroupTests
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
     /// <summary>The traffic row in <paramref name="menu"/> whose one-line header starts with <paramref name="callsign"/>.</summary>
-    private static MenuItem FollowRow(MenuItem menu, string callsign) =>
+    private static MenuItem TrafficRow(MenuItem menu, string callsign) =>
         menu.Items.OfType<MenuItem>().First(item => item.Header?.ToString()?.StartsWith($"{callsign} ·", StringComparison.Ordinal) == true);
 
     /// <summary>
     /// Raises a pointer enter on <paramref name="item"/> with a real <see cref="PointerEventArgs"/>, which the typed
     /// <see cref="InputElement.PointerEntered"/> handler requires (see <c>GroundSubmenuCharacterizationTests.RaisePointer</c>).
     /// </summary>
-    private static void RaisePointerEntered(MenuItem item) =>
+    private static void RaisePointerEntered(Control item) =>
         item.RaiseEvent(
             new PointerEventArgs(
                 InputElement.PointerEnteredEvent,

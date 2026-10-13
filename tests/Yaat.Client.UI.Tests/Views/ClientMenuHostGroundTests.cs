@@ -1229,10 +1229,10 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         string[] groundItems = ["Hold short of…", "Follow…", "Give way to…"];
         Assert.Equal(groundItems, Headers(CommandTree(menu)).Where(groundItems.Contains));
         Assert.Equal(["route G · RWY 28L"], Headers(Item(CommandTree(menu), "Hold short of…").Items));
-        MenuItem followRow = TrafficRow(Item(CommandTree(menu), "Follow…").Items, OtherCallsign);
+        Button followRow = FollowListItems.Row(Item(CommandTree(menu), "Follow…"), OtherCallsign);
         MenuItem giveWayRow = TrafficRow(Item(CommandTree(menu), "Give way to…").Items, OtherCallsign);
-        Assert.Equal(["Moving"], Headers(Item(CommandTree(menu), "Follow…").Items));
-        Assert.Equal(["Moving"], Headers(Item(CommandTree(menu), "Give way to…").Items));
+        Assert.Equal(["Moving"], FollowListItems.Titles(Item(CommandTree(menu), "Follow…")));
+        Assert.IsType<GroundTrafficFlyoutTitle>(Item(CommandTree(menu), "Give way to…").Items.OfType<MenuItem>().First().Header);
 
         MenuItem holdShortRunway = Assert.Single(Item(CommandTree(menu), "Hold short of…").Items.OfType<MenuItem>(), m => m.Header is not string);
         RaisePointerEntered(holdShortRunway);
@@ -1240,7 +1240,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.Equal(Bar28ROnG.Id, main.Ground.PreviewRoute.Segments[^1].ToNodeId);
 
         Click(holdShortRunway);
-        Click(followRow);
+        FollowListItems.Click(followRow);
         Click(giveWayRow);
 
         Assert.Equal([(Callsign, "HS 10L", "AB"), (Callsign, $"FOLLOWG {OtherCallsign}", "AB"), (Callsign, $"GW {OtherCallsign}", "AB")], host.Sent);

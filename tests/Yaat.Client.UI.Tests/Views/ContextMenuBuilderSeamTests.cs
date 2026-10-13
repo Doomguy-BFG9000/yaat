@@ -38,6 +38,7 @@ public class ContextMenuBuilderSeamTests
                 item switch
                 {
                     Separator => "---",
+                    MenuItem { Header: MenuDisabledReasonRow disabled } => disabled.ToString(),
                     MenuItem menuItem => menuItem.Header as string ?? "(unnamed)",
                     _ => "(unnamed)",
                 }
@@ -304,6 +305,8 @@ public class ContextMenuBuilderSeamTests
                 "Push back",
                 "Push route…",
                 "Taxi to runway",
+                // No other aircraft is on the ground: the entry stays, disabled with the reason, rather than leaving the list.
+                "Follow… · no other aircraft on the ground",
                 "Draw taxi route…",
                 "---",
                 "Ask pilot to say…",

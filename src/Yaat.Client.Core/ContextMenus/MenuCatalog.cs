@@ -275,13 +275,13 @@ public static class MenuCatalog
             MenuIds.GroundFollow,
             "Follow…",
             AircraftCommandApplicability.CanFollowBehind,
-            (label, _, context, host) => BuildGroundTraffic(label, "FOLLOWG", includeSurfaceShadows: true, context, host)
+            (label, _, context, host) => GroundTrafficFlyout.BuildFollow(label, context, host)
         ),
         HostLeaf(
             MenuIds.GroundGiveWay,
             "Give way to…",
             AircraftCommandApplicability.CanGiveWayTo,
-            (label, _, context, host) => BuildGroundTraffic(label, "GW", includeSurfaceShadows: false, context, host)
+            (label, _, context, host) => GroundTrafficFlyout.BuildGiveWay(label, context, host)
         ),
         HostLeaf(
             MenuIds.GroundTaxiPreset,
@@ -1041,67 +1041,6 @@ public static class MenuCatalog
         return item;
     }
 
-    /// <summary>How many aircraft each section of the Follow… and Give way to… submenus lists before its More flyout.</summary>
-    private const int GroundTrafficRowsPerSection = 4;
-
-    /// <summary>
-    /// The Follow… or Give way to… submenu over the host's ground traffic (<see cref="IMenuHost.GetGroundTrafficRows"/>),
-    /// leaving out surface shadows unless <paramref name="includeSurfaceShadows"/>: a Moving section, then a Parked or
-    /// holding section (<see cref="MenuGroundTrafficRow.IsMoving"/>), each in the host's nearest-first order
-    /// (<see cref="AddGroundTrafficSection"/>). Every row sends <paramref name="verb"/> with its callsign and highlights its
-    /// aircraft while the pointer is on it. Null when no aircraft is left to list.
-    /// </summary>
-    private static MenuItem? BuildGroundTraffic(string label, string verb, bool includeSurfaceShadows, MenuContext context, IMenuHost host)
-    {
-        List<MenuGroundTrafficRow> traffic =
-        [
-            .. host.GetGroundTrafficRows(context.Callsign).Where(row => includeSurfaceShadows || !row.IsSurfaceShadow),
-        ];
-        if (traffic.Count == 0)
-        {
-            return null;
-        }
-
-        var menu = new MenuItem { Header = label };
-        var sender = new GroundTrafficRowSender(verb, context, host);
-        AddGroundTrafficSection(menu.Items, "Moving", [.. traffic.Where(row => row.IsMoving)], sender);
-        AddGroundTrafficSection(menu.Items, "Parked or holding", [.. traffic.Where(row => !row.IsMoving)], sender);
-        return menu;
-    }
-
-    /// <summary>
-    /// One section of a ground traffic submenu: its bold <paramref name="title"/>, the first
-    /// <see cref="GroundTrafficRowsPerSection"/> of <paramref name="rows"/>, then <c>More ({n}, up to ~{d} ft)</c>, a flyout
-    /// over the rest. Adds nothing for no rows.
-    /// </summary>
-    private static void AddGroundTrafficSection(ItemCollection items, string title, List<MenuGroundTrafficRow> rows, GroundTrafficRowSender sender)
-    {
-        if (rows.Count == 0)
-        {
-            return;
-        }
-
-        items.Add(SharedMenuGroups.SectionLabel(title));
-        foreach (MenuGroundTrafficRow row in rows.Take(GroundTrafficRowsPerSection))
-        {
-            items.Add(sender.Row(row));
-        }
-
-        List<MenuGroundTrafficRow> rest = [.. rows.Skip(GroundTrafficRowsPerSection)];
-        if (rest.Count == 0)
-        {
-            return;
-        }
-
-        var more = new MenuItem { Header = $"More ({rest.Count}, up to ~{RelativeGeometry.FeetText(rest.Max(row => row.DistanceFeet))})" };
-        foreach (MenuGroundTrafficRow row in rest)
-        {
-            more.Items.Add(sender.Row(row));
-        }
-
-        items.Add(more);
-    }
-
     /// <summary>
     /// An Exit left / Exit right entry: a submenu over the named exits ahead on its side
     /// (<see cref="BuildExitFlyout"/>), applicable on the rollout and while the aircraft has an exits-ahead list, and then
@@ -1183,32 +1122,6 @@ public static class MenuCatalog
             Command = command,
         };
         return BuildTemplatedSend(header, MenuCommandRowTemplate.Instance, command, context, host);
-    }
-
-    /// <summary>
-    /// Builds a ground traffic submenu's rows: the callsign and type over the dimmed state, then the distance and the
-    /// command. Each sends the verb with its callsign and highlights its aircraft on hover.
-    /// </summary>
-    private sealed class GroundTrafficRowSender(string verb, MenuContext context, IMenuHost host)
-    {
-        public MenuItem Row(MenuGroundTrafficRow row)
-        {
-            string command = $"{verb} {row.Callsign}";
-            var header = new MenuCommandRow
-            {
-                Badge = null,
-                Name = (row.AircraftType.Length > 0) ? $"{row.Callsign} · {row.AircraftType}" : row.Callsign,
-                EmphasizeName = false,
-                IsHighlighted = false,
-                Detail = row.State,
-                DetailPlacement = MenuDetailPlacement.Stacked,
-                Distance = $"~{RelativeGeometry.FeetText(row.DistanceFeet)}",
-                Command = command,
-            };
-            MenuItem item = BuildTemplatedSend(header, MenuCommandRowTemplate.Instance, command, context, host);
-            item.PointerEntered += (_, _) => host.HighlightAircraft(row.Callsign);
-            return item;
-        }
     }
 
     /// <summary>

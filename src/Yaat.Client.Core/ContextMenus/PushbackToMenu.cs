@@ -81,38 +81,6 @@ public static class PushbackToMenu
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown push target kind."),
         };
 
-    /// <summary>
-    /// Moves <paramref name="items"/> to read <paramref name="wanted"/>, in order, touching only what differs: an item in
-    /// both stays where it is unless the order moved it, so a surviving row keeps its pointer-over and its focus.
-    /// </summary>
-    private static void Sync(ItemCollection items, IReadOnlyList<Control> wanted)
-    {
-        var keep = new HashSet<object?>(wanted, ReferenceEqualityComparer.Instance);
-        for (int i = items.Count - 1; i >= 0; i--)
-        {
-            if (!keep.Contains(items[i]))
-            {
-                items.RemoveAt(i);
-            }
-        }
-
-        for (int i = 0; i < wanted.Count; i++)
-        {
-            if ((i < items.Count) && ReferenceEquals(items[i], wanted[i]))
-            {
-                continue;
-            }
-
-            int at = items.IndexOf(wanted[i]);
-            if (at >= 0)
-            {
-                items.RemoveAt(at);
-            }
-
-            items.Insert(i, wanted[i]);
-        }
-    }
-
     private static MenuItem Placeholder(string text) => new() { Header = text, IsEnabled = false };
 
     private static MenuItem SectionHeader(string text) =>
@@ -217,7 +185,7 @@ public static class PushbackToMenu
         private void Show(bool settled)
         {
             // The strip moves the items into its flyout once, for good; until then they are the submenu's own.
-            Sync(_flyoutItems ?? entry.Items, Wanted(settled));
+            FlyoutItemSync.Sync(_flyoutItems ?? entry.Items, Wanted(settled));
             _shownTargets = list.Targets;
             _shownSettled = settled;
         }

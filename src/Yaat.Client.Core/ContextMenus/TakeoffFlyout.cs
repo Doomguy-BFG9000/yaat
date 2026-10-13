@@ -317,7 +317,7 @@ internal static class TakeoffFlyout
         AutomationProperties.SetName(item, box.ToString());
         box.Changed += (_, _) => AutomationProperties.SetName(item, box.ToString());
         item.Click += (_, e) => e.Handled = true;
-        HandFocusToTheBox(item);
+        FlyoutBoxFocus.HandFocusToTheBox(item);
         return item;
     }
 
@@ -427,7 +427,7 @@ internal static class TakeoffFlyout
             row.Changed += (_, _) => Follow();
             if (row.Input != TakeoffRowInput.None)
             {
-                HandFocusToTheBox(item);
+                FlyoutBoxFocus.HandFocusToTheBox(item);
             }
 
             if (row.Altitude is { } box)
@@ -448,25 +448,6 @@ internal static class TakeoffFlyout
             return item;
         }
     }
-
-    /// <summary>
-    /// Passes keyboard focus that lands on <paramref name="item"/> itself on to the text box in its header. A menu selects
-    /// and focuses the row under the pointer or the arrow keys, and focuses it again once a click in its box is over,
-    /// which would leave the box unable to take typing; handed on, the caret goes into the box instead.
-    /// </summary>
-    private static void HandFocusToTheBox(MenuItem item) =>
-        item.AddHandler(
-            InputElement.GotFocusEvent,
-            (_, e) =>
-            {
-                if (ReferenceEquals(e.Source, item) && (item.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() is { } box))
-                {
-                    box.Focus(e.NavigationMethod);
-                }
-            },
-            RoutingStrategies.Bubble,
-            handledEventsToo: true
-        );
 
     /// <summary>
     /// Keeps a click in a box inside a menu row to the box: the release is marked handled, so the menu does not take it

@@ -80,6 +80,7 @@ public static class QuickCommandStrip
     public static IImmutableSolidColorBrush WellBrush { get; } = new ImmutableSolidColorBrush(WellBackground);
     private static readonly ILogger Log = AppLog.CreateLogger("QuickCommandStrip");
     private static readonly ConditionalWeakTable<MenuItem, IStripFlyoutContent> FlyoutContents = [];
+    private static readonly ConditionalWeakTable<MenuItem, string> InertLabels = [];
 
     /// <summary>
     /// The strip for <paramref name="items"/>, in order, or null when there are none or none of them builds a menu item
@@ -279,8 +280,9 @@ public static class QuickCommandStrip
 
     private static Button BuildButton(ContextMenu menu, QuickCommandStripItem item, MenuItem built, StripLabelTracker tracker, StripFlyouts flyouts)
     {
-        bool opensSubmenu = built.Items.Count > 0;
-        StripLabelText text = LabelText(item.Entry, built);
+        InertLabels.TryGetValue(built, out string? inertLabel);
+        bool opensSubmenu = (inertLabel is null) && (built.Items.Count > 0);
+        StripLabelText text = (inertLabel is null) ? LabelText(item.Entry, built) : new(inertLabel, null);
         var button = new Button
         {
             Content = GlyphCell(item.Glyph, opensSubmenu),
@@ -291,7 +293,11 @@ public static class QuickCommandStrip
         button.PointerEntered += (_, _) => tracker.Point(text);
         button.GotFocus += (_, _) => tracker.Focus(button, text);
         button.LostFocus += (_, _) => tracker.Blur(button);
-        if (opensSubmenu)
+        if (inertLabel is not null)
+        {
+            button.Opacity = MenuGlyphRowTemplate.DimmedOpacity;
+        }
+        else if (opensSubmenu)
         {
             flyouts.Attach(button, SubmenuFlyout(menu, built));
         }
@@ -357,6 +363,14 @@ public static class QuickCommandStrip
     /// <param name="entry">The submenu a catalog entry built.</param>
     /// <param name="content">What keeps the entry's items current.</param>
     public static void FollowInFlyout(MenuItem entry, IStripFlyoutContent content) => FlyoutContents.AddOrUpdate(entry, content);
+
+    /// <summary>
+    /// Has the strip button standing for <paramref name="entry"/> stay in place but faded, opening and sending nothing,
+    /// its label in the header line reading <paramref name="label"/> (<c>Follow · no other aircraft on the ground</c>).
+    /// </summary>
+    /// <param name="entry">The item a catalog entry built that has nothing to offer now.</param>
+    /// <param name="label">The label naming the entry and why it offers nothing.</param>
+    public static void MarkInert(MenuItem entry, string label) => InertLabels.AddOrUpdate(entry, label);
 
     private static void CloseOnChoices(IReadOnlyList<Control> items, MenuFlyout flyout, ContextMenu menu)
     {

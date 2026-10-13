@@ -72,7 +72,8 @@ public class AircraftMenuBuilderTests
 
         List<string> tags = StripTags(menu);
         Assert.Equal(release, tags[..release.Count]);
-        Assert.Equal([MenuIds.GroundHoldPosition, MenuIds.GroundBreakConflict], tags[release.Count..]);
+        // With no other ground traffic, Follow stays in the strip, faded.
+        Assert.Equal([MenuIds.GroundHoldPosition, MenuIds.GroundFollow, MenuIds.GroundBreakConflict], tags[release.Count..]);
         Assert.Equal(["SWA104 · B738", "Taxiing", "---", StripRow], Sequence(menu)[..4]);
         Assert.DoesNotContain(Label(MenuIds.CoordinationReleaseHeld), Sequence(menu));
         Assert.DoesNotContain(Label(MenuIds.CoordinationCheckReleaseWindow), Sequence(menu));
@@ -85,7 +86,8 @@ public class AircraftMenuBuilderTests
 
         ContextMenu menu = Build(Fixture("taxiing"), new RecordingMenuHost(""), _ => []);
 
-        Assert.Equal([MenuIds.GroundHoldPosition, MenuIds.GroundBreakConflict], StripTags(menu));
+        // With no other ground traffic, Follow stays in the strip, faded.
+        Assert.Equal([MenuIds.GroundHoldPosition, MenuIds.GroundFollow, MenuIds.GroundBreakConflict], StripTags(menu));
     }
 
     /// <summary>An aircraft with no strip of its own still gets one holding just the release icons that apply.</summary>

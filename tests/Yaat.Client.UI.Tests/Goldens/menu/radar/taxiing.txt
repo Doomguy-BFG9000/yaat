@@ -2,7 +2,7 @@
 SWA104 · B738 [disabled]
 Taxiing [disabled]
 ---
-strip: [ground.hold-position, ground.break-conflict]
+strip: [ground.hold-position, ground.follow, ground.break-conflict]
 ---
 Command…
 Note…
@@ -12,6 +12,8 @@ All Commands
     Finding runway entries… [disabled]
   Preset taxi route
     PR 30 to TERMINAL · via W V T · ~4,750 ft — TAXI W V T
+  Follow… · no other aircraft on the ground [disabled]
+  Give way to… · no other aircraft on the ground [disabled]
   Ignore ground conflicts (15 s)
   Tower
     Line up and wait 30
